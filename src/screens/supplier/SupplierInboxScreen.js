@@ -1,3 +1,2 @@
-import React from 'react';
-import { View } from 'react-native';
-export default function SupplierInboxScreen() { return <View />; }
+// Suppliers share the same inbox/chat flow as buyers — reuse InboxScreen
+export { default } from '../buyer/InboxScreen';
