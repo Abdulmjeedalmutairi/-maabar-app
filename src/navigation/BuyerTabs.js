@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, Platform } from 'react-native';
 import { C } from '../lib/colors';
 
-import DashboardScreen from '../screens/buyer/DashboardScreen';
+import NewHomeScreen from '../screens/buyer/NewHomeScreen';
 import RequestsScreen from '../screens/buyer/RequestsScreen';
 import OffersScreen from '../screens/buyer/OffersScreen';
 import InboxScreen from '../screens/buyer/InboxScreen';
@@ -23,7 +23,7 @@ const STACK_OPTS = { headerShown: false };
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={STACK_OPTS}>
-      <Stack.Screen name="BuyerHome" component={DashboardScreen} />
+      <Stack.Screen name="BuyerHome" component={NewHomeScreen} />
       <Stack.Screen name="Products" component={ProductsScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Stack.Screen name="Suppliers" component={SuppliersScreen} />
@@ -51,7 +51,7 @@ function InboxStack() {
 }
 
 const TAB_ICON = { Home: '⌂', Requests: '◫', Inbox: '◎', Account: '⊙' };
-const TAB_LABEL = { Home: 'الرئيسية', Requests: 'طلباتي', Inbox: 'رسائل', Account: 'حسابي' };
+const TAB_LABEL = { Home: 'الرئيسية', Requests: 'طلباتي', Inbox: 'الرسائل', Account: 'حسابي' };
 
 function tabIcon(name, focused) {
   return (
