@@ -9,6 +9,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import DashboardOverview from '../../components/dashboard/DashboardOverview';
+import MaabarLogo from '../../components/MaabarLogo';
 
 export default function DashboardScreen({ navigation, route }) {
   const [profile, setProfile] = useState(null);
@@ -219,9 +220,12 @@ export default function DashboardScreen({ navigation, route }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <MaabarLogo size="sm" />
+        </View>
         <View style={styles.headerContent}>
           <Text style={styles.headerLabel}>
-            {isArabic ? 'مَعبر · لوحة التاجر' : 'Maabar · Trader Dashboard'}
+            {isArabic ? 'لوحة التاجر' : 'Trader Dashboard'}
           </Text>
           <Text style={styles.welcomeTitle}>
             {isArabic ? `أهلاً، ${firstName}` : `Welcome, ${firstName}`}
@@ -272,8 +276,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.borderSubtle,
     paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingTop: 20,
     paddingBottom: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   headerContent: {
     maxWidth: 500,
