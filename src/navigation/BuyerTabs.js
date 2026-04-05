@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text, Platform } from 'react-native';
 import { C } from '../lib/colors';
 
-import HomeScreen from '../screens/buyer/HomeScreen';
+import DashboardScreen from '../screens/buyer/DashboardScreen';
 import RequestsScreen from '../screens/buyer/RequestsScreen';
 import OffersScreen from '../screens/buyer/OffersScreen';
 import InboxScreen from '../screens/buyer/InboxScreen';
@@ -23,7 +23,7 @@ const STACK_OPTS = { headerShown: false };
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={STACK_OPTS}>
-      <Stack.Screen name="BuyerHome" component={HomeScreen} />
+      <Stack.Screen name="BuyerHome" component={DashboardScreen} />
       <Stack.Screen name="Products" component={ProductsScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Stack.Screen name="Suppliers" component={SuppliersScreen} />
