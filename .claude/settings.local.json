@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo:*)",
+      "Bash(where gh:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(npx expo:*)",
+      "Bash(npx eas:*)",
+      "Bash(npm install:*)",
+      "Bash(eas login:*)",
+      "Bash(grep -E \"\\\\.\\(js|jsx|ts|tsx|css\\)$\")",
+      "Bash(wc -l /c/Users/Mje_0/maabar/src/pages/*.jsx)",
+      "Bash(xargs ls:*)",
+      "Bash(xargs -I {} basename {})"
+    ]
+  }
+}
