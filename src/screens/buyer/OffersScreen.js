@@ -6,139 +6,311 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
+import { F } from '../../lib/fonts';
+import { getLang } from '../../lib/lang';
 
-const OFFER_STATUS_AR = {
-  pending: 'قيد الانتظار',
-  accepted: 'مقبول',
-  rejected: 'مرفوض',
-  negotiating: 'قيد التفاوض',
+const USD_TO_SAR = 3.75;
+
+// Fields to skip when rendering the dynamic details section
+const SKIP_FIELDS = new Set([
+  'id', 'supplier_id', 'request_id', 'status', 'created_at', 'updated_at', 'profiles',
+]);
+
+// Fields that contain price values (converted to local currency)
+const PRICE_FIELDS = new Set(['price', 'shipping_cost', 'sample_cost']);
+
+// Labels matching the web DashboardBuyer.jsx (Arabic + English)
+const FIELD_LABELS = {
+  price:            { ar: 'سعر الوحدة',             en: 'Unit Price' },
+  shipping_cost:    { ar: 'تكلفة الشحن',            en: 'Shipping Cost' },
+  shipping_method:  { ar: 'طريقة الشحن',            en: 'Shipping Method' },
+  moq:              { ar: 'الحد الأدنى للطلب (MOQ)', en: 'Min. Order Qty (MOQ)' },
+  delivery_days:    { ar: 'مدة التجهيز (أيام)',      en: 'Lead Time (days)' },
+  origin:           { ar: 'بلد المنشأ',              en: 'Origin' },
+  note:             { ar: 'ملاحظة تجارية',           en: 'Commercial Note' },
+  payment_terms:    { ar: 'شروط الدفع',             en: 'Payment Terms' },
+  warranty:         { ar: 'الضمان',                  en: 'Warranty' },
+  sample_available: { ar: 'عينة متاحة',             en: 'Sample Available' },
+  sample_cost:      { ar: 'تكلفة العينة',           en: 'Sample Cost' },
+  certifications:   { ar: 'الشهادات',               en: 'Certifications' },
+  packaging:        { ar: 'التغليف',                en: 'Packaging' },
+  currency:         { ar: 'العملة',                 en: 'Currency' },
 };
+
+function getLabel(key, isAr) {
+  const entry = FIELD_LABELS[key];
+  if (entry) return isAr ? entry.ar : entry.en;
+  // Fallback: convert snake_case to Title Case
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 export default function OffersScreen({ route, navigation }) {
   const { requestId, title } = route.params || {};
-  const [offers, setOffers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [offers, setOffers]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [expandedMap, setExpandedMap] = useState({});  // { [offerId]: boolean }
+  const [rejectedMap, setRejectedMap] = useState({});  // { [offerId]: true } — flashing "تم الرفض"
+
+  const lang = getLang();
+  const isAr = lang === 'ar';
+
+  function fmtPrice(usd) {
+    if (usd == null) return '—';
+    const num = parseFloat(usd);
+    if (isNaN(num)) return String(usd);
+    if (isAr) return `${(num * USD_TO_SAR).toFixed(2)} ر.س`;
+    return `$${num.toFixed(2)}`;
+  }
+
+  function toggleExpanded(offerId) {
+    setExpandedMap(prev => ({ ...prev, [offerId]: !prev[offerId] }));
+  }
 
   useEffect(() => {
-    if (!requestId) return;
+    if (!requestId) { setLoading(false); return; }
     loadOffers();
   }, [requestId]);
 
   async function loadOffers() {
-    const { data } = await supabase
+    setLoading(true);
+
+    // Fetch ALL columns so the dynamic details section can show everything
+    const { data: offersData, error } = await supabase
       .from('offers')
-      .select(`
-        id, price, shipping_cost, shipping_method, status, created_at,
-        profiles:supplier_id (id, company_name, maabar_supplier_id, trust_score)
-      `)
+      .select('*')
       .eq('request_id', requestId)
       .order('created_at', { ascending: false });
-    setOffers(data || []);
+
+    if (error) {
+      console.error('loadOffers error:', error.message);
+      setOffers([]);
+      setLoading(false);
+      return;
+    }
+
+    const rows = offersData || [];
+    if (rows.length === 0) {
+      setOffers([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch supplier profiles separately (avoids RLS/FK join issues)
+    const supplierIds = [...new Set(rows.map(o => o.supplier_id).filter(Boolean))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, company_name, maabar_supplier_id, trust_score')
+      .in('id', supplierIds);
+
+    const profileMap = (profilesData || []).reduce((acc, p) => {
+      acc[p.id] = p;
+      return acc;
+    }, {});
+
+    setOffers(rows.map(o => ({ ...o, profiles: profileMap[o.supplier_id] || null })));
     setLoading(false);
   }
 
   async function handleAccept(offerId) {
-    Alert.alert('قبول العرض', 'هل أنت متأكد من قبول هذا العرض؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'قبول',
-        onPress: async () => {
-          await supabase.from('offers').update({ status: 'accepted' }).eq('id', offerId);
-          await supabase.from('requests').update({ status: 'closed' }).eq('id', requestId);
-          loadOffers();
+    Alert.alert(
+      isAr ? 'قبول العرض' : 'Accept Offer',
+      isAr ? 'هل أنت متأكد من قبول هذا العرض؟' : 'Are you sure you want to accept this offer?',
+      [
+        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isAr ? 'قبول' : 'Accept',
+          onPress: async () => {
+            await supabase.from('offers').update({ status: 'accepted' }).eq('id', offerId);
+            await supabase.from('requests').update({ status: 'closed' }).eq('id', requestId);
+            loadOffers();
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
-  async function handleChat(supplierId) {
+  function handleReject(offerId) {
+    Alert.alert(
+      isAr ? 'رفض العرض' : 'Reject Offer',
+      isAr ? 'هل أنت متأكد من رفض هذا العرض؟' : 'Are you sure you want to reject this offer?',
+      [
+        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isAr ? 'تأكيد الرفض' : 'Confirm Reject',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('offers').update({ status: 'rejected' }).eq('id', offerId);
+            // Show "تم الرفض" flash on the card
+            setRejectedMap(prev => ({ ...prev, [offerId]: true }));
+            // After 1.5s remove from list
+            setTimeout(() => {
+              setOffers(prev => prev.filter(o => o.id !== offerId));
+              setRejectedMap(prev => { const n = { ...prev }; delete n[offerId]; return n; });
+            }, 1500);
+          },
+        },
+      ]
+    );
+  }
+
+  function handleChat(supplierId) {
+    if (!supplierId) return;
+    // Navigate to the Inbox tab → Chat screen, passing the supplier's user ID
     navigation.navigate('Inbox', {
       screen: 'Chat',
       params: { partnerId: supplierId },
     });
   }
 
+  // Render a single detail row
+  function DetailRow({ label, value }) {
+    return (
+      <View style={s.detailRow}>
+        <Text style={s.detailLabel}>{label}</Text>
+        <Text style={s.detailValue}>{value}</Text>
+      </View>
+    );
+  }
+
+  // Build the dynamic details list from all non-null, non-metadata offer fields
+  function renderDetails(offer) {
+    return Object.entries(offer)
+      .filter(([key, val]) => {
+        if (SKIP_FIELDS.has(key)) return false;
+        if (val === null || val === undefined || val === '') return false;
+        return true;
+      })
+      .map(([key, val]) => {
+        const label = getLabel(key, isAr);
+        const displayVal = PRICE_FIELDS.has(key) ? fmtPrice(val) : String(val);
+        return <DetailRow key={key} label={label} value={displayVal} />;
+      });
+  }
+
   return (
     <SafeAreaView style={s.safe}>
+
+      {/* Top bar */}
       <View style={s.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>← رجوع</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Text style={s.back}>← {isAr ? 'رجوع' : 'Back'}</Text>
         </TouchableOpacity>
-        <Text style={s.pageTitle} numberOfLines={1}>العروض</Text>
+        <Text style={s.pageTitle} numberOfLines={1}>
+          {isAr ? 'العروض' : 'Offers'}
+        </Text>
       </View>
 
       {!!title && <Text style={s.reqTitle}>{title}</Text>}
 
       {loading ? (
-        <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>
+        <View style={s.center}>
+          <ActivityIndicator color="rgba(0,0,0,0.35)" size="large" />
+        </View>
       ) : offers.length === 0 ? (
         <View style={s.emptyCard}>
-          <Text style={s.emptyText}>لا توجد عروض بعد</Text>
-          <Text style={s.emptySubText}>سيصلك إشعار عند وصول العروض</Text>
+          <Text style={s.emptyText}>{isAr ? 'لا توجد عروض بعد' : 'No offers yet'}</Text>
+          <Text style={s.emptySubText}>{isAr ? 'سيصلك إشعار عند وصول العروض' : 'You\'ll be notified when offers arrive'}</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.list}>
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
           {offers.map(offer => {
-            const total = (offer.price || 0) + (offer.shipping_cost || 0);
-            const status = offer.status || 'pending';
-            const isAccepted = status === 'accepted';
+            const total       = (parseFloat(offer.price) || 0) + (parseFloat(offer.shipping_cost) || 0);
+            const status      = offer.status || 'pending';
+            const isAccepted  = status === 'accepted';
+            const isExpanded  = !!expandedMap[offer.id];
+            const isRejecting = !!rejectedMap[offer.id];
+
             return (
               <View key={offer.id} style={[s.card, isAccepted && s.cardAccepted]}>
-                {/* Supplier */}
+
+                {/* ── Supplier header ── */}
                 <View style={s.supplierRow}>
+                  <Text style={s.supplierName}>
+                    {offer.profiles?.company_name || (isAr ? 'مورد' : 'Supplier')}
+                  </Text>
                   {isAccepted && (
                     <View style={s.acceptedBadge}>
-                      <Text style={s.acceptedText}>✓ مقبول</Text>
+                      <Text style={s.acceptedText}>✓ {isAr ? 'مقبول' : 'Accepted'}</Text>
                     </View>
                   )}
-                  <Text style={s.supplierName}>
-                    {offer.profiles?.company_name || 'مورد'}
-                  </Text>
                 </View>
                 {!!offer.profiles?.maabar_supplier_id && (
                   <Text style={s.supplierId}>{offer.profiles.maabar_supplier_id}</Text>
                 )}
 
-                {/* Pricing */}
+                {/* ── Price summary ── */}
                 <View style={s.priceRow}>
                   <View style={s.priceItem}>
-                    <Text style={s.priceLabel}>سعر الشحن</Text>
-                    <Text style={s.priceValue}>${offer.shipping_cost?.toFixed(2) || '—'}</Text>
+                    <Text style={s.priceLabel}>{isAr ? 'سعر الوحدة' : 'Unit Price'}</Text>
+                    <Text style={s.priceValue}>{fmtPrice(offer.price)}</Text>
                   </View>
                   <View style={s.priceItem}>
-                    <Text style={s.priceLabel}>سعر الوحدة</Text>
-                    <Text style={s.priceValue}>${offer.price?.toFixed(2) || '—'}</Text>
+                    <Text style={s.priceLabel}>{isAr ? 'الشحن' : 'Shipping'}</Text>
+                    <Text style={s.priceValue}>{fmtPrice(offer.shipping_cost)}</Text>
                   </View>
                 </View>
 
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>الإجمالي</Text>
-                  <Text style={s.totalValue}>${total.toFixed(2)}</Text>
+                  <Text style={s.totalLabel}>{isAr ? 'الإجمالي التقديري' : 'Est. Total'}</Text>
+                  <Text style={s.totalValue}>{fmtPrice(total)}</Text>
                 </View>
 
-                {offer.shipping_method && (
-                  <Text style={s.shippingMethod}>الشحن: {offer.shipping_method}</Text>
+                {/* ── تفاصيل toggle ── */}
+                <TouchableOpacity
+                  style={s.detailsToggle}
+                  onPress={() => toggleExpanded(offer.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.detailsToggleText}>
+                    {isExpanded
+                      ? (isAr ? '▲ إخفاء التفاصيل' : '▲ Hide Details')
+                      : (isAr ? '▼ تفاصيل' : '▼ Details')}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* ── Expanded details: all non-null offer fields ── */}
+                {isExpanded && (
+                  <View style={s.detailsBox}>
+                    {renderDetails(offer)}
+                  </View>
                 )}
 
-                {/* Actions */}
-                {status === 'pending' && (
+                {/* ── Rejection flash ── */}
+                {isRejecting && (
+                  <View style={s.rejectedFlash}>
+                    <Text style={s.rejectedFlashText}>{isAr ? 'تم الرفض' : 'Rejected'}</Text>
+                  </View>
+                )}
+
+                {/* ── Actions: only for pending offers ── */}
+                {status === 'pending' && !isRejecting && (
                   <View style={s.actions}>
+                    <View style={s.actionsTop}>
+                      <TouchableOpacity
+                        style={s.chatBtn}
+                        onPress={() => handleChat(offer.supplier_id)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={s.chatBtnText}>{isAr ? 'تواصل' : 'Chat'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.acceptBtn}
+                        onPress={() => handleAccept(offer.id)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={s.acceptBtnText}>{isAr ? 'قبول العرض' : 'Accept Offer'}</Text>
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
-                      style={s.chatBtn}
-                      onPress={() => handleChat(offer.profiles?.id)}
-                      activeOpacity={0.8}
+                      style={s.rejectBtn}
+                      onPress={() => handleReject(offer.id)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={s.chatBtnText}>تواصل</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.acceptBtn}
-                      onPress={() => handleAccept(offer.id)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={s.acceptBtnText}>قبول العرض</Text>
+                      <Text style={s.rejectBtnText}>{isAr ? 'رفض' : 'Reject'}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
+
               </View>
             );
           })}
@@ -149,74 +321,150 @@ export default function OffersScreen({ route, navigation }) {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bgBase },
+  safe:   { flex: 1, backgroundColor: C.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   topBar: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderSubtle,
   },
-  back: { color: C.accent, fontSize: 14 },
-  pageTitle: { color: C.textPrimary, fontSize: 17, fontWeight: '700', maxWidth: '70%', textAlign: 'right' },
-  reqTitle: {
-    color: C.textSecondary, fontSize: 13, textAlign: 'right',
-    paddingHorizontal: 20, paddingVertical: 10,
-  },
+  back:      { color: C.textSecondary, fontFamily: F.ar, fontSize: 14 },
+  pageTitle: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 17, maxWidth: '70%', textAlign: 'right' },
+  reqTitle:  { color: C.textSecondary, fontFamily: F.ar, fontSize: 13, textAlign: 'right', paddingHorizontal: 20, paddingVertical: 10 },
+
   list: { padding: 16, gap: 12, paddingBottom: 40 },
 
   card: {
-    backgroundColor: C.bgRaised, borderRadius: 18,
-    padding: 18, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.borderDefault,
   },
   cardAccepted: { borderColor: C.green },
 
   supplierRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
-  supplierName: { color: C.textPrimary, fontWeight: '700', fontSize: 16, textAlign: 'right' },
-  supplierId: { color: C.textDisabled, fontSize: 11, textAlign: 'right', marginBottom: 14 },
-  acceptedBadge: {
-    backgroundColor: C.greenSoft, paddingHorizontal: 10,
-    paddingVertical: 4, borderRadius: 20,
-  },
-  acceptedText: { color: C.green, fontSize: 12, fontWeight: '700' },
+  supplierName: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 16, textAlign: 'right', flex: 1 },
+  supplierId:   { color: C.textDisabled, fontFamily: F.en, fontSize: 11, textAlign: 'right', marginBottom: 14 },
 
-  priceRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  acceptedBadge: { backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  acceptedText:  { color: C.green, fontFamily: F.arSemi, fontSize: 12 },
+
+  priceRow: { flexDirection: 'row', gap: 12, marginBottom: 10, marginTop: 4 },
   priceItem: {
-    flex: 1, backgroundColor: C.bgOverlay, borderRadius: 12,
-    padding: 12, alignItems: 'center',
+    flex: 1,
+    backgroundColor: C.bgOverlay,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
   },
-  priceLabel: { color: C.textTertiary, fontSize: 11, marginBottom: 4 },
-  priceValue: { color: C.textPrimary, fontWeight: '600', fontSize: 18 },
+  priceLabel: { color: C.textTertiary, fontFamily: F.ar,      fontSize: 11, marginBottom: 4 },
+  priceValue: { color: C.textPrimary,  fontFamily: F.enLight, fontSize: 20, letterSpacing: -0.5 },
 
   totalRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: C.borderSubtle,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.borderSubtle,
   },
-  totalLabel: { color: C.textSecondary, fontSize: 13 },
-  totalValue: { color: C.accent, fontWeight: '700', fontSize: 20 },
+  totalLabel: { color: C.textSecondary, fontFamily: F.ar,      fontSize: 13 },
+  totalValue: { color: C.textPrimary,   fontFamily: F.enLight, fontSize: 24, letterSpacing: -0.5 },
 
-  shippingMethod: { color: C.textTertiary, fontSize: 12, textAlign: 'right', marginTop: 4 },
-
-  actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  chatBtn: {
-    flex: 1, borderWidth: 1, borderColor: C.borderDefault,
-    borderRadius: 12, paddingVertical: 11, alignItems: 'center',
+  // Details toggle button
+  detailsToggle: {
+    marginTop: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.borderSubtle,
     backgroundColor: C.bgOverlay,
   },
-  chatBtnText: { color: C.textPrimary, fontSize: 14, fontWeight: '600' },
-  acceptBtn: {
-    flex: 2, backgroundColor: C.accent,
-    borderRadius: 12, paddingVertical: 11, alignItems: 'center',
-  },
-  acceptBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  detailsToggleText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 12 },
 
-  emptyCard: {
-    margin: 20, backgroundColor: C.bgRaised, borderRadius: 16,
-    padding: 40, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault,
+  // Expanded details section
+  detailsBox: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.borderSubtle,
+    overflow: 'hidden',
   },
-  emptyText: { color: C.textSecondary, fontSize: 15, marginBottom: 8 },
-  emptySubText: { color: C.textTertiary, fontSize: 13 },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderSubtle,
+    gap: 12,
+  },
+  detailLabel: {
+    color: C.textTertiary,
+    fontFamily: F.ar,
+    fontSize: 12,
+    flex: 1,
+    textAlign: 'right',
+  },
+  detailValue: {
+    color: C.textPrimary,
+    fontFamily: F.en,
+    fontSize: 13,
+    textAlign: 'left',
+    flexShrink: 1,
+    maxWidth: '55%',
+  },
+
+  // Action buttons
+  actions:    { flexDirection: 'column', gap: 8, marginTop: 14 },
+  actionsTop: { flexDirection: 'row', gap: 10 },
+  chatBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    backgroundColor: C.bgOverlay,
+  },
+  chatBtnText:   { color: C.textPrimary,    fontFamily: F.arSemi, fontSize: 14 },
+  acceptBtn:     { flex: 2, backgroundColor: C.btnPrimary, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  acceptBtnText: { color: C.btnPrimaryText,  fontFamily: F.arBold, fontSize: 14 },
+  rejectBtn:     { alignItems: 'center', paddingVertical: 8 },
+  rejectBtnText: { color: 'rgba(180,0,0,0.7)', fontFamily: F.arSemi, fontSize: 13 },
+
+  rejectedFlash: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(180,0,0,0.07)',
+    alignItems: 'center',
+  },
+  rejectedFlashText: { color: 'rgba(180,0,0,0.7)', fontFamily: F.arSemi, fontSize: 13 },
+
+  // Empty state
+  emptyCard: {
+    margin: 20,
+    backgroundColor: C.bgRaised,
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+  },
+  emptyText:    { color: C.textSecondary, fontFamily: F.ar, fontSize: 15, marginBottom: 8 },
+  emptySubText: { color: C.textTertiary,  fontFamily: F.ar, fontSize: 13 },
 });

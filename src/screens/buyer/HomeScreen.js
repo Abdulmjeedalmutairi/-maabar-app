@@ -102,7 +102,7 @@ export default function HomeScreen({ navigation }) {
           <View style={s.header}>
             <MaabarLogo />
             <View style={s.headerRight}>
-              <Text style={s.greeting}>أهلاً، {firstName} 👋</Text>
+              <Text style={s.greeting}>أهلاً، {firstName}</Text>
               <Text style={s.subGreeting}>لوحة التاجر</Text>
             </View>
           </View>

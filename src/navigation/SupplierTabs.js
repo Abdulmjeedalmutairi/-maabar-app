@@ -1,25 +1,71 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text, Platform } from 'react-native';
+import {
+  View, Text, TouchableOpacity, ScrollView, Platform, StyleSheet,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '../lib/colors';
+import { F } from '../lib/fonts';
+import { getLang } from '../lib/lang';
 
 import SupplierHomeScreen from '../screens/supplier/SupplierHomeScreen';
+import FAQScreen          from '../screens/shared/FAQScreen';
+import FAQTradersScreen   from '../screens/shared/FAQTradersScreen';
+import FAQSuppliersScreen from '../screens/shared/FAQSuppliersScreen';
+import TermsScreen        from '../screens/shared/TermsScreen';
+import ContactScreen      from '../screens/shared/ContactScreen';
+import SupportScreen      from '../screens/shared/SupportScreen';
 import SupplierRequestsScreen from '../screens/supplier/SupplierRequestsScreen';
 import SupplierProductsScreen from '../screens/supplier/SupplierProductsScreen';
+import SupplierOffersScreen from '../screens/supplier/SupplierOffersScreen';
 import SupplierInboxScreen from '../screens/supplier/SupplierInboxScreen';
 import SupplierAccountScreen from '../screens/supplier/SupplierAccountScreen';
 import ChatScreen from '../screens/buyer/ChatScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
 const STACK_OPTS = { headerShown: false };
 
+// ── Tab labels in all 3 languages ──────────────────────────────────────────
+const TAB_LABELS = {
+  ar: {
+    SHome: 'الرئيسية',
+    SRequests: 'الطلبات',
+    SProducts: 'منتجاتي',
+    SOffers: 'عروضي',
+    SInbox: 'رسائل',
+    SAccount: 'حسابي',
+  },
+  en: {
+    SHome: 'Home',
+    SRequests: 'Requests',
+    SProducts: 'Products',
+    SOffers: 'My Offers',
+    SInbox: 'Inbox',
+    SAccount: 'Account',
+  },
+  zh: {
+    SHome: '首页',
+    SRequests: '询盘',
+    SProducts: '产品',
+    SOffers: '我的报价',
+    SInbox: '消息',
+    SAccount: '账户',
+  },
+};
+
+// ── Stacks that need child screens ─────────────────────────────────────────
 function SupplierHomeStack() {
   return (
     <Stack.Navigator screenOptions={STACK_OPTS}>
-      <Stack.Screen name="SupplierDash" component={SupplierHomeScreen} />
+      <Stack.Screen name="SupplierDash"  component={SupplierHomeScreen} />
+      <Stack.Screen name="FAQ"           component={FAQScreen} />
+      <Stack.Screen name="FAQTraders"    component={FAQTradersScreen} />
+      <Stack.Screen name="FAQSuppliers"  component={FAQSuppliersScreen} />
+      <Stack.Screen name="Terms"         component={TermsScreen} />
+      <Stack.Screen name="Contact"       component={ContactScreen} />
+      <Stack.Screen name="Support"       component={SupportScreen} />
     </Stack.Navigator>
   );
 }
@@ -28,50 +74,110 @@ function SupplierInboxStack() {
   return (
     <Stack.Navigator screenOptions={STACK_OPTS}>
       <Stack.Screen name="SupplierInboxList" component={SupplierInboxScreen} />
-      <Stack.Screen name="SupplierChat" component={ChatScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} />
     </Stack.Navigator>
   );
 }
 
-const TAB_ICON  = { SHome: '⌂', SRequests: '◫', SProducts: '◈', SInbox: '◎', SAccount: '⊙' };
-const TAB_LABEL = { SHome: 'الرئيسية', SRequests: 'الطلبات', SProducts: 'منتجاتي', SInbox: 'رسائل', SAccount: 'حسابي' };
+// ── Custom horizontally-scrollable tab bar ──────────────────────────────────
+function SupplierTabBar({ state, descriptors, navigation }) {
+  const insets = useSafeAreaInsets();
+  const lang = getLang();
+  const labels = TAB_LABELS[lang] || TAB_LABELS.ar;
 
-function tabIcon(name, focused) {
   return (
-    <Text style={{ fontSize: 20, color: focused ? C.accent : C.textDisabled }}>
-      {TAB_ICON[name]}
-    </Text>
+    <View style={[
+      tb.container,
+      { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 4 },
+    ]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={tb.scrollContent}
+        bounces={false}
+      >
+        {state.routes.map((route, index) => {
+          const isFocused = state.index === index;
+          const label = labels[route.name] || route.name;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate({ name: route.name, merge: true });
+            }
+          };
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              activeOpacity={0.7}
+              style={tb.tab}
+            >
+              <Text style={[tb.label, isFocused && tb.labelActive]}>
+                {label}
+              </Text>
+              {isFocused && <View style={tb.indicator} />}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
+const tb = StyleSheet.create({
+  container: {
+    backgroundColor: C.bgRaised,
+    borderTopWidth: 1,
+    borderTopColor: C.borderDefault,
+    paddingTop: 8,
+  },
+  scrollContent: {
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  tab: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    alignItems: 'center',
+    position: 'relative',
+    minWidth: 60,
+  },
+  label: {
+    fontSize: 12,
+    fontFamily: F.arSemi,
+    color: C.textDisabled,
+  },
+  labelActive: {
+    color: C.textPrimary,
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: -4,
+    left: '25%',
+    right: '25%',
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: C.textPrimary,
+  },
+});
+
+// ── Navigator ───────────────────────────────────────────────────────────────
 export default function SupplierTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused }) => tabIcon(route.name, focused),
-        tabBarLabel: ({ focused }) => (
-          <Text style={{
-            fontSize: 10,
-            color: focused ? C.accent : C.textDisabled,
-            fontWeight: focused ? '600' : '400',
-            marginBottom: Platform.OS === 'ios' ? 0 : 4,
-          }}>
-            {TAB_LABEL[route.name]}
-          </Text>
-        ),
-        tabBarStyle: {
-          backgroundColor: C.bgRaised,
-          borderTopColor: C.borderDefault,
-          borderTopWidth: 1,
-          paddingTop: 8,
-          height: Platform.OS === 'ios' ? 80 : 62,
-        },
-      })}
+      tabBar={(props) => <SupplierTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="SHome" component={SupplierHomeStack} />
       <Tab.Screen name="SRequests" component={SupplierRequestsScreen} />
       <Tab.Screen name="SProducts" component={SupplierProductsScreen} />
+      <Tab.Screen name="SOffers" component={SupplierOffersScreen} />
       <Tab.Screen name="SInbox" component={SupplierInboxStack} />
       <Tab.Screen name="SAccount" component={SupplierAccountScreen} />
     </Tab.Navigator>

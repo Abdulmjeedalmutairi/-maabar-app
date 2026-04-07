@@ -227,13 +227,11 @@ const styles = StyleSheet.create({
     borderBottomColor: C.borderSubtle,
   },
   sectionTitle: {
-    fontSize: 10,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
+    fontSize: 12,
     color: C.textDisabled,
     marginBottom: 16,
-    fontWeight: '500',
-    fontFamily: 'System',
+    fontFamily: 'Cairo_400Regular',
+    textAlign: 'right',
   },
   statsGrid: {
     flexDirection: 'row',

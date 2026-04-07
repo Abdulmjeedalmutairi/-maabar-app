@@ -5,12 +5,12 @@
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#09080d"
+      "backgroundColor": "#FAF8F5"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#09080d"
+        "backgroundColor": "#FAF8F5"
       },
       "edgeToEdgeEnabled": true
     },
@@ -35,6 +35,10 @@
     },
     "updates": {
       "url": "https://u.expo.dev/9a226e92-5822-4227-9abf-c9fabaf65009"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store"
+    ]
   }
 }

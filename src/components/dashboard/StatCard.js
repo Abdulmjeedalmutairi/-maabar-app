@@ -42,13 +42,11 @@ const styles = StyleSheet.create({
     borderColor: C.borderMuted,
   },
   label: {
-    fontSize: 10,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    fontSize: 11,
     color: C.textDisabled,
     marginBottom: 12,
-    fontWeight: '500',
-    fontFamily: 'System',
+    fontFamily: 'Cairo_400Regular',
+    textAlign: 'center',
   },
   value: {
     fontSize: 36,

@@ -38,7 +38,7 @@ export default function RequestCard({
       style={styles.container}
     >
       <View style={styles.header}>
-        <Text style={[styles.title, { fontFamily: isArabic ? 'System' : 'System' }]}>
+        <Text style={[styles.title, { fontFamily: isArabic ? 'Cairo_600SemiBold' : 'CormorantGaramond_400Regular' }]}>
           {title}
         </Text>
         <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[status] + '20' }]}>

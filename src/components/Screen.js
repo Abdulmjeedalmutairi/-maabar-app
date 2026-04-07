@@ -9,7 +9,7 @@ export default function Screen({ children, style, edges }) {
       style={[styles.safe, style]}
       edges={edges ?? ['top', 'left', 'right']}
     >
-      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.bgBase} />
       {children}
     </SafeAreaView>
   );

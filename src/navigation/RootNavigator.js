@@ -1,34 +1,39 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
-import { C } from '../lib/colors';
+import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import BuyerTabs from './BuyerTabs';
 import SupplierTabs from './SupplierTabs';
 
 const Stack = createNativeStackNavigator();
+const LAUNCHED_KEY = 'maabar_hasLaunched';
 
 export default function RootNavigator() {
-  const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [splashDone, setSplashDone]   = useState(false);
+  const [hasLaunched, setHasLaunched] = useState(false);
+  const [session, setSession]         = useState(null);
+  const [profile, setProfile]         = useState(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) loadProfile(session.user.id);
-      else setLoading(false);
+    // Load AsyncStorage flag and initial Supabase session in parallel
+    Promise.all([
+      SecureStore.getItemAsync(LAUNCHED_KEY),
+      supabase.auth.getSession(),
+    ]).then(([launched, { data: { session: s } }]) => {
+      setHasLaunched(!!launched);
+      setSession(s);
+      if (s) loadProfile(s.user.id);
     });
 
-    // Listen for auth changes
+    // Keep session in sync while the app is open
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        if (session) loadProfile(session.user.id);
-        else { setProfile(null); setLoading(false); }
+      (_event, s) => {
+        setSession(s);
+        if (s) loadProfile(s.user.id);
+        else setProfile(null);
       }
     );
     return () => subscription.unsubscribe();
@@ -41,29 +46,41 @@ export default function RootNavigator() {
       .eq('id', userId)
       .single();
     setProfile(data);
-    setLoading(false);
   }
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: C.bgBase, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={C.accent} size="large" />
-      </View>
-    );
+  async function handleSplashDone() {
+    if (!hasLaunched) {
+      await SecureStore.setItemAsync(LAUNCHED_KEY, 'true');
+      setHasLaunched(true);
+    }
+    setSplashDone(true);
   }
 
-  const isSupplier = profile?.role === 'supplier';
-  const isLoggedIn = !!session && !!profile;
+  const isLoggedIn  = !!session && !!profile;
+  const isSupplier  = profile?.role === 'supplier';
+
+  // On return visits without a session, drop the user at TraderHome
+  // (they've already completed Language + Role onboarding).
+  const authInitialRoute = hasLaunched ? 'TraderHome' : 'Language';
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isLoggedIn ? (
-          <Stack.Screen name="Auth" component={AuthStack} />
-        ) : isSupplier ? (
+      {/* animation:'none' only affects root-level screen transitions; inner
+          stacks keep their own animations. The Splash fade-out handles the
+          visual transition, so no cross-fade is needed here. */}
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
+        {!splashDone ? (
+          <Stack.Screen name="Splash">
+            {() => <SplashScreen onDone={handleSplashDone} />}
+          </Stack.Screen>
+        ) : isLoggedIn && isSupplier ? (
           <Stack.Screen name="SupplierApp" component={SupplierTabs} />
-        ) : (
+        ) : isLoggedIn ? (
           <Stack.Screen name="BuyerApp" component={BuyerTabs} />
+        ) : (
+          <Stack.Screen name="Auth">
+            {() => <AuthStack initialRoute={authInitialRoute} />}
+          </Stack.Screen>
         )}
       </Stack.Navigator>
     </NavigationContainer>

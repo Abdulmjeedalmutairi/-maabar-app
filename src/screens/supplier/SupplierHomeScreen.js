@@ -5,31 +5,77 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
-import MaabarLogo from '../../components/MaabarLogo';
+import { F } from '../../lib/fonts';
 
-const VERIFICATION_AR = {
-  registered: 'مسجّل',
-  verification_required: 'التحقق مطلوب',
-  verification_under_review: 'قيد المراجعة',
-  verified: 'موثّق',
-  rejected: 'مرفوض',
-  inactive: 'غير نشط',
+const COPY = {
+  ar: {
+    welcome: 'أهلاً،', desc: 'تابع عروضك ومنتجاتك ورسائلك',
+    activeProducts: 'منتجات نشطة', allOffers: 'عروض مقدمة',
+    unreadMsgs: 'رسائل جديدة', acceptedOffers: 'عروض مقبولة',
+    myOffers: 'عروضي', noOffers: 'لم تقدم عروضاً بعد',
+    viewRequests: 'تصفح الطلبات', inquiries: 'استفسارات المنتجات',
+    noInquiries: 'لا توجد استفسارات', samples: 'طلبات العينات',
+    noSamples: 'لا توجد طلبات عينات', viewAll: 'عرض الكل ←',
+    offerStatus: { pending: 'قيد المراجعة', accepted: 'مقبول', rejected: 'مرفوض' },
+    sampleStatus: { pending: 'قيد المراجعة', approved: 'مقبول', shipped: 'تم الشحن', rejected: 'مرفوض' },
+    verifyLabels: {
+      registered: 'مسجّل', verification_required: 'التحقق مطلوب',
+      verification_under_review: 'قيد المراجعة', verified: 'موثّق',
+      rejected: 'مرفوض', inactive: 'غير نشط',
+    },
+  },
+  en: {
+    welcome: 'Welcome,', desc: 'Manage your offers, products and messages',
+    activeProducts: 'Active Products', allOffers: 'Offers Sent',
+    unreadMsgs: 'New Messages', acceptedOffers: 'Accepted Offers',
+    myOffers: 'My Offers', noOffers: 'No offers submitted yet',
+    viewRequests: 'Browse Requests', inquiries: 'Product Inquiries',
+    noInquiries: 'No inquiries yet', samples: 'Sample Requests',
+    noSamples: 'No sample requests yet', viewAll: 'View all →',
+    offerStatus: { pending: 'Pending', accepted: 'Accepted', rejected: 'Rejected' },
+    sampleStatus: { pending: 'Pending', approved: 'Approved', shipped: 'Shipped', rejected: 'Rejected' },
+    verifyLabels: {
+      registered: 'Registered', verification_required: 'Verification Required',
+      verification_under_review: 'Under Review', verified: 'Verified',
+      rejected: 'Rejected', inactive: 'Inactive',
+    },
+  },
+  zh: {
+    welcome: '欢迎，', desc: '管理您的报价、产品和消息',
+    activeProducts: '在售产品', allOffers: '已发报价',
+    unreadMsgs: '新消息', acceptedOffers: '已接受报价',
+    myOffers: '我的报价', noOffers: '尚未提交报价',
+    viewRequests: '浏览询盘', inquiries: '产品咨询',
+    noInquiries: '暂无咨询', samples: '样品申请',
+    noSamples: '暂无样品申请', viewAll: '查看全部 →',
+    offerStatus: { pending: '待审核', accepted: '已接受', rejected: '已拒绝' },
+    sampleStatus: { pending: '待审核', approved: '已批准', shipped: '已发货', rejected: '已拒绝' },
+    verifyLabels: {
+      registered: '已注册', verification_required: '需要认证',
+      verification_under_review: '审核中', verified: '已认证',
+      rejected: '已拒绝', inactive: '未激活',
+    },
+  },
 };
 
-const VERIFICATION_COLOR = {
-  registered: C.blue,
-  verification_required: C.orange,
-  verification_under_review: C.orange,
-  verified: C.green,
-  rejected: C.red,
-  inactive: C.textDisabled,
+const VERIFY_COLOR = {
+  registered: C.blue, verification_required: C.orange,
+  verification_under_review: C.orange, verified: C.green,
+  rejected: C.red, inactive: C.textDisabled,
 };
 
 export default function SupplierHomeScreen({ navigation }) {
+  const lang = getLang();
+  const t = COPY[lang] || COPY.ar;
+  const isAr = lang === 'ar';
+
   const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState({ requests: 0, offers: 0, messages: 0 });
-  const [recentRequests, setRecentRequests] = useState([]);
+  const [stats, setStats] = useState({ products: 0, offers: 0, messages: 0, accepted: 0 });
+  const [myOffers, setMyOffers] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -37,30 +83,63 @@ export default function SupplierHomeScreen({ navigation }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [profileRes, offersRes, messagesRes, requestsRes] = await Promise.all([
+    // 4 stats — exact web queries
+    const [profileRes, productsRes, offersRes, messagesRes, acceptedRes] = await Promise.all([
       supabase.from('profiles')
-        .select('company_name, status, maabar_supplier_id, trust_score, country, city')
+        .select('company_name, status, maabar_supplier_id, country, city')
         .eq('id', user.id).single(),
+      supabase.from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('supplier_id', user.id).eq('is_active', true),
       supabase.from('offers')
         .select('id', { count: 'exact', head: true })
-        .eq('supplier_id', user.id).eq('status', 'pending'),
+        .eq('supplier_id', user.id),
       supabase.from('messages')
         .select('id', { count: 'exact', head: true })
         .eq('receiver_id', user.id).eq('is_read', false),
-      supabase.from('requests')
-        .select('id, title_ar, title_en, quantity, status, created_at, category')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(5),
+      supabase.from('offers')
+        .select('id', { count: 'exact', head: true })
+        .eq('supplier_id', user.id).eq('status', 'accepted'),
     ]);
+
+    console.log('[SupplierHome] profile:', profileRes.data);
+    console.log('[SupplierHome] stats — products:', productsRes.count, 'offers:', offersRes.count, 'messages:', messagesRes.count, 'accepted:', acceptedRes.count);
 
     setProfile(profileRes.data);
     setStats({
-      requests: requestsRes.data?.length || 0,
+      products: productsRes.count || 0,
       offers: offersRes.count || 0,
       messages: messagesRes.count || 0,
+      accepted: acceptedRes.count || 0,
     });
-    setRecentRequests(requestsRes.data || []);
+
+    // My Offers — exact web query
+    const { data: offersData } = await supabase
+      .from('offers')
+      .select('*,requests(title_ar,title_en,title_zh,buyer_id,status,tracking_number,shipping_status,quantity,description,payment_plan)')
+      .eq('supplier_id', user.id)
+      .order('created_at', { ascending: false });
+    console.log('[SupplierHome] myOffers:', offersData?.length);
+    setMyOffers(offersData || []);
+
+    // Product inquiries — direct query (lib not available in mobile)
+    const { data: inqData } = await supabase
+      .from('product_inquiries')
+      .select('*')
+      .eq('supplier_id', user.id)
+      .order('created_at', { ascending: false });
+    console.log('[SupplierHome] inquiries:', inqData?.length);
+    setInquiries(inqData || []);
+
+    // Sample requests — exact web query
+    const { data: sampData } = await supabase
+      .from('samples')
+      .select('*,products(name_ar,name_en,name_zh)')
+      .eq('supplier_id', user.id)
+      .order('created_at', { ascending: false });
+    console.log('[SupplierHome] samples:', sampData?.length);
+    setSamples(sampData || []);
+
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -68,101 +147,157 @@ export default function SupplierHomeScreen({ navigation }) {
   useEffect(() => { load(); }, [load]);
   function onRefresh() { setRefreshing(true); load(); }
 
+  const offerTitle = (o) => {
+    const r = o.requests;
+    if (!r) return '—';
+    if (lang === 'ar') return r.title_ar || r.title_en || r.title_zh || '—';
+    if (lang === 'zh') return r.title_zh || r.title_en || r.title_ar || '—';
+    return r.title_en || r.title_ar || r.title_zh || '—';
+  };
+
+  const sampleProductName = (smp) => {
+    const p = smp.products;
+    if (!p) return '—';
+    if (lang === 'ar') return p.name_ar || p.name_en || p.name_zh || '—';
+    if (lang === 'zh') return p.name_zh || p.name_en || p.name_ar || '—';
+    return p.name_en || p.name_ar || p.name_zh || '—';
+  };
+
+  const offerBadge = (status) => {
+    if (status === 'accepted') return { bg: C.greenSoft, border: C.green + '40', color: C.green };
+    if (status === 'rejected') return { bg: C.redSoft, border: C.red + '40', color: C.red };
+    return { bg: C.orangeSoft, border: C.orange + '40', color: C.orange };
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={s.safe}>
-        <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>
+        <View style={s.center}><ActivityIndicator color={C.textSecondary} size="large" /></View>
       </SafeAreaView>
     );
   }
 
   const status = profile?.status || 'registered';
-  const statusColor = VERIFICATION_COLOR[status] || C.textDisabled;
-  const statusLabel = VERIFICATION_AR[status] || status;
+  const statusColor = VERIFY_COLOR[status] || C.textDisabled;
+  const statusLabel = (t.verifyLabels || {})[status] || status;
   const isVerified = status === 'verified';
 
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textSecondary} />}
       >
         <View style={s.content}>
 
-          {/* Header */}
-          <View style={s.header}>
-            <MaabarLogo />
-            <View style={s.headerRight}>
-              <Text style={s.companyName} numberOfLines={1}>
-                {profile?.company_name || 'المورد'}
-              </Text>
-              <Text style={s.supplierId}>
-                {profile?.maabar_supplier_id || 'لوحة المورد'}
-              </Text>
-            </View>
+          {/* Welcome banner — neutral dark, no green/purple */}
+          <View style={s.banner}>
+            <Text style={[s.bannerWelcome, isAr && s.rtl]}>{t.welcome}</Text>
+            <Text style={[s.bannerCompany, isAr && s.rtl]} numberOfLines={1}>
+              {profile?.company_name || '—'}
+            </Text>
+            <Text style={[s.bannerDesc, isAr && s.rtl]}>{t.desc}</Text>
+            {profile?.maabar_supplier_id ? (
+              <Text style={s.supplierId}>{profile.maabar_supplier_id}</Text>
+            ) : null}
           </View>
 
           {/* Verification banner */}
           {!isVerified && (
             <TouchableOpacity
-              style={[s.verificationBanner, { borderColor: statusColor + '40' }]}
+              style={[s.verifyBanner, { borderColor: statusColor + '40' }]}
               activeOpacity={0.85}
               onPress={() => navigation.navigate('SAccount')}
             >
-              <View style={[s.verificationDot, { backgroundColor: statusColor }]} />
-              <View style={s.verificationInfo}>
-                <Text style={[s.verificationStatus, { color: statusColor }]}>{statusLabel}</Text>
-                <Text style={s.verificationHint}>
-                  {status === 'verification_required'
-                    ? 'أكمل رفع وثائق التحقق لتفعيل حسابك'
-                    : status === 'verification_under_review'
-                    ? 'جاري مراجعة وثائقك من فريق مَعبر'
-                    : 'اضغط لإكمال إجراءات التحقق'}
-                </Text>
-              </View>
-              <Text style={s.verificationArrow}>←</Text>
+              <View style={[s.verifyDot, { backgroundColor: statusColor }]} />
+              <Text style={[s.verifyLabel, { color: statusColor }]}>{statusLabel}</Text>
+              <Text style={s.verifyArrow}>{isAr ? '←' : '→'}</Text>
             </TouchableOpacity>
           )}
 
-          {/* Stats */}
+          {/* 4-stat row */}
           <View style={s.statsRow}>
-            <StatCard value={stats.requests} label="طلبات متاحة" />
-            <StatCard value={stats.offers} label="عروضي المرسلة" color={C.green} />
-            <StatCard value={stats.messages} label="رسائل جديدة" color={C.orange} />
+            <StatCard value={stats.products} label={t.activeProducts} />
+            <StatCard value={stats.offers} label={t.allOffers} />
+            <StatCard value={stats.messages} label={t.unreadMsgs} color={stats.messages > 0 ? C.orange : undefined} />
+            <StatCard value={stats.accepted} label={t.acceptedOffers} color={stats.accepted > 0 ? C.green : undefined} />
           </View>
 
-          {/* Recent open requests */}
-          <View style={s.sectionHeader}>
-            <TouchableOpacity onPress={() => navigation.navigate('SRequests')}>
-              <Text style={s.seeAll}>عرض الكل</Text>
-            </TouchableOpacity>
-            <Text style={s.sectionTitle}>طلبات مفتوحة</Text>
-          </View>
-
-          {recentRequests.length === 0 ? (
+          {/* My Offers */}
+          <SectionHead title={t.myOffers} cta={t.viewAll} isAr={isAr} onPress={() => navigation.navigate('SRequests')} />
+          {myOffers.length === 0 ? (
             <View style={s.emptyCard}>
-              <Text style={s.emptyText}>لا توجد طلبات مفتوحة</Text>
-            </View>
-          ) : (
-            recentRequests.map(r => (
-              <TouchableOpacity
-                key={r.id}
-                style={s.reqCard}
-                activeOpacity={0.75}
-                onPress={() => navigation.navigate('SRequests')}
-              >
-                <View style={s.reqTop}>
-                  {r.category && (
-                    <View style={s.catBadge}>
-                      <Text style={s.catText}>{r.category}</Text>
-                    </View>
-                  )}
-                  <Text style={s.reqTitle} numberOfLines={2}>{r.title_ar || r.title_en}</Text>
-                </View>
-                <Text style={s.reqQty}>{r.quantity}</Text>
+              <Text style={[s.emptyText, isAr && s.rtl]}>{t.noOffers}</Text>
+              <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('SRequests')}>
+                <Text style={s.emptyBtnText}>{t.viewRequests}</Text>
               </TouchableOpacity>
-            ))
-          )}
+            </View>
+          ) : myOffers.slice(0, 5).map(o => {
+            const bd = offerBadge(o.status);
+            return (
+              <View key={o.id} style={s.offerCard}>
+                <View style={[s.offerRow, isAr && s.rowRtl]}>
+                  <View style={[s.badge, { backgroundColor: bd.bg, borderColor: bd.border }]}>
+                    <Text style={[s.badgeText, { color: bd.color }]}>
+                      {t.offerStatus[o.status] || o.status}
+                    </Text>
+                  </View>
+                  <Text style={[s.offerTitle, isAr && s.rtl]} numberOfLines={2}>
+                    {offerTitle(o)}
+                  </Text>
+                </View>
+                {!!o.price && (
+                  <Text style={[s.offerMeta, isAr && s.rtl]}>{o.price} USD</Text>
+                )}
+              </View>
+            );
+          })}
+
+          {/* Product Inquiries */}
+          <SectionHead title={t.inquiries} isAr={isAr} />
+          {inquiries.length === 0 ? (
+            <View style={s.emptyCard}>
+              <Text style={[s.emptyText, isAr && s.rtl]}>{t.noInquiries}</Text>
+            </View>
+          ) : inquiries.slice(0, 3).map(inq => (
+            <View key={inq.id} style={s.inqCard}>
+              <Text style={[s.inqText, isAr && s.rtl]} numberOfLines={2}>
+                {inq.question_text || inq.message || '—'}
+              </Text>
+              <Text style={s.inqDate}>
+                {inq.created_at ? new Date(inq.created_at).toLocaleDateString() : ''}
+              </Text>
+            </View>
+          ))}
+
+          {/* Sample Requests */}
+          <SectionHead title={t.samples} isAr={isAr} />
+          {samples.length === 0 ? (
+            <View style={s.emptyCard}>
+              <Text style={[s.emptyText, isAr && s.rtl]}>{t.noSamples}</Text>
+            </View>
+          ) : samples.slice(0, 3).map(smp => {
+            const bd = offerBadge(smp.status);
+            return (
+              <View key={smp.id} style={s.offerCard}>
+                <View style={[s.offerRow, isAr && s.rowRtl]}>
+                  <View style={[s.badge, { backgroundColor: bd.bg, borderColor: bd.border }]}>
+                    <Text style={[s.badgeText, { color: bd.color }]}>
+                      {t.sampleStatus[smp.status] || smp.status || '—'}
+                    </Text>
+                  </View>
+                  <Text style={[s.offerTitle, isAr && s.rtl]} numberOfLines={1}>
+                    {sampleProductName(smp)}
+                  </Text>
+                </View>
+                {!!smp.quantity && (
+                  <Text style={[s.offerMeta, isAr && s.rtl]}>
+                    {lang === 'ar' ? `الكمية: ${smp.quantity}` : lang === 'zh' ? `数量: ${smp.quantity}` : `Qty: ${smp.quantity}`}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
 
         </View>
       </ScrollView>
@@ -179,64 +314,96 @@ function StatCard({ value, label, color }) {
   );
 }
 
+function SectionHead({ title, cta, isAr, onPress }) {
+  return (
+    <View style={[s.sectionHeader, isAr && s.rowRtl]}>
+      <Text style={[s.sectionTitle, isAr && s.rtl]}>{title}</Text>
+      {cta && onPress ? (
+        <TouchableOpacity onPress={onPress}>
+          <Text style={s.seeAll}>{cta}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bgBase },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32 },
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 48 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  rtl: { textAlign: 'right', writingDirection: 'rtl' },
+  rowRtl: { flexDirection: 'row-reverse' },
 
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 16,
+  // Banner — neutral dark, no green/purple
+  banner: {
+    backgroundColor: C.bgRaised,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    marginBottom: 16,
   },
-  headerRight: { alignItems: 'flex-end' },
-  companyName: { color: C.textPrimary, fontWeight: '700', fontSize: 18, maxWidth: 200 },
-  supplierId: { color: C.textDisabled, fontSize: 11, marginTop: 2 },
+  bannerWelcome: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 2 },
+  bannerCompany: { color: C.textPrimary, fontSize: 20, fontFamily: F.arSemi, marginBottom: 4 },
+  bannerDesc: { color: C.textTertiary, fontSize: 12, fontFamily: F.ar },
+  supplierId: { color: C.textDisabled, fontSize: 10, fontFamily: F.en, marginTop: 6 },
 
-  verificationBanner: {
+  verifyBanner: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: C.bgRaised, borderRadius: 14,
-    padding: 14, flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, marginBottom: 20, gap: 10,
+    padding: 12, borderWidth: 1, marginBottom: 18, gap: 10,
   },
-  verificationDot: { width: 8, height: 8, borderRadius: 4 },
-  verificationInfo: { flex: 1 },
-  verificationStatus: { fontSize: 13, fontWeight: '700', textAlign: 'right' },
-  verificationHint: { color: C.textTertiary, fontSize: 11, textAlign: 'right', marginTop: 2 },
-  verificationArrow: { color: C.textDisabled, fontSize: 16 },
+  verifyDot: { width: 8, height: 8, borderRadius: 4 },
+  verifyLabel: { flex: 1, fontSize: 13, fontFamily: F.arSemi },
+  verifyArrow: { color: C.textDisabled, fontSize: 16 },
 
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
   statCard: {
-    flex: 1, backgroundColor: C.bgRaised, borderRadius: 16,
-    paddingVertical: 20, paddingHorizontal: 8,
+    flex: 1, backgroundColor: C.bgRaised, borderRadius: 14,
+    paddingVertical: 16, paddingHorizontal: 4,
     borderWidth: 1, borderColor: C.borderDefault, alignItems: 'center',
   },
-  statValue: { fontSize: 28, fontWeight: '200', color: C.textPrimary, lineHeight: 32 },
-  statLabel: { fontSize: 10, color: C.textSecondary, textAlign: 'center', marginTop: 6 },
+  statValue: { fontSize: 24, fontFamily: F.enBold, color: C.textPrimary, lineHeight: 28 },
+  statLabel: { fontSize: 9, fontFamily: F.ar, color: C.textSecondary, textAlign: 'center', marginTop: 4 },
 
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 14,
+    alignItems: 'center', marginBottom: 10, marginTop: 8,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: C.textSecondary },
-  seeAll: { fontSize: 12, color: C.accent },
+  sectionTitle: { fontSize: 14, fontFamily: F.arSemi, color: C.textSecondary },
+  seeAll: { fontSize: 12, fontFamily: F.ar, color: C.textSecondary },
 
-  reqCard: {
-    backgroundColor: C.bgRaised, borderRadius: 14,
-    padding: 14, marginBottom: 10,
+  offerCard: {
+    backgroundColor: C.bgRaised, borderRadius: 12,
+    padding: 12, marginBottom: 8,
     borderWidth: 1, borderColor: C.borderDefault,
   },
-  reqTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
-  reqTitle: { color: C.textPrimary, fontSize: 14, fontWeight: '600', textAlign: 'right', flex: 1 },
-  reqQty: { color: C.textSecondary, fontSize: 12, textAlign: 'right' },
-  catBadge: {
-    backgroundColor: C.accentSoft, borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
+  offerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' },
+  badge: {
+    borderRadius: 20, paddingHorizontal: 8,
+    paddingVertical: 3, borderWidth: 1,
   },
-  catText: { color: C.accent, fontSize: 11 },
+  badgeText: { fontSize: 10, fontFamily: F.arSemi },
+  offerTitle: { flex: 1, color: C.textPrimary, fontSize: 13, fontFamily: F.ar },
+  offerMeta: { color: C.textSecondary, fontSize: 12, fontFamily: F.en, marginTop: 6 },
+
+  inqCard: {
+    backgroundColor: C.bgRaised, borderRadius: 12,
+    padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: C.borderDefault,
+  },
+  inqText: { color: C.textPrimary, fontSize: 13, fontFamily: F.ar, lineHeight: 20 },
+  inqDate: { color: C.textDisabled, fontSize: 11, fontFamily: F.en, marginTop: 4 },
 
   emptyCard: {
-    backgroundColor: C.bgRaised, borderRadius: 16,
-    padding: 32, alignItems: 'center',
-    borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised, borderRadius: 14,
+    padding: 24, alignItems: 'center',
+    borderWidth: 1, borderColor: C.borderDefault, marginBottom: 8,
   },
-  emptyText: { color: C.textSecondary, fontSize: 14 },
+  emptyText: { color: C.textSecondary, fontSize: 13, fontFamily: F.ar, marginBottom: 12 },
+  emptyBtn: {
+    backgroundColor: C.btnPrimary, borderRadius: 10,
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  emptyBtnText: { color: C.bgBase, fontSize: 13, fontFamily: F.arSemi },
 });

@@ -20,13 +20,13 @@ export default function QuickAction({
     >
       <Text style={[
         styles.title,
-        { fontFamily: isArabic ? 'System' : 'System' },
+        { fontFamily: isArabic ? 'Cairo_400Regular' : 'CormorantGaramond_400Regular' },
       ]}>
         {title}
       </Text>
       <Text style={[
         styles.subtitle,
-        { fontFamily: isArabic ? 'System' : 'System' },
+        { fontFamily: isArabic ? 'Cairo_400Regular' : 'CormorantGaramond_400Regular' },
       ]}>
         {subtitle}
       </Text>

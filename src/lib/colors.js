@@ -1,34 +1,38 @@
-// Maabar Design System — exact tokens from website
+// Maabar Design System — warm cream light theme
 export const C = {
   // Backgrounds
-  bgBase:    '#09080d',
-  bgSubtle:  '#100f18',
-  bgMuted:   '#14121d',
-  bgOverlay: '#191725',
-  bgRaised:  '#201c31',
-  bgHover:   '#29233d',
+  bgBase:    '#FAF8F5',
+  bgSubtle:  '#F5F2EE',
+  bgMuted:   '#F0EDE9',
+  bgOverlay: '#EDEAE6',
+  bgRaised:  '#FFFFFF',
+  bgHover:   '#F7F5F2',
 
-  // Accent (purple)
-  accent:       'rgb(142,120,228)',
-  accentSoft:   'rgba(142,120,228,0.08)',
-  accentMuted:  'rgba(142,120,228,0.15)',
-  accentStrong: 'rgba(142,120,228,0.30)',
+  // Accent (dark — replaces purple)
+  accent:       '#1a1a1a',
+  accentSoft:   'rgba(0,0,0,0.06)',
+  accentMuted:  'rgba(0,0,0,0.10)',
+  accentStrong: 'rgba(0,0,0,0.20)',
 
   // Text
-  textPrimary:   'rgba(255,255,255,0.90)',
-  textSecondary: 'rgba(255,255,255,0.60)',
-  textTertiary:  'rgba(255,255,255,0.40)',
-  textDisabled:  'rgba(255,255,255,0.24)',
+  textPrimary:   'rgba(0,0,0,0.88)',
+  textSecondary: 'rgba(0,0,0,0.45)',
+  textTertiary:  'rgba(0,0,0,0.30)',
+  textDisabled:  'rgba(0,0,0,0.25)',
 
   // Borders
-  borderSubtle:  'rgba(255,255,255,0.06)',
-  borderMuted:   'rgba(255,255,255,0.09)',
-  borderDefault: 'rgba(255,255,255,0.12)',
-  borderStrong:  'rgba(255,255,255,0.18)',
+  borderSubtle:  'rgba(0,0,0,0.06)',
+  borderMuted:   'rgba(0,0,0,0.07)',
+  borderDefault: 'rgba(0,0,0,0.07)',
+  borderStrong:  'rgba(0,0,0,0.12)',
+
+  // Buttons
+  btnPrimary:     '#1a1a1a',
+  btnPrimaryText: '#FFFFFF',
 
   // Semantic
-  green:      '#4caf7d',
-  greenSoft:  'rgba(76,175,125,0.12)',
+  green:      '#2D6A4F',
+  greenSoft:  '#F0F7F0',
   red:        '#e05c5c',
   redSoft:    'rgba(224,92,92,0.12)',
   orange:     '#e8a020',

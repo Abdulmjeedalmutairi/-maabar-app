@@ -72,10 +72,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.borderSubtle,
   },
   label: {
-    fontSize: 10,
+    fontSize: 11,
     color: C.textSecondary,
-    fontWeight: '500',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    fontFamily: 'Cairo_400Regular',
   },
 });

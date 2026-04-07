@@ -6,11 +6,116 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
+import { F } from '../../lib/fonts';
 
-const CATEGORIES = ['إلكترونيات', 'أثاث', 'ملابس', 'مواد بناء', 'غذاء', 'أخرى'];
+// Category keys stored in DB match the web (English vals)
+const CATEGORIES = {
+  ar: [
+    { val: 'electronics', label: 'إلكترونيات' },
+    { val: 'furniture', label: 'أثاث' },
+    { val: 'clothing', label: 'ملابس' },
+    { val: 'building', label: 'مواد بناء' },
+    { val: 'food', label: 'غذاء' },
+    { val: 'other', label: 'أخرى' },
+  ],
+  en: [
+    { val: 'electronics', label: 'Electronics' },
+    { val: 'furniture', label: 'Furniture' },
+    { val: 'clothing', label: 'Clothing' },
+    { val: 'building', label: 'Building Materials' },
+    { val: 'food', label: 'Food' },
+    { val: 'other', label: 'Other' },
+  ],
+  zh: [
+    { val: 'electronics', label: '电子产品' },
+    { val: 'furniture', label: '家具' },
+    { val: 'clothing', label: '服装' },
+    { val: 'building', label: '建材' },
+    { val: 'food', label: '食品' },
+    { val: 'other', label: '其他' },
+  ],
+};
+
+const COPY = {
+  ar: {
+    title: 'منتجاتي',
+    add: '+ إضافة',
+    noProducts: 'لم تضف منتجات بعد',
+    addFirst: 'أضف منتجك الأول',
+    active: 'نشط', inactive: 'مخفي',
+    newProduct: 'منتج جديد',
+    close: 'إغلاق',
+    nameAr: 'اسم المنتج بالعربية *',
+    nameEn: 'اسم المنتج بالإنجليزية',
+    nameZh: 'اسم المنتج بالصينية',
+    descAr: 'الوصف',
+    priceFrom: 'السعر من',
+    currency: 'العملة',
+    moq: 'الحد الأدنى للكمية (MOQ)',
+    leadTime: 'مدة التصنيع (بالأيام)',
+    category: 'التصنيف',
+    sampleOff: 'عينات غير متاحة',
+    sampleOn: '✓ عينات متاحة',
+    addProduct: 'إضافة المنتج',
+    errorName: 'أدخل اسم المنتج بالعربية',
+    errorGeneric: 'حدث خطأ، حاول مرة أخرى',
+  },
+  en: {
+    title: 'My Products',
+    add: '+ Add',
+    noProducts: 'No products yet',
+    addFirst: 'Add your first product',
+    active: 'Active', inactive: 'Hidden',
+    newProduct: 'New Product',
+    close: 'Close',
+    nameAr: 'Arabic Name *',
+    nameEn: 'English Name',
+    nameZh: 'Chinese Name',
+    descAr: 'Description',
+    priceFrom: 'Starting Price',
+    currency: 'Currency',
+    moq: 'MOQ',
+    leadTime: 'Lead Time (days)',
+    category: 'Category',
+    sampleOff: 'Samples Unavailable',
+    sampleOn: '✓ Samples Available',
+    addProduct: 'Add Product',
+    errorName: 'Enter the Arabic product name',
+    errorGeneric: 'Something went wrong, please try again',
+  },
+  zh: {
+    title: '我的产品',
+    add: '+ 添加',
+    noProducts: '暂无产品',
+    addFirst: '添加第一个产品',
+    active: '上架', inactive: '下架',
+    newProduct: '新产品',
+    close: '关闭',
+    nameAr: '阿拉伯语名称 *',
+    nameEn: '英文名称',
+    nameZh: '中文名称',
+    descAr: '描述',
+    priceFrom: '起始价格',
+    currency: '货币',
+    moq: '最小起订量',
+    leadTime: '生产周期（天）',
+    category: '产品类别',
+    sampleOff: '不提供样品',
+    sampleOn: '✓ 可提供样品',
+    addProduct: '添加产品',
+    errorName: '请输入阿拉伯语产品名称',
+    errorGeneric: '出现错误，请重试',
+  },
+};
 
 export default function SupplierProductsScreen() {
+  const lang = getLang();
+  const t = COPY[lang] || COPY.ar;
+  const isAr = lang === 'ar';
+  const cats = CATEGORIES[lang] || CATEGORIES.en;
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,12 +135,14 @@ export default function SupplierProductsScreen() {
     if (!user) return;
     setMyId(user.id);
 
+    // Exact web query from loadMyProducts()
     const { data } = await supabase
       .from('products')
-      .select('id, name_ar, name_en, price_from, currency, moq, category, is_active, created_at')
+      .select('id, name_ar, name_en, name_zh, price_from, currency, moq, category, is_active, created_at')
       .eq('supplier_id', user.id)
       .order('created_at', { ascending: false });
 
+    console.log('[SupplierProducts] products:', data?.length, data);
     setProducts(data || []);
     setLoading(false);
     setRefreshing(false);
@@ -45,9 +152,19 @@ export default function SupplierProductsScreen() {
   function onRefresh() { setRefreshing(true); load(); }
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
+  function resetForm() {
+    setForm({
+      nameAr: '', nameEn: '', nameZh: '',
+      descAr: '', priceFrom: '', currency: 'USD',
+      moq: '', category: '', sampleAvailable: false,
+      specLeadTimeDays: '',
+    });
+  }
+
   async function handleAdd() {
-    if (!form.nameAr) { Alert.alert('', 'أدخل اسم المنتج بالعربية'); return; }
+    if (!form.nameAr) { Alert.alert('', t.errorName); return; }
     setSubmitting(true);
+
     const { error } = await supabase.from('products').insert({
       supplier_id: myId,
       name_ar: form.nameAr,
@@ -55,17 +172,18 @@ export default function SupplierProductsScreen() {
       name_zh: form.nameZh || null,
       desc_ar: form.descAr || null,
       price_from: form.priceFrom ? parseFloat(form.priceFrom) : null,
-      currency: form.currency,
+      currency: form.currency || 'USD',
       moq: form.moq || null,
       category: form.category || null,
       sample_available: form.sampleAvailable,
-      spec_lead_time_days: form.specLeadTimeDays ? parseInt(form.specLeadTimeDays) : null,
+      spec_lead_time_days: form.specLeadTimeDays ? parseInt(form.specLeadTimeDays, 10) : null,
       is_active: true,
     });
+
     setSubmitting(false);
-    if (error) { Alert.alert('خطأ', 'حدث خطأ، حاول مرة أخرى'); return; }
+    if (error) { console.error('[SupplierProducts] handleAdd error:', error); Alert.alert('', t.errorGeneric); return; }
     setShowAdd(false);
-    setForm({ nameAr: '', nameEn: '', nameZh: '', descAr: '', priceFrom: '', currency: 'USD', moq: '', category: '', sampleAvailable: false, specLeadTimeDays: '' });
+    resetForm();
     load();
   }
 
@@ -74,98 +192,108 @@ export default function SupplierProductsScreen() {
     load();
   }
 
+  const getProductName = (p) => {
+    if (lang === 'ar') return p.name_ar || p.name_en || p.name_zh || '—';
+    if (lang === 'zh') return p.name_zh || p.name_en || p.name_ar || '—';
+    return p.name_en || p.name_ar || p.name_zh || '—';
+  };
+
+  const getCatLabel = (val) => {
+    const found = cats.find(c => c.val === val);
+    return found ? found.label : val;
+  };
+
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.topBar}>
         <TouchableOpacity style={s.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
-          <Text style={s.addBtnText}>+ إضافة</Text>
+          <Text style={s.addBtnText}>{t.add}</Text>
         </TouchableOpacity>
-        <Text style={s.pageTitle}>منتجاتي</Text>
+        <Text style={[s.pageTitle, isAr && s.rtl]}>{t.title}</Text>
       </View>
 
       {loading ? (
-        <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>
+        <View style={s.center}><ActivityIndicator color={C.textSecondary} size="large" /></View>
       ) : (
         <ScrollView
           contentContainerStyle={s.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textSecondary} />}
         >
           {products.length === 0 ? (
             <View style={s.emptyCard}>
-              <Text style={s.emptyText}>لا توجد منتجات بعد</Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={() => setShowAdd(true)}>
-                <Text style={s.emptyBtnText}>أضف منتجك الأول</Text>
+              <Text style={[s.emptyText, isAr && s.rtl]}>{t.noProducts}</Text>
+              <TouchableOpacity style={s.emptyBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
+                <Text style={s.emptyBtnText}>{t.addFirst}</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            products.map(p => (
-              <View key={p.id} style={[s.card, !p.is_active && s.cardInactive]}>
-                <View style={s.cardTop}>
-                  <TouchableOpacity
-                    style={[s.toggleBtn, { backgroundColor: p.is_active ? C.greenSoft : C.bgOverlay }]}
-                    onPress={() => toggleActive(p.id, p.is_active)}
-                  >
-                    <Text style={[s.toggleText, { color: p.is_active ? C.green : C.textDisabled }]}>
-                      {p.is_active ? 'نشط' : 'مخفي'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={s.productName} numberOfLines={2}>{p.name_ar || p.name_en}</Text>
-                </View>
-                <View style={s.cardMeta}>
-                  {p.price_from && (
-                    <Text style={s.metaItem}>{p.price_from} {p.currency}</Text>
-                  )}
-                  {p.moq && <Text style={s.metaItem}>MOQ: {p.moq}</Text>}
-                  {p.category && <Text style={s.metaItem}>{p.category}</Text>}
-                </View>
+          ) : products.map(p => (
+            <View key={p.id} style={[s.card, !p.is_active && s.cardInactive]}>
+              <View style={[s.cardTop, isAr && s.rowRtl]}>
+                <TouchableOpacity
+                  style={[s.toggleBtn, { backgroundColor: p.is_active ? C.greenSoft : C.bgOverlay }]}
+                  onPress={() => toggleActive(p.id, p.is_active)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[s.toggleText, { color: p.is_active ? C.green : C.textDisabled }]}>
+                    {p.is_active ? t.active : t.inactive}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[s.productName, isAr && s.rtl]} numberOfLines={2}>
+                  {getProductName(p)}
+                </Text>
               </View>
-            ))
-          )}
+              <View style={[s.cardMeta, isAr && s.rowRtl]}>
+                {!!p.price_from && <Text style={s.metaItem}>{p.price_from} {p.currency}</Text>}
+                {!!p.moq && <Text style={s.metaItem}>MOQ: {p.moq}</Text>}
+                {!!p.category && <Text style={s.metaItem}>{getCatLabel(p.category)}</Text>}
+              </View>
+            </View>
+          ))}
         </ScrollView>
       )}
 
-      {/* Add Product Modal */}
+      {/* ── Add Product Modal ── */}
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={s.safe}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
-              <View style={s.modalHeader}>
-                <TouchableOpacity onPress={() => setShowAdd(false)}>
-                  <Text style={s.modalClose}>إغلاق</Text>
+              <View style={[s.modalHeader, isAr && s.rowRtl]}>
+                <TouchableOpacity onPress={() => { setShowAdd(false); resetForm(); }}>
+                  <Text style={s.modalClose}>{t.close}</Text>
                 </TouchableOpacity>
-                <Text style={s.modalTitle}>منتج جديد</Text>
+                <Text style={[s.modalTitle, isAr && s.rtl]}>{t.newProduct}</Text>
               </View>
 
-              <PField label="اسم المنتج بالعربية *" value={form.nameAr} onChangeText={v => set('nameAr', v)} />
-              <PField label="اسم المنتج بالإنجليزية" value={form.nameEn} onChangeText={v => set('nameEn', v)} />
-              <PField label="اسم المنتج بالصينية" value={form.nameZh} onChangeText={v => set('nameZh', v)} />
-              <PField label="الوصف" value={form.descAr} onChangeText={v => set('descAr', v)}
-                multiline numberOfLines={3} style={{ minHeight: 80 }} />
+              <PField label={t.nameAr} value={form.nameAr} onChangeText={v => set('nameAr', v)} isAr={isAr} />
+              <PField label={t.nameEn} value={form.nameEn} onChangeText={v => set('nameEn', v)} isAr={false} />
+              <PField label={t.nameZh} value={form.nameZh} onChangeText={v => set('nameZh', v)} isAr={false} />
+              <PField label={t.descAr} value={form.descAr} onChangeText={v => set('descAr', v)} multiline numberOfLines={3} isAr={isAr} />
 
               <View style={s.row}>
-                <PField label="السعر من" value={form.priceFrom}
-                  onChangeText={v => set('priceFrom', v)} keyboardType="numeric" style={{ flex: 1 }} />
-                <PField label="العملة" value={form.currency}
-                  onChangeText={v => set('currency', v)} style={{ flex: 0.6 }} />
+                <View style={{ flex: 1 }}>
+                  <PField label={t.priceFrom} value={form.priceFrom} onChangeText={v => set('priceFrom', v)} keyboardType="numeric" isAr={isAr} />
+                </View>
+                <View style={{ width: 80 }}>
+                  <PField label={t.currency} value={form.currency} onChangeText={v => set('currency', v)} isAr={false} />
+                </View>
               </View>
 
-              <PField label="الحد الأدنى للطلب (MOQ)" value={form.moq}
-                onChangeText={v => set('moq', v)} />
-              <PField label="مدة التصنيع (بالأيام)" value={form.specLeadTimeDays}
-                onChangeText={v => set('specLeadTimeDays', v)} keyboardType="numeric" />
+              <PField label={t.moq} value={form.moq} onChangeText={v => set('moq', v)} isAr={isAr} />
+              <PField label={t.leadTime} value={form.specLeadTimeDays} onChangeText={v => set('specLeadTimeDays', v)} keyboardType="numeric" isAr={isAr} />
 
-              <Text style={s.catLabel}>الفئة</Text>
-              <View style={s.catRow}>
-                {CATEGORIES.map(cat => (
+              <Text style={[s.catLabel, isAr && s.rtl]}>{t.category}</Text>
+              <View style={[s.catRow, isAr && s.catRowRtl]}>
+                {cats.map(cat => (
                   <TouchableOpacity
-                    key={cat}
-                    style={[s.catChip, form.category === cat && s.catChipActive]}
-                    onPress={() => set('category', cat)}
+                    key={cat.val}
+                    style={[s.catChip, form.category === cat.val && s.catChipActive]}
+                    onPress={() => set('category', form.category === cat.val ? '' : cat.val)}
+                    activeOpacity={0.85}
                   >
-                    <Text style={[s.catChipText, form.category === cat && { color: C.accent }]}>{cat}</Text>
+                    <Text style={[s.catChipText, form.category === cat.val && s.catChipTextActive]}>
+                      {cat.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -173,9 +301,10 @@ export default function SupplierProductsScreen() {
               <TouchableOpacity
                 style={[s.sampleToggle, form.sampleAvailable && s.sampleToggleActive]}
                 onPress={() => set('sampleAvailable', !form.sampleAvailable)}
+                activeOpacity={0.85}
               >
-                <Text style={[s.sampleText, form.sampleAvailable && { color: C.accent }]}>
-                  {form.sampleAvailable ? '✓ عينات متاحة' : 'عينات غير متاحة'}
+                <Text style={[s.sampleText, form.sampleAvailable && s.sampleTextActive]}>
+                  {form.sampleAvailable ? t.sampleOn : t.sampleOff}
                 </Text>
               </TouchableOpacity>
 
@@ -186,8 +315,8 @@ export default function SupplierProductsScreen() {
                 activeOpacity={0.85}
               >
                 {submitting
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.submitBtnText}>إضافة المنتج</Text>}
+                  ? <ActivityIndicator color={C.bgBase} />
+                  : <Text style={s.submitBtnText}>{t.addProduct}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -197,14 +326,14 @@ export default function SupplierProductsScreen() {
   );
 }
 
-function PField({ label, style, ...props }) {
+function PField({ label, isAr, multiline, ...props }) {
   return (
-    <View style={[s.fieldWrap, style && { marginBottom: 0 }]}>
-      <Text style={s.fieldLabel}>{label}</Text>
+    <View style={s.fieldWrap}>
+      <Text style={[s.fieldLabel, isAr && s.rtl]}>{label}</Text>
       <TextInput
-        style={[s.input, style]}
+        style={[s.input, isAr && s.rtl, multiline && { minHeight: 80, textAlignVertical: 'top' }]}
         placeholderTextColor={C.textDisabled}
-        textAlignVertical={props.multiline ? 'top' : 'center'}
+        multiline={multiline}
         {...props}
       />
     </View>
@@ -214,80 +343,88 @@ function PField({ label, style, ...props }) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  rtl: { textAlign: 'right', writingDirection: 'rtl' },
+  rowRtl: { flexDirection: 'row-reverse' },
+
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16,
     borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
-  pageTitle: { color: C.textPrimary, fontSize: 18, fontWeight: '700' },
+  pageTitle: { color: C.textPrimary, fontSize: 20, fontFamily: F.arSemi },
   addBtn: {
-    backgroundColor: C.accent, borderRadius: 12,
+    backgroundColor: C.btnPrimary, borderRadius: 12,
     paddingHorizontal: 16, paddingVertical: 8,
   },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  list: { padding: 16, gap: 10, paddingBottom: 40 },
+  addBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi, fontSize: 13 },
+  list: { padding: 16, gap: 10, paddingBottom: 48 },
 
   card: {
     backgroundColor: C.bgRaised, borderRadius: 14,
     padding: 14, borderWidth: 1, borderColor: C.borderDefault,
   },
-  cardInactive: { opacity: 0.6 },
-  cardTop: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'flex-start', marginBottom: 8,
-  },
-  productName: { color: C.textPrimary, fontSize: 14, fontWeight: '600', textAlign: 'right', flex: 1 },
+  cardInactive: { opacity: 0.55 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  productName: { color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi, flex: 1, lineHeight: 20 },
   toggleBtn: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 8 },
-  toggleText: { fontSize: 11, fontWeight: '700' },
-  cardMeta: { flexDirection: 'row', gap: 12, justifyContent: 'flex-end' },
-  metaItem: { color: C.textTertiary, fontSize: 12 },
+  toggleText: { fontSize: 11, fontFamily: F.arSemi },
+  cardMeta: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+  metaItem: { color: C.textTertiary, fontSize: 12, fontFamily: F.en },
 
   emptyCard: {
     backgroundColor: C.bgRaised, borderRadius: 16,
-    padding: 40, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault,
+    padding: 40, alignItems: 'center',
+    borderWidth: 1, borderColor: C.borderDefault, marginTop: 16,
   },
-  emptyText: { color: C.textSecondary, fontSize: 14, marginBottom: 16 },
+  emptyText: { color: C.textSecondary, fontSize: 14, fontFamily: F.ar, marginBottom: 16 },
   emptyBtn: {
-    backgroundColor: C.accent, borderRadius: 12,
+    backgroundColor: C.btnPrimary, borderRadius: 12,
     paddingHorizontal: 20, paddingVertical: 10,
   },
-  emptyBtnText: { color: '#fff', fontWeight: '700' },
+  emptyBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi },
 
   modalScroll: { padding: 20, paddingBottom: 60 },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 20,
   },
-  modalTitle: { color: C.textPrimary, fontSize: 18, fontWeight: '700' },
-  modalClose: { color: C.accent, fontSize: 15 },
-  row: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  modalTitle: { color: C.textPrimary, fontSize: 18, fontFamily: F.arSemi },
+  modalClose: { color: C.textSecondary, fontSize: 15, fontFamily: F.ar },
+
+  row: { flexDirection: 'row', gap: 10, marginBottom: 0 },
   fieldWrap: { marginBottom: 16 },
-  fieldLabel: { color: C.textSecondary, fontSize: 12, textAlign: 'right', marginBottom: 6 },
+  fieldLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 6 },
   input: {
     backgroundColor: C.bgRaised, borderRadius: 12,
     borderWidth: 1, borderColor: C.borderMuted,
     paddingHorizontal: 16, paddingVertical: 12,
-    color: C.textPrimary, fontSize: 15, textAlign: 'right',
+    color: C.textPrimary, fontSize: 15, fontFamily: F.ar,
   },
-  catLabel: { color: C.textSecondary, fontSize: 12, textAlign: 'right', marginBottom: 8 },
-  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16, justifyContent: 'flex-end' },
+
+  catLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 8 },
+  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  catRowRtl: { flexDirection: 'row-reverse' },
   catChip: {
     borderWidth: 1, borderColor: C.borderDefault,
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: C.bgRaised,
   },
-  catChipActive: { borderColor: C.accent, backgroundColor: C.accentSoft },
-  catChipText: { color: C.textSecondary, fontSize: 12 },
+  catChipActive: { borderColor: C.borderStrong, backgroundColor: C.bgHover },
+  catChipText: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar },
+  catChipTextActive: { color: C.textPrimary, fontFamily: F.arSemi },
+
   sampleToggle: {
     borderWidth: 1, borderColor: C.borderDefault,
     borderRadius: 12, paddingVertical: 12, alignItems: 'center',
     marginBottom: 16, backgroundColor: C.bgRaised,
   },
-  sampleToggleActive: { borderColor: C.accent, backgroundColor: C.accentSoft },
-  sampleText: { color: C.textSecondary, fontSize: 14, fontWeight: '600' },
+  sampleToggleActive: { borderColor: C.borderStrong, backgroundColor: C.bgHover },
+  sampleText: { color: C.textSecondary, fontSize: 14, fontFamily: F.arSemi },
+  sampleTextActive: { color: C.textPrimary },
+
   submitBtn: {
-    backgroundColor: C.accent, borderRadius: 14,
+    backgroundColor: C.btnPrimary, borderRadius: 14,
     paddingVertical: 14, alignItems: 'center', marginTop: 8,
   },
-  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  submitBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi, fontSize: 16 },
 });
