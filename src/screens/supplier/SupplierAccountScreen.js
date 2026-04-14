@@ -166,6 +166,7 @@ export default function SupplierAccountScreen() {
   const isAr = lang === 'ar';
 
   const [profile, setProfile] = useState(null);
+  const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [showVerify, setShowVerify] = useState(false);
   const [verifyForm, setVerifyForm] = useState({
@@ -182,13 +183,16 @@ export default function SupplierAccountScreen() {
   async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    setUserEmail(user.email || '');
 
-    // Exact web query from loadSettings() / SupplierAccountScreen
-    const { data } = await supabase
+    // email lives in auth.users, not profiles — use select('*') like the web app
+    const { data, error } = await supabase
       .from('profiles')
-      .select('company_name, email, country, city, whatsapp, wechat, trade_link, status, maabar_supplier_id, trust_score, years_experience, reg_number, created_at')
+      .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (error) console.error('[SupplierAccount] loadProfile error:', error);
 
     console.log('[SupplierAccount] profile:', data);
     setProfile(data);
@@ -303,7 +307,7 @@ export default function SupplierAccountScreen() {
         {/* Company details */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, isAr && s.rtl]}>{t.companyData}</Text>
-          <InfoRow label={t.email} value={profile?.email || '—'} isAr={isAr} />
+          <InfoRow label={t.email} value={userEmail || '—'} isAr={isAr} />
           <InfoRow label={t.country} value={profile?.country || '—'} isAr={isAr} />
           <InfoRow label={t.city} value={profile?.city || '—'} isAr={isAr} />
           {profile?.whatsapp ? <InfoRow label={t.whatsapp} value={profile.whatsapp} isAr={isAr} /> : null}
