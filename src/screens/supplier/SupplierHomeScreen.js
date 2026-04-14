@@ -1,13 +1,24 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, Modal,
+  StyleSheet, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+
+function parseDesc(raw, lang) {
+  if (!raw) return '';
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object') {
+      return obj[lang] || obj.ar || obj.en || obj.zh || '';
+    }
+  } catch {}
+  return String(raw);
+}
 
 const COPY = {
   ar: {
@@ -25,6 +36,10 @@ const COPY = {
       verification_under_review: 'قيد المراجعة', verified: 'موثّق',
       rejected: 'مرفوض', inactive: 'غير نشط',
     },
+    close: 'إغلاق', inquiry: 'تفاصيل الاستفسار', question: 'السؤال',
+    product: 'المنتج', date: 'التاريخ',
+    dismiss: 'إخفاء', confirmDismiss: 'إخفاء هذا العرض المرفوض؟',
+    cancelBtn: 'إلغاء', confirm: 'تأكيد',
   },
   en: {
     welcome: 'Welcome,', desc: 'Manage your offers, products and messages',
@@ -41,6 +56,10 @@ const COPY = {
       verification_under_review: 'Under Review', verified: 'Verified',
       rejected: 'Rejected', inactive: 'Inactive',
     },
+    close: 'Close', inquiry: 'Inquiry Details', question: 'Question',
+    product: 'Product', date: 'Date',
+    dismiss: 'Dismiss', confirmDismiss: 'Dismiss this rejected offer?',
+    cancelBtn: 'Cancel', confirm: 'Confirm',
   },
   zh: {
     welcome: '欢迎，', desc: '管理您的报价、产品和消息',
@@ -57,6 +76,10 @@ const COPY = {
       verification_under_review: '审核中', verified: '已认证',
       rejected: '已拒绝', inactive: '未激活',
     },
+    close: '关闭', inquiry: '咨询详情', question: '问题',
+    product: '产品', date: '日期',
+    dismiss: '忽略', confirmDismiss: '忽略此被拒绝的报价？',
+    cancelBtn: '取消', confirm: '确认',
   },
 };
 
@@ -78,6 +101,7 @@ export default function SupplierHomeScreen({ navigation }) {
   const [samples, setSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -169,6 +193,19 @@ export default function SupplierHomeScreen({ navigation }) {
     return { bg: C.orangeSoft, border: C.orange + '40', color: C.orange };
   };
 
+  function dismissOffer(offerId) {
+    Alert.alert('', t.confirmDismiss, [
+      { text: t.cancelBtn, style: 'cancel' },
+      {
+        text: t.confirm, style: 'destructive',
+        onPress: async () => {
+          await supabase.from('offers').delete().eq('id', offerId);
+          load();
+        },
+      },
+    ]);
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={s.safe}>
@@ -224,7 +261,7 @@ export default function SupplierHomeScreen({ navigation }) {
           </View>
 
           {/* My Offers */}
-          <SectionHead title={t.myOffers} cta={t.viewAll} isAr={isAr} onPress={() => navigation.navigate('SRequests')} />
+          <SectionHead title={t.myOffers} cta={t.viewAll} isAr={isAr} onPress={() => navigation.navigate('SOffers')} />
           {myOffers.length === 0 ? (
             <View style={s.emptyCard}>
               <Text style={[s.emptyText, isAr && s.rtl]}>{t.noOffers}</Text>
@@ -249,6 +286,15 @@ export default function SupplierHomeScreen({ navigation }) {
                 {!!o.price && (
                   <Text style={[s.offerMeta, isAr && s.rtl]}>{o.price} USD</Text>
                 )}
+                {o.status === 'rejected' && (
+                  <TouchableOpacity
+                    style={s.dismissBtn}
+                    onPress={() => dismissOffer(o.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={s.dismissText}>{t.dismiss}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}
@@ -260,14 +306,19 @@ export default function SupplierHomeScreen({ navigation }) {
               <Text style={[s.emptyText, isAr && s.rtl]}>{t.noInquiries}</Text>
             </View>
           ) : inquiries.slice(0, 3).map(inq => (
-            <View key={inq.id} style={s.inqCard}>
+            <TouchableOpacity
+              key={inq.id}
+              style={s.inqCard}
+              onPress={() => setSelectedInquiry(inq)}
+              activeOpacity={0.75}
+            >
               <Text style={[s.inqText, isAr && s.rtl]} numberOfLines={2}>
                 {inq.question_text || inq.message || '—'}
               </Text>
               <Text style={s.inqDate}>
                 {inq.created_at ? new Date(inq.created_at).toLocaleDateString() : ''}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
 
           {/* Sample Requests */}
@@ -301,6 +352,43 @@ export default function SupplierHomeScreen({ navigation }) {
 
         </View>
       </ScrollView>
+      {/* ── Inquiry Detail Modal ── */}
+      <Modal visible={!!selectedInquiry} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSelectedInquiry(null)}>
+        <SafeAreaView style={s.safe}>
+          <View style={[s.modalHeader, isAr && s.rowRtl]}>
+            <TouchableOpacity onPress={() => setSelectedInquiry(null)}>
+              <Text style={s.modalClose}>{t.close}</Text>
+            </TouchableOpacity>
+            <Text style={[s.modalTitle, isAr && s.rtl]}>{t.inquiry}</Text>
+          </View>
+          <ScrollView contentContainerStyle={s.modalBody}>
+            {selectedInquiry && (
+              <>
+                <View style={s.inqDetailRow}>
+                  <Text style={[s.inqDetailLabel, isAr && s.rtl]}>{t.question}</Text>
+                  <Text style={[s.inqDetailValue, isAr && s.rtl]}>
+                    {selectedInquiry.question_text || selectedInquiry.message || '—'}
+                  </Text>
+                </View>
+                {!!selectedInquiry.product_id && (
+                  <View style={s.inqDetailRow}>
+                    <Text style={[s.inqDetailLabel, isAr && s.rtl]}>{t.product}</Text>
+                    <Text style={[s.inqDetailValue, isAr && s.rtl]}>
+                      {selectedInquiry.product_name || selectedInquiry.product_id}
+                    </Text>
+                  </View>
+                )}
+                <View style={s.inqDetailRow}>
+                  <Text style={[s.inqDetailLabel, isAr && s.rtl]}>{t.date}</Text>
+                  <Text style={[s.inqDetailValue, isAr && s.rtl]}>
+                    {selectedInquiry.created_at ? new Date(selectedInquiry.created_at).toLocaleDateString() : '—'}
+                  </Text>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -394,6 +482,30 @@ const s = StyleSheet.create({
   },
   inqText: { color: C.textPrimary, fontSize: 13, fontFamily: F.ar, lineHeight: 20 },
   inqDate: { color: C.textDisabled, fontSize: 11, fontFamily: F.en, marginTop: 4 },
+
+  dismissBtn: {
+    marginTop: 8, alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: C.red + '40', backgroundColor: C.redSoft,
+  },
+  dismissText: { color: C.red, fontSize: 11, fontFamily: F.arSemi },
+
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', padding: 20, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  modalTitle: { color: C.textPrimary, fontSize: 17, fontFamily: F.arSemi },
+  modalClose: { color: C.textSecondary, fontSize: 15, fontFamily: F.ar },
+  modalBody: { padding: 20 },
+  inqDetailRow: {
+    marginBottom: 16, backgroundColor: C.bgRaised,
+    borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: C.borderDefault,
+  },
+  inqDetailLabel: { color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi, marginBottom: 6, letterSpacing: 0.5 },
+  inqDetailValue: { color: C.textPrimary, fontSize: 14, fontFamily: F.ar, lineHeight: 22 },
 
   emptyCard: {
     backgroundColor: C.bgRaised, borderRadius: 14,

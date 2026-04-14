@@ -52,10 +52,15 @@ const COPY = {
     nameZh: 'اسم المنتج بالصينية',
     descAr: 'الوصف',
     priceFrom: 'السعر من',
-    currency: 'العملة',
     moq: 'الحد الأدنى للكمية (MOQ)',
     leadTime: 'مدة التصنيع (بالأيام)',
     category: 'التصنيف',
+    colors: 'الألوان المتاحة',
+    colorsHint: 'مثال: أحمر، أزرق، أسود',
+    sizes: 'المقاسات / الأبعاد',
+    sizesHint: 'مثال: S، M، L، XL أو 10×20 سم',
+    material: 'المادة / نوع القماش',
+    materialHint: 'مثال: قطن 100٪، بوليستر، ألومنيوم',
     sampleOff: 'عينات غير متاحة',
     sampleOn: '✓ عينات متاحة',
     addProduct: 'إضافة المنتج',
@@ -74,11 +79,16 @@ const COPY = {
     nameEn: 'English Name',
     nameZh: 'Chinese Name',
     descAr: 'Description',
-    priceFrom: 'Starting Price',
-    currency: 'Currency',
+    priceFrom: 'Starting Price (USD)',
     moq: 'MOQ',
     leadTime: 'Lead Time (days)',
     category: 'Category',
+    colors: 'Available Colors',
+    colorsHint: 'e.g. Red, Blue, Black',
+    sizes: 'Sizes / Dimensions',
+    sizesHint: 'e.g. S, M, L, XL or 10×20 cm',
+    material: 'Material / Fabric Type',
+    materialHint: 'e.g. 100% Cotton, Polyester, Aluminium',
     sampleOff: 'Samples Unavailable',
     sampleOn: '✓ Samples Available',
     addProduct: 'Add Product',
@@ -97,11 +107,16 @@ const COPY = {
     nameEn: '英文名称',
     nameZh: '中文名称',
     descAr: '描述',
-    priceFrom: '起始价格',
-    currency: '货币',
+    priceFrom: '起始价格 (USD)',
     moq: '最小起订量',
     leadTime: '生产周期（天）',
     category: '产品类别',
+    colors: '可选颜色',
+    colorsHint: '例如：红色、蓝色、黑色',
+    sizes: '尺寸 / 规格',
+    sizesHint: '例如：S、M、L、XL 或 10×20 厘米',
+    material: '材质 / 面料',
+    materialHint: '例如：100%棉、涤纶、铝合金',
     sampleOff: '不提供样品',
     sampleOn: '✓ 可提供样品',
     addProduct: '添加产品',
@@ -124,9 +139,9 @@ export default function SupplierProductsScreen() {
 
   const [form, setForm] = useState({
     nameAr: '', nameEn: '', nameZh: '',
-    descAr: '', priceFrom: '', currency: 'USD',
+    descAr: '', priceFrom: '',
     moq: '', category: '', sampleAvailable: false,
-    specLeadTimeDays: '',
+    specLeadTimeDays: '', colors: '', sizes: '', material: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -155,9 +170,9 @@ export default function SupplierProductsScreen() {
   function resetForm() {
     setForm({
       nameAr: '', nameEn: '', nameZh: '',
-      descAr: '', priceFrom: '', currency: 'USD',
+      descAr: '', priceFrom: '',
       moq: '', category: '', sampleAvailable: false,
-      specLeadTimeDays: '',
+      specLeadTimeDays: '', colors: '', sizes: '', material: '',
     });
   }
 
@@ -172,11 +187,14 @@ export default function SupplierProductsScreen() {
       name_zh: form.nameZh || null,
       desc_ar: form.descAr || null,
       price_from: form.priceFrom ? parseFloat(form.priceFrom) : null,
-      currency: form.currency || 'USD',
+      currency: 'USD',
       moq: form.moq || null,
       category: form.category || null,
       sample_available: form.sampleAvailable,
       spec_lead_time_days: form.specLeadTimeDays ? parseInt(form.specLeadTimeDays, 10) : null,
+      colors: form.colors || null,
+      sizes: form.sizes || null,
+      material: form.material || null,
       is_active: true,
     });
 
@@ -270,17 +288,13 @@ export default function SupplierProductsScreen() {
               <PField label={t.nameZh} value={form.nameZh} onChangeText={v => set('nameZh', v)} isAr={false} />
               <PField label={t.descAr} value={form.descAr} onChangeText={v => set('descAr', v)} multiline numberOfLines={3} isAr={isAr} />
 
-              <View style={s.row}>
-                <View style={{ flex: 1 }}>
-                  <PField label={t.priceFrom} value={form.priceFrom} onChangeText={v => set('priceFrom', v)} keyboardType="numeric" isAr={isAr} />
-                </View>
-                <View style={{ width: 80 }}>
-                  <PField label={t.currency} value={form.currency} onChangeText={v => set('currency', v)} isAr={false} />
-                </View>
-              </View>
-
+              <PField label={t.priceFrom} value={form.priceFrom} onChangeText={v => set('priceFrom', v)} keyboardType="numeric" isAr={isAr} />
               <PField label={t.moq} value={form.moq} onChangeText={v => set('moq', v)} isAr={isAr} />
               <PField label={t.leadTime} value={form.specLeadTimeDays} onChangeText={v => set('specLeadTimeDays', v)} keyboardType="numeric" isAr={isAr} />
+
+              <PField label={t.colors} value={form.colors} onChangeText={v => set('colors', v)} placeholder={t.colorsHint} isAr={isAr} />
+              <PField label={t.sizes} value={form.sizes} onChangeText={v => set('sizes', v)} placeholder={t.sizesHint} isAr={isAr} />
+              <PField label={t.material} value={form.material} onChangeText={v => set('material', v)} placeholder={t.materialHint} isAr={isAr} />
 
               <Text style={[s.catLabel, isAr && s.rtl]}>{t.category}</Text>
               <View style={[s.catRow, isAr && s.catRowRtl]}>
@@ -326,7 +340,7 @@ export default function SupplierProductsScreen() {
   );
 }
 
-function PField({ label, isAr, multiline, ...props }) {
+function PField({ label, isAr, multiline, hint, ...props }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={[s.fieldLabel, isAr && s.rtl]}>{label}</Text>
@@ -336,6 +350,7 @@ function PField({ label, isAr, multiline, ...props }) {
         multiline={multiline}
         {...props}
       />
+      {!!hint && <Text style={[s.fieldHint, isAr && s.rtl]}>{hint}</Text>}
     </View>
   );
 }
@@ -391,9 +406,9 @@ const s = StyleSheet.create({
   modalTitle: { color: C.textPrimary, fontSize: 18, fontFamily: F.arSemi },
   modalClose: { color: C.textSecondary, fontSize: 15, fontFamily: F.ar },
 
-  row: { flexDirection: 'row', gap: 10, marginBottom: 0 },
   fieldWrap: { marginBottom: 16 },
   fieldLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 6 },
+  fieldHint: { color: C.textDisabled, fontSize: 11, fontFamily: F.ar, marginTop: 4 },
   input: {
     backgroundColor: C.bgRaised, borderRadius: 12,
     borderWidth: 1, borderColor: C.borderMuted,

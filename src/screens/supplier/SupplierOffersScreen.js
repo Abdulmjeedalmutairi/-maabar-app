@@ -20,9 +20,11 @@ const COPY = {
     days: 'مدة التسليم (يوم)', note: 'ملاحظة', origin: 'بلد المنشأ',
     shippingMethod: 'طريقة الشحن',
     edit: 'تعديل', delete: 'حذف', cancel: 'إلغاء العرض',
+    dismiss: 'إخفاء',
     save: 'حفظ', close: 'إغلاق', editOffer: 'تعديل العرض',
     addTracking: 'إضافة رقم التتبع', trackingNum: 'رقم التتبع', send: 'إرسال',
     confirmDelete: 'هل تريد حذف هذا العرض؟',
+    confirmDismiss: 'إخفاء هذا العرض المرفوض؟',
     confirmCancel: 'هل تريد إلغاء هذا العرض؟',
     confirmCancelAccepted: 'هل تريد سحب العرض المقبول وإعادة الطلب للتاجر؟',
     cantDelete: 'لا يمكن حذف عرض مقبول أو مرفوض',
@@ -30,6 +32,7 @@ const COPY = {
     errorGeneric: 'حدث خطأ، حاول مرة أخرى',
     trackingSent: 'تم إرسال رقم التتبع',
     confirm: 'تأكيد', cancelBtn: 'إلغاء',
+    rejectionReason: 'سبب الرفض',
   },
   en: {
     title: 'My Offers',
@@ -40,9 +43,11 @@ const COPY = {
     days: 'Delivery Days', note: 'Note', origin: 'Origin',
     shippingMethod: 'Shipping Method',
     edit: 'Edit', delete: 'Delete', cancel: 'Cancel Offer',
+    dismiss: 'Dismiss',
     save: 'Save', close: 'Close', editOffer: 'Edit Offer',
     addTracking: 'Add Tracking Number', trackingNum: 'Tracking Number', send: 'Send',
     confirmDelete: 'Delete this offer?',
+    confirmDismiss: 'Dismiss this rejected offer?',
     confirmCancel: 'Cancel this offer?',
     confirmCancelAccepted: 'Withdraw accepted offer and reopen the request for the trader?',
     cantDelete: 'Cannot delete an accepted or rejected offer',
@@ -50,6 +55,7 @@ const COPY = {
     errorGeneric: 'Something went wrong, please try again',
     trackingSent: 'Tracking number sent',
     confirm: 'Confirm', cancelBtn: 'Cancel',
+    rejectionReason: 'Rejection reason',
   },
   zh: {
     title: '我的报价',
@@ -60,9 +66,11 @@ const COPY = {
     days: '交期（天）', note: '备注', origin: '原产地',
     shippingMethod: '运输方式',
     edit: '编辑', delete: '删除', cancel: '取消报价',
+    dismiss: '忽略',
     save: '保存', close: '关闭', editOffer: '编辑报价',
     addTracking: '添加物流单号', trackingNum: '物流单号', send: '发送',
     confirmDelete: '确认删除这个报价吗？',
+    confirmDismiss: '忽略此被拒绝的报价？',
     confirmCancel: '确认取消这个报价吗？',
     confirmCancelAccepted: '确认撤回已接受报价并让需求重新开放给买家吗？',
     cantDelete: '已接受或已拒绝的报价无法删除',
@@ -70,6 +78,7 @@ const COPY = {
     errorGeneric: '出现错误，请重试',
     trackingSent: '物流单号已发送',
     confirm: '确认', cancelBtn: '取消',
+    rejectionReason: '拒绝原因',
   },
 };
 
@@ -164,6 +173,19 @@ export default function SupplierOffersScreen({ navigation }) {
       { text: t.cancelBtn, style: 'cancel' },
       {
         text: t.delete, style: 'destructive',
+        onPress: async () => {
+          await supabase.from('offers').delete().eq('id', o.id);
+          load();
+        },
+      },
+    ]);
+  }
+
+  function dismissOffer(o) {
+    Alert.alert('', t.confirmDismiss, [
+      { text: t.cancelBtn, style: 'cancel' },
+      {
+        text: t.dismiss, style: 'destructive',
         onPress: async () => {
           await supabase.from('offers').delete().eq('id', o.id);
           load();
@@ -343,6 +365,13 @@ export default function SupplierOffersScreen({ navigation }) {
 
               <Text style={[s.dateText, isAr && s.rtl]}>{fmtDate(o.created_at)}</Text>
 
+              {o.status === 'rejected' && !!o.rejection_reason && (
+                <View style={s.rejectionBox}>
+                  <Text style={[s.rejectionLabel, isAr && s.rtl]}>{t.rejectionReason}</Text>
+                  <Text style={[s.rejectionText, isAr && s.rtl]}>{o.rejection_reason}</Text>
+                </View>
+              )}
+
               <View style={[s.actionsRow, isAr && s.rowRtl]}>
                 {canEdit(o) && (
                   <TouchableOpacity style={s.actionBtn} onPress={() => openEdit(o)} activeOpacity={0.85}>
@@ -366,6 +395,11 @@ export default function SupplierOffersScreen({ navigation }) {
                 {canDelete(o) && (
                   <TouchableOpacity style={[s.actionBtn, s.actionBtnDanger]} onPress={() => deleteOffer(o)} activeOpacity={0.85}>
                     <Text style={s.actionBtnDangerText}>{t.delete}</Text>
+                  </TouchableOpacity>
+                )}
+                {o.status === 'rejected' && (
+                  <TouchableOpacity style={[s.actionBtn, s.actionBtnDanger]} onPress={() => dismissOffer(o)} activeOpacity={0.85}>
+                    <Text style={s.actionBtnDangerText}>{t.dismiss}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -489,6 +523,13 @@ const s = StyleSheet.create({
   meta: { color: C.textSecondary, fontSize: 12, fontFamily: F.en },
   dateText: { color: C.textDisabled, fontSize: 11, fontFamily: F.en, marginBottom: 10 },
 
+  rejectionBox: {
+    backgroundColor: C.redSoft, borderRadius: 8,
+    padding: 10, marginBottom: 8,
+    borderWidth: 1, borderColor: C.red + '30',
+  },
+  rejectionLabel: { color: C.red, fontSize: 10, fontFamily: F.arSemi, marginBottom: 4, letterSpacing: 0.5 },
+  rejectionText: { color: C.red, fontSize: 13, fontFamily: F.ar, lineHeight: 18 },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,

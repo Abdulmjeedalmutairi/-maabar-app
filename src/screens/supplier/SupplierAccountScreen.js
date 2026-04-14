@@ -13,6 +13,12 @@ import { F } from '../../lib/fonts';
 const COPY = {
   ar: {
     title: 'حسابي',
+    editProfile: 'تعديل الملف الشخصي',
+    editTitle: 'تعديل البيانات',
+    saveChanges: 'حفظ التغييرات',
+    companyName: 'اسم الشركة',
+    errorSave: 'حدث خطأ أثناء الحفظ',
+    saved: 'تم حفظ التغييرات',
     companyData: 'بيانات الشركة',
     email: 'البريد الإلكتروني',
     country: 'الدولة',
@@ -53,6 +59,12 @@ const COPY = {
   },
   en: {
     title: 'My Account',
+    editProfile: 'Edit Profile',
+    editTitle: 'Edit Details',
+    saveChanges: 'Save Changes',
+    companyName: 'Company Name',
+    errorSave: 'Failed to save changes',
+    saved: 'Changes saved',
     companyData: 'Company Details',
     email: 'Email',
     country: 'Country',
@@ -93,6 +105,12 @@ const COPY = {
   },
   zh: {
     title: '我的账户',
+    editProfile: '编辑资料',
+    editTitle: '编辑信息',
+    saveChanges: '保存修改',
+    companyName: '公司名称',
+    errorSave: '保存失败，请重试',
+    saved: '修改已保存',
     companyData: '公司信息',
     email: '电子邮件',
     country: '国家',
@@ -155,6 +173,9 @@ export default function SupplierAccountScreen() {
     payoutName: '', bankName: '', swiftCode: '', iban: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({ companyName: '', city: '', country: '', whatsapp: '', wechat: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadProfile(); }, []);
 
@@ -171,7 +192,33 @@ export default function SupplierAccountScreen() {
 
     console.log('[SupplierAccount] profile:', data);
     setProfile(data);
+    if (data) {
+      setEditForm({
+        companyName: data.company_name || '',
+        city: data.city || '',
+        country: data.country || '',
+        whatsapp: data.whatsapp || '',
+        wechat: data.wechat || '',
+      });
+    }
     setLoading(false);
+  }
+
+  async function saveProfile() {
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('profiles').update({
+      company_name: editForm.companyName || null,
+      city: editForm.city || null,
+      country: editForm.country || null,
+      whatsapp: editForm.whatsapp || null,
+      wechat: editForm.wechat || null,
+    }).eq('id', user.id);
+    setSaving(false);
+    if (error) { console.error('[SupplierAccount] saveProfile error:', error); Alert.alert('', t.errorSave); return; }
+    setShowEdit(false);
+    loadProfile();
+    Alert.alert('✓', t.saved);
   }
 
   function setV(k, v) { setVerifyForm(f => ({ ...f, [k]: v })); }
@@ -240,6 +287,9 @@ export default function SupplierAccountScreen() {
           <View style={[s.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor + '40' }]}>
             <Text style={[s.statusText, { color: statusColor }]}>{statusLabel}</Text>
           </View>
+          <TouchableOpacity style={s.editProfileBtn} onPress={() => setShowEdit(true)} activeOpacity={0.85}>
+            <Text style={s.editProfileText}>{t.editProfile}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Verification CTA */}
@@ -279,6 +329,37 @@ export default function SupplierAccountScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* ── Edit Profile Modal ── */}
+      <Modal visible={showEdit} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEdit(false)}>
+        <SafeAreaView style={s.safe}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
+              <View style={[s.modalHeader, isAr && s.rowRtl]}>
+                <TouchableOpacity onPress={() => setShowEdit(false)}>
+                  <Text style={s.modalClose}>{t.close}</Text>
+                </TouchableOpacity>
+                <Text style={[s.modalTitle, isAr && s.rtl]}>{t.editTitle}</Text>
+              </View>
+              <VField label={t.companyName} value={editForm.companyName} onChangeText={v => setEditForm(f => ({ ...f, companyName: v }))} isAr={isAr} />
+              <VField label={t.city} value={editForm.city} onChangeText={v => setEditForm(f => ({ ...f, city: v }))} isAr={isAr} />
+              <VField label={t.country} value={editForm.country} onChangeText={v => setEditForm(f => ({ ...f, country: v }))} isAr={isAr} />
+              <VField label={t.whatsapp} value={editForm.whatsapp} onChangeText={v => setEditForm(f => ({ ...f, whatsapp: v }))} keyboardType="phone-pad" isAr={false} />
+              <VField label={t.wechat} value={editForm.wechat} onChangeText={v => setEditForm(f => ({ ...f, wechat: v }))} isAr={false} />
+              <TouchableOpacity
+                style={[s.submitBtn, saving && { opacity: 0.6 }]}
+                onPress={saveProfile}
+                disabled={saving}
+                activeOpacity={0.85}
+              >
+                {saving
+                  ? <ActivityIndicator color={C.bgBase} />
+                  : <Text style={s.submitBtnText}>{t.saveChanges}</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {/* ── Verification Modal ── */}
       <Modal visible={showVerify} animationType="slide" presentationStyle="pageSheet">
@@ -361,6 +442,14 @@ const s = StyleSheet.create({
   supplierId: { color: C.textDisabled, fontSize: 11, fontFamily: F.en, marginBottom: 10 },
   statusBadge: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6, borderWidth: 1 },
   statusText: { fontSize: 13, fontFamily: F.arSemi },
+
+  editProfileBtn: {
+    marginTop: 14, borderRadius: 10,
+    paddingHorizontal: 16, paddingVertical: 7,
+    borderWidth: 1, borderColor: C.borderStrong,
+    backgroundColor: C.bgOverlay,
+  },
+  editProfileText: { color: C.textPrimary, fontSize: 13, fontFamily: F.arSemi },
 
   verifyBanner: {
     backgroundColor: C.bgRaised, borderRadius: 16,

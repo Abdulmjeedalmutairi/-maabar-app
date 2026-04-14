@@ -4,6 +4,17 @@ import {
   StyleSheet, ActivityIndicator, Modal, RefreshControl,
   KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
+
+function parseDesc(raw, lang) {
+  if (!raw) return '';
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object') {
+      return obj[lang] || obj.ar || obj.en || obj.zh || '';
+    }
+  } catch {}
+  return String(raw);
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
@@ -14,10 +25,12 @@ const COPY = {
   ar: {
     title: 'الطلبات المتاحة',
     noRequests: 'لا توجد طلبات مفتوحة حالياً',
-    budget: 'الميزانية',
+    budget: 'الميزانية للوحدة',
     qty: 'الكمية',
     sendOffer: 'إرسال عرض',
+    viewDetails: 'عرض التفاصيل',
     offerTitle: 'إرسال عرض',
+    detailTitle: 'تفاصيل الطلب',
     close: 'إغلاق',
     unitPrice: 'سعر الوحدة (USD) *',
     shipping: 'تكلفة الشحن (USD)',
@@ -31,14 +44,20 @@ const COPY = {
     errorPrice: 'أدخل سعر الوحدة ومدة التسليم',
     errorGeneric: 'حدث خطأ، حاول مرة أخرى',
     alreadyOfferred: 'قدمت عرضاً على هذا الطلب مسبقاً',
+    descLabel: 'الوصف', categoryLabel: 'التصنيف',
+    paymentLabel: 'خطة الدفع', sampleLabel: 'العينات',
+    paymentPlan: { '100': 'دفعة واحدة', '50': '٥٠٪ مقدماً', '30': '٣٠٪ مقدماً' },
+    sampleReq: { none: 'لا عينات', preferred: 'مفضّل', required: 'مطلوب' },
   },
   en: {
     title: 'Open Requests',
     noRequests: 'No open requests at the moment',
-    budget: 'Budget',
+    budget: 'Budget/unit',
     qty: 'Qty',
     sendOffer: 'Send Offer',
+    viewDetails: 'View Details',
     offerTitle: 'Send Offer',
+    detailTitle: 'Request Details',
     close: 'Close',
     unitPrice: 'Unit Price (USD) *',
     shipping: 'Shipping Cost (USD)',
@@ -52,14 +71,20 @@ const COPY = {
     errorPrice: 'Please enter unit price and delivery days',
     errorGeneric: 'Something went wrong, please try again',
     alreadyOfferred: 'You already submitted an offer on this request',
+    descLabel: 'Description', categoryLabel: 'Category',
+    paymentLabel: 'Payment plan', sampleLabel: 'Samples',
+    paymentPlan: { '100': 'Full upfront', '50': '50% upfront', '30': '30% upfront' },
+    sampleReq: { none: 'None', preferred: 'Preferred', required: 'Required' },
   },
   zh: {
     title: '开放询盘',
     noRequests: '暂时没有开放的询盘',
-    budget: '预算',
+    budget: '单位预算',
     qty: '数量',
     sendOffer: '发送报价',
+    viewDetails: '查看详情',
     offerTitle: '发送报价',
+    detailTitle: '询盘详情',
     close: '关闭',
     unitPrice: '单价 (USD) *',
     shipping: '运费 (USD)',
@@ -73,6 +98,10 @@ const COPY = {
     errorPrice: '请填写单价和交期',
     errorGeneric: '出现错误，请重试',
     alreadyOfferred: '您已对该询盘提交过报价',
+    descLabel: '描述', categoryLabel: '类别',
+    paymentLabel: '付款方式', sampleLabel: '样品',
+    paymentPlan: { '100': '一次性付款', '50': '50%预付', '30': '30%预付' },
+    sampleReq: { none: '无', preferred: '优先', required: '必须' },
   },
 };
 
@@ -86,6 +115,7 @@ export default function SupplierRequestsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [myId, setMyId] = useState(null);
 
+  const [viewedRequest, setViewedRequest] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [form, setForm] = useState({
     price: '', shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '',
@@ -212,41 +242,99 @@ export default function SupplierRequestsScreen({ navigation }) {
             <View style={s.emptyCard}>
               <Text style={[s.emptyText, isAr && s.rtl]}>{t.noRequests}</Text>
             </View>
-          ) : requests.map(r => (
-            <View key={r.id} style={s.card}>
-              <View style={[s.cardHeader, isAr && s.rowRtl]}>
-                {r.category ? (
-                  <View style={s.catBadge}>
-                    <Text style={s.catText}>{r.category}</Text>
-                  </View>
-                ) : null}
-                <Text style={[s.cardTitle, isAr && s.rtl]} numberOfLines={2}>{getTitle(r)}</Text>
-              </View>
+          ) : requests.map(r => {
+            const desc = parseDesc(r.description, lang);
+            return (
+              <View key={r.id} style={s.card}>
+                <View style={[s.cardHeader, isAr && s.rowRtl]}>
+                  {r.category ? (
+                    <View style={s.catBadge}>
+                      <Text style={s.catText}>{r.category}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={[s.cardTitle, isAr && s.rtl]} numberOfLines={2}>{getTitle(r)}</Text>
+                </View>
 
-              {!!r.description && (
-                <Text style={[s.cardDesc, isAr && s.rtl]} numberOfLines={3}>{r.description}</Text>
-              )}
-
-              <View style={[s.cardMeta, isAr && s.rowRtl]}>
-                {!!r.budget_per_unit && (
-                  <Text style={s.metaItem}>{t.budget}: ${r.budget_per_unit}</Text>
+                {!!desc && (
+                  <Text style={[s.cardDesc, isAr && s.rtl]} numberOfLines={2}>{desc}</Text>
                 )}
-                {!!r.quantity && (
-                  <Text style={s.metaItem}>{t.qty}: {r.quantity}</Text>
-                )}
-              </View>
 
-              <TouchableOpacity
-                style={s.offerBtn}
-                onPress={() => openOffer(r)}
-                activeOpacity={0.85}
-              >
-                <Text style={s.offerBtnText}>{t.sendOffer}</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+                <View style={[s.cardMeta, isAr && s.rowRtl]}>
+                  {!!r.budget_per_unit && (
+                    <Text style={s.metaItem}>{t.budget}: ${r.budget_per_unit}</Text>
+                  )}
+                  {!!r.quantity && (
+                    <Text style={s.metaItem}>{t.qty}: {r.quantity}</Text>
+                  )}
+                </View>
+
+                <View style={[s.cardBtns, isAr && s.rowRtl]}>
+                  <TouchableOpacity
+                    style={s.detailBtn}
+                    onPress={() => setViewedRequest(r)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.detailBtnText}>{t.viewDetails}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.offerBtn}
+                    onPress={() => openOffer(r)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.offerBtnText}>{t.sendOffer}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
         </ScrollView>
       )}
+
+      {/* ── Request Detail Modal ── */}
+      <Modal visible={!!viewedRequest} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setViewedRequest(null)}>
+        <SafeAreaView style={s.safe}>
+          <View style={[s.modalHeader, isAr && s.rowRtl]}>
+            <TouchableOpacity onPress={() => setViewedRequest(null)}>
+              <Text style={s.modalClose}>{t.close}</Text>
+            </TouchableOpacity>
+            <Text style={[s.modalTitle, isAr && s.rtl]}>{t.detailTitle}</Text>
+          </View>
+          <ScrollView contentContainerStyle={s.modalScroll}>
+            {viewedRequest && (() => {
+              const desc = parseDesc(viewedRequest.description, lang);
+              const payLabel = t.paymentPlan[String(viewedRequest.payment_plan)] || viewedRequest.payment_plan || '—';
+              const smpLabel = t.sampleReq[viewedRequest.sample_requirement] || viewedRequest.sample_requirement || '—';
+              return (
+                <>
+                  <Text style={[s.detailMainTitle, isAr && s.rtl]}>{getTitle(viewedRequest)}</Text>
+                  {!!desc && (
+                    <View style={s.detailBlock}>
+                      <Text style={[s.detailBlockLabel, isAr && s.rtl]}>{t.descLabel}</Text>
+                      <Text style={[s.detailBlockValue, isAr && s.rtl]}>{desc}</Text>
+                    </View>
+                  )}
+                  <View style={s.detailGrid}>
+                    {!!viewedRequest.quantity && <DetailRow label={t.qty} value={String(viewedRequest.quantity)} isAr={isAr} />}
+                    {!!viewedRequest.budget_per_unit && <DetailRow label={t.budget} value={`$${viewedRequest.budget_per_unit}`} isAr={isAr} />}
+                    {!!viewedRequest.category && <DetailRow label={t.categoryLabel} value={viewedRequest.category} isAr={isAr} />}
+                    {!!viewedRequest.payment_plan && <DetailRow label={t.paymentLabel} value={payLabel} isAr={isAr} />}
+                    {!!viewedRequest.sample_requirement && viewedRequest.sample_requirement !== 'none' && (
+                      <DetailRow label={t.sampleLabel} value={smpLabel} isAr={isAr} />
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={s.offerFromDetailBtn}
+                    onPress={() => { setViewedRequest(null); openOffer(viewedRequest); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.offerBtnText}>{t.sendOffer}</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* ── Offer Modal ── */}
       <Modal visible={!!selectedRequest} animationType="slide" presentationStyle="pageSheet">
@@ -295,6 +383,21 @@ export default function SupplierRequestsScreen({ navigation }) {
   );
 }
 
+function DetailRow({ label, value, isAr }) {
+  return (
+    <View style={[sd.row, isAr && sd.rowRtl]}>
+      <Text style={sd.label}>{label}</Text>
+      <Text style={sd.value}>{value}</Text>
+    </View>
+  );
+}
+const sd = StyleSheet.create({
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
+  rowRtl: { flexDirection: 'row-reverse' },
+  label: { color: 'rgba(0,0,0,0.45)', fontSize: 13, fontFamily: F.ar },
+  value: { color: 'rgba(0,0,0,0.88)', fontSize: 13, fontFamily: F.arSemi, maxWidth: '55%', textAlign: 'right' },
+});
+
 function RField({ label, isAr, multiline, ...props }) {
   return (
     <View style={s.fieldWrap}>
@@ -337,11 +440,34 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.borderDefault,
   },
   catText: { color: C.textSecondary, fontSize: 11, fontFamily: F.en },
+  cardBtns: { flexDirection: 'row', gap: 8 },
+  detailBtn: {
+    flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: C.borderStrong, backgroundColor: C.bgOverlay,
+  },
+  detailBtnText: { color: C.textPrimary, fontFamily: F.arSemi, fontSize: 14 },
   offerBtn: {
-    backgroundColor: C.btnPrimary, borderRadius: 12,
+    flex: 1, backgroundColor: C.btnPrimary, borderRadius: 12,
     paddingVertical: 10, alignItems: 'center',
   },
   offerBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi, fontSize: 14 },
+  offerFromDetailBtn: {
+    backgroundColor: C.btnPrimary, borderRadius: 14,
+    paddingVertical: 14, alignItems: 'center', marginTop: 24,
+  },
+  detailMainTitle: { color: C.textPrimary, fontSize: 18, fontFamily: F.arSemi, marginBottom: 16, lineHeight: 26 },
+  detailBlock: {
+    backgroundColor: C.bgRaised, borderRadius: 12,
+    padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: C.borderDefault,
+  },
+  detailBlockLabel: { color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi, marginBottom: 6, letterSpacing: 0.5 },
+  detailBlockValue: { color: C.textPrimary, fontSize: 14, fontFamily: F.ar, lineHeight: 22 },
+  detailGrid: {
+    backgroundColor: C.bgRaised, borderRadius: 12,
+    paddingHorizontal: 14, marginBottom: 8,
+    borderWidth: 1, borderColor: C.borderDefault, overflow: 'hidden',
+  },
 
   emptyCard: {
     backgroundColor: C.bgRaised, borderRadius: 16,
@@ -353,7 +479,8 @@ const s = StyleSheet.create({
   modalScroll: { padding: 20, paddingBottom: 60 },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 20,
+    alignItems: 'center', padding: 20, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
   modalTitle: { color: C.textPrimary, fontSize: 18, fontFamily: F.arSemi },
   modalClose: { color: C.textSecondary, fontSize: 15, fontFamily: F.ar },
