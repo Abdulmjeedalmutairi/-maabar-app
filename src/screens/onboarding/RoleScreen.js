@@ -4,8 +4,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import MaabarLogo from '../../components/MaabarLogo';
+import { getLang } from '../../lib/lang';
+
+const T = {
+  ar: { buyer: 'تاجر', supplier: 'مورد' },
+  en: { buyer: 'Buyer', supplier: 'Supplier' },
+  zh: { buyer: '采购商', supplier: '供应商' },
+};
 
 export default function RoleScreen({ navigation }) {
+  const lang = getLang();
+  const t = T[lang] || T.ar;
+
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.content}>
@@ -21,7 +31,7 @@ export default function RoleScreen({ navigation }) {
             onPress={() => navigation.navigate('TraderHome')}
             activeOpacity={0.75}
           >
-            <Text style={s.cardTitle}>تاجر</Text>
+            <Text style={s.cardTitle}>{t.buyer}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -29,7 +39,7 @@ export default function RoleScreen({ navigation }) {
             onPress={() => navigation.navigate('SignupSupplier')}
             activeOpacity={0.75}
           >
-            <Text style={s.cardTitle}>مورد</Text>
+            <Text style={s.cardTitle}>{t.supplier}</Text>
           </TouchableOpacity>
 
         </View>

@@ -42,7 +42,7 @@ export default function RootNavigator() {
   async function loadProfile(userId) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, role, full_name, email, status, company_name')
+      .select('id, role, full_name, status, company_name')
       .eq('id', userId)
       .single();
     setProfile(data);

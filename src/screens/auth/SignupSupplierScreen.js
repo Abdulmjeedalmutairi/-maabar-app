@@ -5,30 +5,81 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import MaabarLogo from '../../components/MaabarLogo';
 
-const L = {
-  title: 'طلب انضمام المورد',
-  sub: 'أدخل بيانات الشركة الأساسية وأكّد بريدك الإلكتروني',
-  companyName: 'اسم الشركة',
-  email: 'البريد الإلكتروني',
-  pass: 'كلمة المرور',
-  country: 'الدولة',
-  city: 'المدينة',
-  whatsapp: 'واتساب (اختياري)',
-  wechat: 'WeChat (اختياري)',
-  tradeLink: 'رابط الصفحة التجارية (Alibaba / 1688 ...)',
-  speciality: 'التخصص (اختياري)',
-  submit: 'إرسال الطلب',
-  haveAccount: 'عندك حساب؟',
-  signinLink: 'سجل دخولك',
-  hint: 'الحقول المعلّمة بـ * مطلوبة. السجل التجاري والوثائق تُطلب في مرحلة التحقق لاحقاً.',
-  confirmSent: 'تم استلام طلب المورد. أرسلنا رسالة تأكيد — بعد التفعيل سجّل دخولك لإكمال التحقق.',
-  fillRequired: 'يرجى تعبئة الحقول الإجبارية.',
+const ALL_COPY = {
+  ar: {
+    title: 'طلب انضمام المورد',
+    sub: 'أدخل بيانات الشركة الأساسية وأكّد بريدك الإلكتروني',
+    companyName: 'اسم الشركة',
+    email: 'البريد الإلكتروني',
+    pass: 'كلمة المرور',
+    country: 'الدولة',
+    city: 'المدينة',
+    whatsapp: 'واتساب (اختياري)',
+    wechat: 'WeChat (اختياري)',
+    tradeLink: 'رابط الصفحة التجارية (Alibaba / 1688 ...)',
+    speciality: 'التخصص (اختياري)',
+    submit: 'إرسال الطلب',
+    haveAccount: 'عندك حساب؟',
+    signinLink: 'سجل دخولك',
+    backToSignin: 'العودة لتسجيل الدخول',
+    back: '← رجوع',
+    hint: 'الحقول المعلّمة بـ * مطلوبة. السجل التجاري والوثائق تُطلب في مرحلة التحقق لاحقاً.',
+    confirmSent: 'تم استلام طلب المورد. أرسلنا رسالة تأكيد — بعد التفعيل سجّل دخولك لإكمال التحقق.',
+    fillRequired: 'يرجى تعبئة الحقول الإجبارية.',
+  },
+  en: {
+    title: 'Supplier Application',
+    sub: 'Enter your basic company details and confirm your email',
+    companyName: 'Company Name',
+    email: 'Email',
+    pass: 'Password',
+    country: 'Country',
+    city: 'City',
+    whatsapp: 'WhatsApp (optional)',
+    wechat: 'WeChat (optional)',
+    tradeLink: 'Trade page link (Alibaba / 1688 ...)',
+    speciality: 'Specialty (optional)',
+    submit: 'Submit Application',
+    haveAccount: 'Already have an account?',
+    signinLink: 'Sign in',
+    backToSignin: 'Back to Sign In',
+    back: '← Back',
+    hint: 'Fields marked * are required. Registration documents are requested at the verification stage later.',
+    confirmSent: 'Supplier application received. We sent a confirmation email — after activation sign in to complete verification.',
+    fillRequired: 'Please fill all required fields.',
+  },
+  zh: {
+    title: '供应商申请',
+    sub: '填写基础公司资料并确认邮箱',
+    companyName: '公司名称',
+    email: '电子邮件',
+    pass: '密码',
+    country: '国家',
+    city: '城市',
+    whatsapp: 'WhatsApp（可选）',
+    wechat: 'WeChat（可选）',
+    tradeLink: '贸易页面链接（Alibaba / 1688 ...）',
+    speciality: '专业领域（可选）',
+    submit: '提交申请',
+    haveAccount: '已有账户？',
+    signinLink: '登录',
+    backToSignin: '返回登录',
+    back: '← 返回',
+    hint: '带 * 的字段为必填。营业执照和相关文件将在后续认证阶段提交。',
+    confirmSent: '供应商申请已收到，确认邮件已发送 — 激活后登录继续完成认证。',
+    fillRequired: '请填写必填项。',
+  },
 };
 
 export default function SignupSupplierScreen({ navigation }) {
+  const lang = getLang();
+  const L = ALL_COPY[lang] || ALL_COPY.ar;
+  const isAr = lang === 'ar';
+
   const [form, setForm] = useState({
     companyName: '', email: '', password: '',
     country: 'China', city: '',
@@ -85,7 +136,7 @@ export default function SignupSupplierScreen({ navigation }) {
           <MaabarLogo size="lg" />
           <Text style={s.successText}>{L.confirmSent}</Text>
           <TouchableOpacity style={s.btn} onPress={() => navigation.navigate('Login')}>
-            <Text style={s.btnText}>العودة لتسجيل الدخول</Text>
+            <Text style={s.btnText}>{L.backToSignin}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -101,7 +152,7 @@ export default function SignupSupplierScreen({ navigation }) {
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
-            <Text style={s.backText}>← رجوع</Text>
+            <Text style={s.backText}>{L.back}</Text>
           </TouchableOpacity>
 
           <View style={s.logoRow}><MaabarLogo size="lg" /></View>
@@ -188,7 +239,7 @@ const s = StyleSheet.create({
   },
   hint: {
     color: C.textTertiary, fontSize: 12,
-    textAlign: 'right', marginBottom: 20,
+    marginBottom: 20,
     backgroundColor: C.bgRaised, padding: 12,
     borderRadius: 10, borderWidth: 1, borderColor: C.borderSubtle,
   },
@@ -197,14 +248,14 @@ const s = StyleSheet.create({
     padding: 20, borderWidth: 1, borderColor: C.borderDefault, gap: 14,
   },
   fieldWrap: { gap: 6 },
-  fieldLabel: { color: C.textSecondary, fontSize: 12, textAlign: 'right' },
+  fieldLabel: { color: C.textSecondary, fontSize: 12 },
   input: {
     backgroundColor: C.bgOverlay, borderRadius: 12,
     borderWidth: 1, borderColor: C.borderMuted,
     paddingHorizontal: 16, paddingVertical: 12,
-    color: C.textPrimary, fontSize: 15, textAlign: 'right',
+    color: C.textPrimary, fontSize: 15,
   },
-  error: { color: C.red, fontSize: 13, textAlign: 'right' },
+  error: { color: C.red, fontSize: 13 },
   btn: {
     backgroundColor: C.accent, borderRadius: 14,
     paddingVertical: 14, alignItems: 'center',
