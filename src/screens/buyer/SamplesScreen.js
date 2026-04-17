@@ -19,10 +19,10 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABELS = {
-  pending:  { ar: 'بانتظار الموافقة', en: 'Pending' },
+  pending:  { ar: 'بانتظار الموافقة', en: 'Pending'  },
   approved: { ar: 'تمت الموافقة',     en: 'Approved' },
   rejected: { ar: 'مرفوض',           en: 'Rejected' },
-  paid:     { ar: 'تم الدفع',         en: 'Paid' },
+  paid:     { ar: 'تم الدفع',         en: 'Paid'     },
 };
 
 function statusLabel(st) {
@@ -40,8 +40,8 @@ function getProductName(sample) {
 }
 
 export default function SamplesScreen({ navigation }) {
-  const [samples, setSamples]     = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [samples, setSamples]       = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -50,7 +50,7 @@ export default function SamplesScreen({ navigation }) {
 
     const { data } = await supabase
       .from('samples')
-      .select('*, products(name_ar, name_en, name_zh)')
+      .select('*, products(name_ar, name_en, name_zh), profiles(company_name, full_name, verified, rating, reviews_count)')
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -76,20 +76,19 @@ export default function SamplesScreen({ navigation }) {
       ) : (
         <ScrollView
           contentContainerStyle={s.list}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.textDisabled} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.textDisabled} />}
           showsVerticalScrollIndicator={false}
         >
           {samples.length === 0 ? (
-            <View style={s.empty}>
-              <Text style={s.emptyText}>{tx('لا توجد طلبات عينات', 'No sample requests yet')}</Text>
-            </View>
+            <View style={s.empty}><Text style={s.emptyText}>{tx('لا توجد طلبات عينات', 'No sample requests yet')}</Text></View>
           ) : (
             samples.map(sample => {
-              const color = STATUS_COLORS[sample.status] || C.textDisabled;
-              const canPay = sample.status === 'approved' && (sample.sample_price > 0 || sample.total_price > 0);
+              const color    = STATUS_COLORS[sample.status] || C.textDisabled;
+              const canPay   = sample.status === 'approved' && (sample.sample_price > 0 || sample.total_price > 0);
               const payAmount = Number(sample.sample_price || sample.total_price || 0) * 3.75;
+              const supplier  = sample.profiles;
+              const supName   = supplier?.company_name || supplier?.full_name || null;
+              const supRating = supplier?.rating ? Number(supplier.rating).toFixed(1) : null;
 
               return (
                 <View key={sample.id} style={s.card}>
@@ -100,6 +99,20 @@ export default function SamplesScreen({ navigation }) {
                     <Text style={s.productName} numberOfLines={1}>{getProductName(sample)}</Text>
                   </View>
 
+                  {/* Supplier trust signals */}
+                  {supName && (
+                    <View style={s.supplierRow}>
+                      {supplier?.verified && <Text style={s.verifiedBadge}>✓ {tx('موثق', 'Verified')}</Text>}
+                      <Text style={s.supplierName}>{supName}</Text>
+                      {supRating && (
+                        <View style={s.ratingPill}>
+                          <Text style={s.ratingText}>★ {supRating}</Text>
+                          {supplier.reviews_count > 0 && <Text style={s.reviewCount}> ({supplier.reviews_count})</Text>}
+                        </View>
+                      )}
+                    </View>
+                  )}
+
                   <View style={s.infoRow}>
                     <View style={s.infoItem}>
                       <Text style={s.infoLabel}>{tx('الكمية', 'Qty')}</Text>
@@ -108,9 +121,7 @@ export default function SamplesScreen({ navigation }) {
                     {(sample.sample_price > 0 || sample.total_price > 0) && (
                       <View style={s.infoItem}>
                         <Text style={s.infoLabel}>{tx('السعر', 'Price')}</Text>
-                        <Text style={s.infoValue}>
-                          {payAmount.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} {tx('ر.س', 'SAR')}
-                        </Text>
+                        <Text style={s.infoValue}>{payAmount.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} {tx('ر.س', 'SAR')}</Text>
                       </View>
                     )}
                   </View>
@@ -120,19 +131,9 @@ export default function SamplesScreen({ navigation }) {
                   )}
 
                   <View style={s.cardFooter}>
-                    <Text style={s.date}>
-                      {new Date(sample.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}
-                    </Text>
+                    <Text style={s.date}>{new Date(sample.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}</Text>
                     {canPay && (
-                      <TouchableOpacity
-                        style={s.payBtn}
-                        activeOpacity={0.85}
-                        onPress={() => navigation.navigate('Payment', {
-                          amount: payAmount,
-                          type: 'sample',
-                          sampleId: sample.id,
-                        })}
-                      >
+                      <TouchableOpacity style={s.payBtn} activeOpacity={0.85} onPress={() => navigation.navigate('Payment', { amount: payAmount, type: 'sample', sampleId: sample.id })}>
                         <Text style={s.payBtnText}>{tx('ادفع الآن', 'Pay Now')}</Text>
                       </TouchableOpacity>
                     )}
@@ -150,62 +151,32 @@ export default function SamplesScreen({ navigation }) {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: C.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.borderSubtle,
-  },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
   back:  { color: C.textSecondary, fontFamily: F.ar, fontSize: 14 },
   title: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 17 },
-
   list: { padding: 16, paddingBottom: 40 },
-
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: C.textSecondary, fontFamily: F.ar, fontSize: 15 },
-
-  card: {
-    backgroundColor: C.bgRaised,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.borderDefault,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
+  card: { backgroundColor: C.bgRaised, borderRadius: 16, borderWidth: 1, borderColor: C.borderDefault, padding: 16, marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontFamily: F.arSemi },
   productName: { flex: 1, color: C.textPrimary, fontFamily: F.arSemi, fontSize: 14, textAlign: 'right' },
 
+  supplierRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, justifyContent: 'flex-end' },
+  supplierName: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 12 },
+  verifiedBadge: { fontSize: 10, color: '#5a9a72', fontFamily: F.ar },
+  ratingPill: { flexDirection: 'row', alignItems: 'center' },
+  ratingText:  { fontSize: 11, color: C.orange, fontFamily: F.enSemi },
+  reviewCount: { fontSize: 10, color: C.textDisabled, fontFamily: F.en },
+
   infoRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
-  infoItem: {
-    flex: 1,
-    backgroundColor: C.bgOverlay,
-    borderRadius: 10,
-    padding: 10,
-    alignItems: 'center',
-  },
+  infoItem: { flex: 1, backgroundColor: C.bgOverlay, borderRadius: 10, padding: 10, alignItems: 'center' },
   infoLabel: { color: C.textTertiary, fontFamily: F.ar, fontSize: 11, marginBottom: 3 },
   infoValue: { color: C.textPrimary, fontFamily: F.enSemi, fontSize: 15 },
-
   notes: { color: C.textSecondary, fontFamily: F.ar, fontSize: 13, textAlign: 'right', lineHeight: 18, marginBottom: 10 },
-
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   date: { color: C.textDisabled, fontFamily: F.en, fontSize: 11 },
-  payBtn: {
-    backgroundColor: C.btnPrimary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  payBtn:     { backgroundColor: C.btnPrimary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   payBtnText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 13 },
 });

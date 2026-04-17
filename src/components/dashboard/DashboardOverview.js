@@ -1,202 +1,267 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
+  View, Text, ScrollView, StyleSheet,
+  RefreshControl, TouchableOpacity,
 } from 'react-native';
 import { C } from '../../lib/colors';
-import StatCard from './StatCard';
-import QuickAction from './QuickAction';
-import RequestCard from './RequestCard';
+import { F } from '../../lib/fonts';
+
+const STATUS_AR = { open: 'مرفوع', offers_received: 'عروض وصلت', closed: 'عرض مقبول', supplier_confirmed: 'المورد جاهز', paid: 'تم الدفع', ready_to_ship: 'الشحنة جاهزة', shipping: 'قيد الشحن', arrived: 'وصل السعودية', delivered: 'تم التسليم' };
+const STATUS_EN = { open: 'Posted', offers_received: 'Offers In', closed: 'Accepted', supplier_confirmed: 'Supplier Ready', paid: 'Paid', ready_to_ship: 'Ready to Ship', shipping: 'Shipping', arrived: 'Arrived', delivered: 'Delivered' };
+
+const TIMELINE_STEPS = [
+  { key: 'posted',    ar: 'رفع الطلب',     en: 'Posted'   },
+  { key: 'accepted',  ar: 'قبول العرض',    en: 'Accepted' },
+  { key: 'paid',      ar: 'الدفعة الأولى', en: '1st Pay'  },
+  { key: 'producing', ar: 'الإنتاج',       en: 'Production'},
+  { key: 'shipping',  ar: 'الشحن',         en: 'Shipping' },
+  { key: 'received',  ar: 'الاستلام',      en: 'Received' },
+];
+
+function timelineIndex(status) {
+  const map = { open: 0, offers_received: 0, closed: 1, supplier_confirmed: 1, paid: 2, ready_to_ship: 3, shipping: 4, arrived: 5, delivered: 5 };
+  return map[status] ?? 0;
+}
+
+function MiniTimeline({ status, isArabic }) {
+  const current = timelineIndex(status);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+      {TIMELINE_STEPS.map((step, i) => {
+        const done   = i < current;
+        const active = i === current;
+        const isLast = i === TIMELINE_STEPS.length - 1;
+        return (
+          <React.Fragment key={step.key}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: done ? '#5a9a72' : active ? C.textPrimary : C.bgRaised, borderWidth: 1.5, borderColor: done ? '#5a9a72' : active ? C.textPrimary : C.borderDefault }} />
+            {!isLast && <View style={{ flex: 1, height: 1, backgroundColor: i < current ? '#5a9a72' : C.borderSubtle }} />}
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+function PaymentBadge({ label, amount, currency, badgeState }) {
+  const colors = {
+    paid:    { bg: 'rgba(90,154,114,0.07)', border: 'rgba(90,154,114,0.3)',  text: '#5a9a72' },
+    due:     { bg: 'rgba(180,120,30,0.07)', border: 'rgba(180,120,30,0.3)',  text: '#b4781e' },
+    pending: { bg: C.bgOverlay,             border: C.borderSubtle,           text: C.textDisabled },
+  };
+  const c = colors[badgeState] || colors.pending;
+  return (
+    <View style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
+      <Text style={{ fontSize: 8, color: c.text, fontFamily: F.arSemi, marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 13, color: c.text, fontFamily: F.en }}>{amount > 0 ? Number(amount).toFixed(0) : '—'}<Text style={{ fontSize: 8, color: C.textDisabled }}> {currency}</Text></Text>
+    </View>
+  );
+}
+
+function MiniPaymentRow({ request, offer }) {
+  if (!offer) return null;
+  const showFrom = ['closed','supplier_confirmed','paid','ready_to_ship','shipping','arrived','delivered'];
+  if (!showFrom.includes(request.status)) return null;
+  const subtotal  = (offer.price || 0) * (Number(request.quantity) || 1);
+  const shipping  = parseFloat(offer.shipping_cost) || 0;
+  const total     = subtotal + shipping;
+  const pct       = request.payment_pct > 0 ? request.payment_pct : 30;
+  const firstAmt  = request.amount > 0 ? request.amount : parseFloat((total * pct / 100).toFixed(2));
+  const secondAmt = request.payment_second > 0 ? request.payment_second : parseFloat((total * (100 - pct) / 100).toFixed(2));
+  const currency  = offer.currency || 'USD';
+  const isPaidFirst  = ['paid','ready_to_ship','shipping','arrived','delivered'].includes(request.status);
+  const isPaidSecond = ['shipping','arrived','delivered'].includes(request.status) || !!request.payment_second_paid;
+  const isDueSecond  = request.status === 'ready_to_ship';
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+      <PaymentBadge label={`دفعة أولى · ${pct}%`}        amount={firstAmt}  currency={currency} badgeState={isPaidFirst ? 'paid' : 'pending'} />
+      <PaymentBadge label={`دفعة ثانية · ${100 - pct}%`} amount={secondAmt} currency={currency} badgeState={isPaidSecond ? 'paid' : isDueSecond ? 'due' : 'pending'} />
+    </View>
+  );
+}
+
+/* ── Pending Banner (all 8 types) ── */
+function PendingBanner({ action, isAr, navigation }) {
+  const styles = {
+    supplier_confirmed: { border: 'rgba(90,154,114,0.35)',  bg: 'rgba(90,154,114,0.05)',  dot: '#5a9a72' },
+    ready_to_ship:      { border: 'rgba(180,120,30,0.35)',  bg: 'rgba(180,120,30,0.05)',  dot: '#b4781e' },
+    arrived:            { border: 'rgba(60,100,180,0.35)',  bg: 'rgba(60,100,180,0.04)',  dot: '#4a6bbf' },
+    offers:             { border: C.borderSubtle,           bg: C.bgSubtle,               dot: C.textDisabled },
+    managed_shortlist:  { border: C.borderSubtle,           bg: C.bgSubtle,               dot: C.textDisabled },
+    messages:           { border: C.borderSubtle,           bg: C.bgSubtle,               dot: C.textDisabled },
+    payment_sent:       { border: C.borderSubtle,           bg: C.bgSubtle,               dot: C.textDisabled },
+    delivery:           { border: 'rgba(60,100,180,0.35)',  bg: 'rgba(60,100,180,0.04)',  dot: '#4a6bbf' },
+  };
+  const st = styles[action.type] || styles.offers;
+  const title = (() => {
+    const rTitle = action.request ? (isAr ? (action.request.title_ar || action.request.title_en) : (action.request.title_en || action.request.title_ar)) : '';
+    if (action.type === 'supplier_confirmed') return isAr ? `المورد جاهز — ادفع الآن · ${rTitle}` : `Supplier ready — pay now · ${rTitle}`;
+    if (action.type === 'ready_to_ship')      return isAr ? `الشحنة جاهزة — ادفع الدفعة الثانية · ${rTitle}` : `Shipment ready — pay 2nd installment · ${rTitle}`;
+    if (action.type === 'arrived')            return isAr ? `وصل الطلب — أكد الاستلام · ${rTitle}` : `Order arrived — confirm delivery · ${rTitle}`;
+    if (action.type === 'offers')             return isAr ? `${action.count} عرض ينتظرك — ${rTitle}` : `${action.count} offer(s) waiting — ${rTitle}`;
+    if (action.type === 'managed_shortlist')  return isAr ? `العروض المختارة جاهزة — ${rTitle}` : `Selected offers ready — ${rTitle}`;
+    if (action.type === 'payment_sent')       return isAr ? 'تم الدفع — في انتظار تجهيز المورد' : 'Payment sent — Awaiting preparation';
+    if (action.type === 'delivery')           return isAr ? `أكد الاستلام — ${rTitle}` : `Confirm delivery — ${rTitle}`;
+    if (action.type === 'messages')           return isAr ? `${action.count} رسالة غير مقروءة` : `${action.count} unread message(s)`;
+    return '';
+  })();
+
+  function onGo() {
+    if (action.type === 'messages') { navigation.navigate('Inbox'); return; }
+    navigation.navigate('Requests');
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onGo}
+      activeOpacity={0.8}
+      style={{ backgroundColor: st.bg, borderWidth: 1, borderColor: st.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+    >
+      <Text style={{ color: C.textDisabled, fontSize: 14 }}>{isAr ? '←' : '→'}</Text>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+        <Text style={{ fontSize: 13, color: C.textPrimary, fontFamily: F.ar, textAlign: 'right', flex: 1, lineHeight: 18 }}>{title}</Text>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: st.dot }} />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function DashboardOverview({
   profile,
   stats,
   requests,
   pendingActions,
+  activeOrders,
+  activeOrdersLoading,
   loading,
   refreshing,
   onRefresh,
-  onStatPress,
-  onQuickActionPress,
-  onRequestPress,
-  isArabic = false,
+  isArabic = true,
   navigation,
 }) {
-  const [activeStats, setActiveStats] = useState(stats || {
-    requests: 0,
-    messages: 0,
-    offers: 0,
-    productInquiries: 0,
-  });
-
-  const [quickActions, setQuickActions] = useState([
-    {
-      id: 'new-request',
-      title: isArabic ? 'رفع طلب قياسي' : 'Post Standard Request',
-      subtitle: isArabic ? 'اكتب طلبك بمساعدة الذكاء الاصطناعي' : 'Write your request with AI assistance',
-      primary: true,
-    },
-    {
-      id: 'browse-products',
-      title: isArabic ? 'تصفح المنتجات' : 'Browse Products',
-      subtitle: isArabic ? 'استعرض كتالوج المنتجات المتاحة' : 'Browse available product catalog',
-      primary: false,
-    },
-    {
-      id: 'my-requests',
-      title: isArabic ? 'طلباتي' : 'My Requests',
-      subtitle: isArabic ? 'شاهد جميع طلباتك السابقة' : 'View all your previous requests',
-      primary: false,
-    },
-    {
-      id: 'private-label',
-      title: isArabic ? 'Private Label' : 'Private Label',
-      subtitle: isArabic ? 'تصميم منتج خاص بعلامتك التجارية' : 'Design a product with your brand',
-      primary: false,
-    },
-  ]);
-
-  useEffect(() => {
-    if (stats) {
-      setActiveStats(stats);
-    }
-  }, [stats]);
+  const isAr = isArabic;
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
-          {isArabic ? 'جاري التحميل...' : 'Loading...'}
-        </Text>
+      <View style={s.loadingContainer}>
+        <Text style={s.loadingText}>{isAr ? 'جاري التحميل...' : 'Loading...'}</Text>
       </View>
     );
   }
 
   return (
     <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={C.textTertiary}
-        />
-      }
+      style={s.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textTertiary} />}
       showsVerticalScrollIndicator={false}
     >
-      {/* الإحصائيات */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {isArabic ? 'نظرة عامة' : 'Overview'}
-        </Text>
-        <View style={styles.statsGrid}>
-          <StatCard
-            label={isArabic ? 'طلبات' : 'Requests'}
-            value={activeStats.requests}
-            onPress={() => onStatPress?.('requests')}
-            highlight={activeStats.requests > 0}
-          />
-          <StatCard
-            label={isArabic ? 'رسائل' : 'Messages'}
-            value={activeStats.messages}
-            onPress={() => onStatPress?.('messages')}
-            highlight={activeStats.messages > 0}
-          />
-          <StatCard
-            label={isArabic ? 'عروض' : 'Offers'}
-            value={activeStats.offers}
-            onPress={() => onStatPress?.('offers')}
-            highlight={activeStats.offers > 0}
-          />
-          <StatCard
-            label={isArabic ? 'استفسارات' : 'Inquiries'}
-            value={activeStats.productInquiries}
-            onPress={() => onStatPress?.('inquiries')}
-            highlight={activeStats.productInquiries > 0}
-          />
-        </View>
+
+      {/* ── Stats strip (3 cells) ── */}
+      <View style={s.statsStrip}>
+        {[
+          { label: isAr ? 'يحتاج إجراء' : 'Needs Action', value: stats.needsAction || 0, red: (stats.needsAction || 0) > 0, onPress: () => navigation.navigate('Requests') },
+          { label: isAr ? 'طلبات' : 'Active',              value: stats.requests  || 0, onPress: () => navigation.navigate('Requests') },
+          { label: isAr ? 'رسائل جديدة' : 'Messages',     value: stats.messages  || 0, onPress: () => navigation.navigate('Inbox') },
+        ].map((st, i) => (
+          <TouchableOpacity key={i} style={[s.statCell, i < 2 && s.statCellBorder]} onPress={st.onPress} activeOpacity={0.75}>
+            <Text style={s.statLabel}>{st.label}</Text>
+            <Text style={[s.statValue, st.red && { color: C.red }]}>{st.value}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* إجراءات تحتاج انتباه */}
+      {/* ── Pending action banners ── */}
       {pendingActions && pendingActions.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {isArabic ? `يحتاج انتباهك (${pendingActions.length})` : `Needs Attention (${pendingActions.length})`}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>
+            {isAr ? `يحتاج انتباهك (${pendingActions.length})` : `Needs Attention (${pendingActions.length})`}
           </Text>
-          <View style={styles.pendingActions}>
-            {pendingActions.slice(0, 3).map((action, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.pendingAction}
-                activeOpacity={0.7}
-                onPress={() => navigation?.navigate('Requests')}
-              >
-                <View style={styles.pendingActionContent}>
-                  <Text style={styles.pendingActionTitle}>
-                    {isArabic ? action.title_ar : action.title_en}
-                  </Text>
-                  <Text style={styles.pendingActionSubtitle}>
-                    {isArabic ? 'انقر للمراجعة' : 'Click to review'}
-                  </Text>
-                </View>
-                <View style={styles.pendingActionBadge}>
-                  <Text style={styles.pendingActionBadgeText}>
-                    {action.count || 1}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+          <View style={{ gap: 8 }}>
+            {pendingActions.map((action, i) => (
+              <PendingBanner key={i} action={action} isAr={isAr} navigation={navigation} />
             ))}
           </View>
         </View>
       )}
 
-      {/* إجراءات سريعة */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {isArabic ? 'إجراءات سريعة' : 'Quick Actions'}
-        </Text>
-        <View style={styles.quickActionsGrid}>
-          {quickActions.map((action) => (
-            <QuickAction
-              key={action.id}
-              title={action.title}
-              subtitle={action.subtitle}
-              primary={action.primary}
-              isArabic={isArabic}
-              onPress={() => onQuickActionPress?.(action.id)}
-            />
+      {/* ── Active orders ── */}
+      {(activeOrdersLoading || (activeOrders && activeOrders.length > 0)) && (
+        <View style={s.section}>
+          <View style={s.sectionRow}>
+            <TouchableOpacity onPress={() => navigation.navigate('Requests')} activeOpacity={0.75}>
+              <Text style={s.sectionLink}>{isAr ? 'عرض الكل' : 'View all'}</Text>
+            </TouchableOpacity>
+            <Text style={s.sectionTitle}>{isAr ? 'طلبات نشطة' : 'Active Orders'}</Text>
+          </View>
+          {activeOrdersLoading && (
+            <View style={{ height: 60, backgroundColor: C.bgSubtle, borderRadius: 12, borderWidth: 1, borderColor: C.borderSubtle }} />
+          )}
+          {!activeOrdersLoading && (activeOrders || []).map(r => {
+            const acceptedOffer = (r.offers || []).find(o => o.status === 'accepted');
+            const supplierName  = acceptedOffer?.profiles?.company_name || acceptedOffer?.profiles?.full_name || null;
+            const statusLabel   = isAr ? (STATUS_AR[r.status] || r.status) : (STATUS_EN[r.status] || r.status);
+            const rTitle        = isAr ? (r.title_ar || r.title_en) : (r.title_en || r.title_ar);
+            return (
+              <TouchableOpacity
+                key={r.id}
+                style={s.activeOrderCard}
+                onPress={() => navigation.navigate('Requests')}
+                activeOpacity={0.8}
+              >
+                <View style={s.activeOrderHeader}>
+                  <View style={s.statusPill}>
+                    <Text style={s.statusPillText}>{statusLabel}</Text>
+                  </View>
+                  <Text style={s.activeOrderTitle} numberOfLines={1}>{rTitle}</Text>
+                </View>
+                {supplierName && <Text style={s.activeOrderSupplier}>{supplierName}</Text>}
+                <MiniTimeline status={r.status} isArabic={isAr} />
+                <MiniPaymentRow request={r} offer={acceptedOffer} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* ── Quick actions ── */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>{isAr ? 'إجراءات سريعة' : 'Quick Actions'}</Text>
+        <View style={s.quickGrid}>
+          {[
+            { label: isAr ? 'رفع طلب جديد' : 'Post New Request', sub: isAr ? 'ارفع طلبك للموردين' : 'Post your RFQ to suppliers', primary: true,  screen: 'NewRequest' },
+            { label: isAr ? 'تصفح المنتجات' : 'Browse Products',  sub: isAr ? 'استعرض الكتالوج'   : 'Browse available catalog',  primary: false, screen: 'Products'   },
+            { label: isAr ? 'طلباتي' : 'My Requests',             sub: isAr ? 'جميع طلباتك'       : 'View all your requests',    primary: false, screen: 'Requests'   },
+            { label: isAr ? 'العينات' : 'Samples',                sub: isAr ? 'طلبات العينات'      : 'Your sample requests',     primary: false, screen: 'Samples'    },
+          ].map((a, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[s.quickCard, a.primary && s.quickCardPrimary]}
+              onPress={() => navigation.navigate(a.screen)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.quickLabel}>{a.label}</Text>
+              <Text style={s.quickSub}>{a.sub}</Text>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* طلباتي الأخيرة */}
+      {/* ── Recent requests ── */}
       {requests && requests.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {isArabic ? 'طلباتي الأخيرة' : 'Recent Requests'}
-          </Text>
-          <View style={styles.requestsList}>
-            {requests.slice(0, 3).map((request) => (
-              <RequestCard
-                key={request.id}
-                request={request}
-                isArabic={isArabic}
-                onPress={() => onRequestPress?.(request)}
-              />
-            ))}
-          </View>
+        <View style={[s.section, { paddingBottom: 40 }]}>
+          <Text style={s.sectionTitle}>{isAr ? 'طلباتي الأخيرة' : 'Recent Requests'}</Text>
+          {requests.slice(0, 3).map(r => {
+            const st     = isAr ? (STATUS_AR[r.status] || r.status) : (STATUS_EN[r.status] || r.status);
+            const rTitle = isAr ? (r.title_ar || r.title_en) : (r.title_en || r.title_ar);
+            return (
+              <TouchableOpacity key={r.id} style={s.recentCard} onPress={() => navigation.navigate('Requests')} activeOpacity={0.8}>
+                <Text style={s.recentStatus}>{st}</Text>
+                <Text style={s.recentTitle} numberOfLines={1}>{rTitle}</Text>
+              </TouchableOpacity>
+            );
+          })}
           {requests.length > 3 && (
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              onPress={() => navigation?.navigate('Requests')}
-            >
-              <Text style={styles.viewAllText}>
-                {isArabic ? 'عرض الكل →' : 'View All →'}
-              </Text>
+            <TouchableOpacity style={s.viewAll} onPress={() => navigation.navigate('Requests')}>
+              <Text style={s.viewAllText}>{isAr ? 'عرض الكل →' : 'View All →'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -205,93 +270,43 @@ export default function DashboardOverview({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bgBase,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: C.bgBase,
-  },
-  loadingText: {
-    color: C.textTertiary,
-    fontSize: 14,
-  },
-  section: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: C.borderSubtle,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    color: C.textDisabled,
-    marginBottom: 16,
-    fontFamily: 'Cairo_400Regular',
-    textAlign: 'right',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  pendingActions: {
-    gap: 8,
-  },
-  pendingAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.bgSubtle,
-    borderWidth: 1,
-    borderColor: C.borderSubtle,
-    borderRadius: 8,
-    padding: 12,
-  },
-  pendingActionContent: {
-    flex: 1,
-  },
-  pendingActionTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: C.textPrimary,
-    marginBottom: 4,
-  },
-  pendingActionSubtitle: {
-    fontSize: 11,
-    color: C.textTertiary,
-  },
-  pendingActionBadge: {
-    backgroundColor: C.accent,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pendingActionBadgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  requestsList: {
-    gap: 8,
-  },
-  viewAllButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  viewAllText: {
-    color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
+const s = StyleSheet.create({
+  container:        { flex: 1, backgroundColor: C.bgBase },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText:      { color: C.textTertiary, fontSize: 14, fontFamily: F.ar },
+
+  /* Stats strip */
+  statsStrip:     { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  statCell:       { flex: 1, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' },
+  statCellBorder: { borderRightWidth: 1, borderRightColor: C.borderSubtle },
+  statLabel:      { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: C.textDisabled, marginBottom: 8, fontFamily: F.en, fontWeight: '500' },
+  statValue:      { fontSize: 32, fontWeight: '300', color: C.textPrimary, lineHeight: 36, fontFamily: F.en },
+
+  /* Section */
+  section:    { paddingHorizontal: 16, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 },
+  sectionTitle: { fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: C.textDisabled, marginBottom: 12, fontWeight: '500', fontFamily: F.en },
+  sectionLink:  { fontSize: 11, color: C.textSecondary, fontFamily: F.ar },
+
+  /* Active order card */
+  activeOrderCard: { backgroundColor: C.bgRaised, borderRadius: 14, borderWidth: 1, borderColor: C.borderDefault, padding: 14, marginBottom: 10 },
+  activeOrderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  activeOrderTitle: { flex: 1, fontSize: 14, color: C.textPrimary, fontFamily: F.arSemi, textAlign: 'right', lineHeight: 20 },
+  activeOrderSupplier: { fontSize: 11, color: C.textDisabled, marginBottom: 4, textAlign: 'right', fontFamily: F.ar },
+  statusPill:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: C.borderSubtle, flexShrink: 0 },
+  statusPillText: { fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: C.textDisabled, fontFamily: F.en },
+
+  /* Quick actions */
+  quickGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  quickCard:        { width: '47%', backgroundColor: C.bgSubtle, borderRadius: 14, borderWidth: 1, borderColor: C.borderSubtle, padding: 16 },
+  quickCardPrimary: { backgroundColor: C.bgRaised, borderColor: C.borderMuted },
+  quickLabel: { fontSize: 14, fontWeight: '500', color: C.textPrimary, marginBottom: 6, fontFamily: F.ar, textAlign: 'right' },
+  quickSub:   { fontSize: 11, color: C.textTertiary, fontFamily: F.ar, lineHeight: 16, textAlign: 'right' },
+
+  /* Recent requests */
+  recentCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.borderSubtle, gap: 10 },
+  recentTitle:  { flex: 1, fontSize: 14, color: C.textPrimary, fontFamily: F.arSemi, textAlign: 'right' },
+  recentStatus: { fontSize: 10, color: C.textDisabled, fontFamily: F.en, letterSpacing: 1 },
+  viewAll:     { marginTop: 14, alignItems: 'center' },
+  viewAllText: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar },
 });

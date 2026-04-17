@@ -42,6 +42,7 @@ export default function InboxScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [msgFilter, setMsgFilter] = useState('all');
 
   // Exact same 2-query pattern as web Inbox.jsx
   const load = useCallback(async () => {
@@ -126,10 +127,25 @@ export default function InboxScreen({ navigation }) {
     return content.length > 55 ? content.slice(0, 55) + '…' : content;
   };
 
+  const unreadCount = convs.filter(c => c.unread > 0).length;
+  const filteredConvs = msgFilter === 'unread' ? convs.filter(c => c.unread > 0) : convs;
+
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.topBar}>
         <Text style={[s.pageTitle, isAr && s.rtl]}>{t.title}</Text>
+      </View>
+
+      {/* Sub-filter tabs */}
+      <View style={s.tabsRow}>
+        {[
+          { id: 'all',    label: isAr ? 'الكل' : 'All' },
+          { id: 'unread', label: isAr ? `غير مقروء${unreadCount > 0 ? ` (${unreadCount})` : ''}` : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ''}` },
+        ].map(tab => (
+          <TouchableOpacity key={tab.id} style={[s.tab, msgFilter === tab.id && s.tabActive]} onPress={() => setMsgFilter(tab.id)} activeOpacity={0.75}>
+            <Text style={[s.tabText, msgFilter === tab.id && s.tabTextActive]}>{tab.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
@@ -146,7 +162,7 @@ export default function InboxScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.textSecondary} />
           }
         >
-          {convs.map((c) => {
+          {filteredConvs.map((c) => {
             const name = c.profile?.company_name || c.profile?.full_name || '—';
             return (
               <TouchableOpacity
@@ -197,6 +213,12 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.borderSubtle,
   },
+
+  tabsRow:     { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  tab:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.borderSubtle },
+  tabActive:   { borderColor: C.textPrimary, backgroundColor: C.textPrimary },
+  tabText:     { fontSize: 12, color: C.textSecondary, fontFamily: F.ar },
+  tabTextActive: { color: '#fff', fontFamily: F.arSemi },
   pageTitle: {
     color: C.textPrimary,
     fontSize: 20,
