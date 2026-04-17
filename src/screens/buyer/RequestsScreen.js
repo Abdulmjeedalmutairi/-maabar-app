@@ -17,13 +17,13 @@ const tx = (ar, en, zh) => {
 };
 
 /* ── Status maps (exact from web DashboardBuyer.jsx) ── */
-const STATUS_AR    = { open: 'مرفوع', offers_received: 'عروض وصلت', closed: 'عرض مقبول', paid: 'تم الدفع', ready_to_ship: 'الشحنة جاهزة', shipping: 'قيد الشحن', arrived: 'وصل السعودية', delivered: 'تم التسليم' };
-const STATUS_EN    = { open: 'Posted', offers_received: 'Offers In', closed: 'Accepted', paid: 'Paid', ready_to_ship: 'Ready to Ship', shipping: 'Shipping', arrived: 'Arrived', delivered: 'Delivered' };
-const STATUS_ZH    = { open: '已发布', offers_received: '报价已到', closed: '已接受', paid: '已付款', ready_to_ship: '准备发货', shipping: '运输中', arrived: '已到达', delivered: '已交付' };
-const STATUS_STEPS = ['open', 'offers_received', 'closed', 'paid', 'ready_to_ship', 'shipping', 'arrived', 'delivered'];
+const STATUS_AR    = { open: 'مرفوع', offers_received: 'عروض وصلت', closed: 'عرض مقبول', supplier_confirmed: 'المورد جاهز', paid: 'تم الدفع', ready_to_ship: 'الشحنة جاهزة', shipping: 'قيد الشحن', arrived: 'وصل السعودية', delivered: 'تم التسليم' };
+const STATUS_EN    = { open: 'Posted', offers_received: 'Offers In', closed: 'Accepted', supplier_confirmed: 'Supplier Ready', paid: 'Paid', ready_to_ship: 'Ready to Ship', shipping: 'Shipping', arrived: 'Arrived', delivered: 'Delivered' };
+const STATUS_ZH    = { open: '已发布', offers_received: '报价已到', closed: '已接受', supplier_confirmed: '供应商已确认', paid: '已付款', ready_to_ship: '准备发货', shipping: '运输中', arrived: '已到达', delivered: '已交付' };
+const STATUS_STEPS = ['open', 'offers_received', 'closed', 'supplier_confirmed', 'paid', 'ready_to_ship', 'shipping', 'arrived', 'delivered'];
 const STATUS_COLOR = {
   open: C.blue, offers_received: C.green, closed: C.green,
-  paid: C.green, ready_to_ship: C.orange, shipping: C.orange,
+  supplier_confirmed: C.green, paid: C.green, ready_to_ship: C.orange, shipping: C.orange,
   arrived: C.green, delivered: C.green,
 };
 
@@ -456,6 +456,10 @@ function RequestCard({ r, navigation, onEdit, onDelete }) {
         return {
           title: tx('الخطوة التالية: راجع العروض المختارة لك', 'Next step: review your selected offers', '下一步：查看为您选择的报价'),
           body:  tx('كل قرار في هذا الطلب المُدار يتم من نفس الصفحة.', 'Every decision for this managed request stays in the same page.', '此托管需求的所有决策都在同一页面完成。'),
+          onPress: () => navigation.navigate('ManagedRequest', {
+            requestId: r.id,
+            title: r.title_ar || r.title_en,
+          }),
         };
       }
       return {
@@ -473,6 +477,11 @@ function RequestCard({ r, navigation, onEdit, onDelete }) {
       return {
         title: tx('الخطوة التالية: ادفع الدفعة الثانية', 'Next step: pay the second installment', '下一步：支付第二期款'),
         body:  tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed shipment readiness.', '供应商已确认货物准备就绪。'),
+        onPress: () => navigation.navigate('Payment', {
+          amount: Number(r.payment_second) * 3.75,
+          type: 'second_installment',
+          requestId: r.id,
+        }),
       };
     }
     if (r.status === 'shipping') {
@@ -581,10 +590,17 @@ function RequestCard({ r, navigation, onEdit, onDelete }) {
 
       {/* ── Next step banner (neutral gray — no purple) ── */}
       {!!nextStep && (
-        <View style={s.nextBanner}>
+        <TouchableOpacity
+          style={s.nextBanner}
+          activeOpacity={nextStep.onPress ? 0.75 : 1}
+          onPress={nextStep.onPress || undefined}
+        >
           <Text style={s.nextTitle}>{nextStep.title}</Text>
           <Text style={s.nextBody}>{nextStep.body}</Text>
-        </View>
+          {!!nextStep.onPress && (
+            <Text style={s.nextCta}>{tx('اضغط للمتابعة ←', 'Tap to continue →', '点击继续 →')}</Text>
+          )}
+        </TouchableOpacity>
       )}
 
       {/* ── Tracking section ── */}
@@ -806,6 +822,13 @@ const s = StyleSheet.create({
     fontFamily: F.ar,
     textAlign: 'right',
     lineHeight: 18,
+  },
+  nextCta: {
+    fontSize: 11,
+    color: C.textSecondary,
+    fontFamily: F.arSemi,
+    textAlign: 'right',
+    marginTop: 6,
   },
 
   /* ── Tracking section ── */

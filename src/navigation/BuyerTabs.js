@@ -21,6 +21,10 @@ import SuppliersScreen      from '../screens/shared/SuppliersScreen';
 import SupplierProfileScreen from '../screens/shared/SupplierProfileScreen';
 import IdeaToProductScreen  from '../screens/buyer/IdeaToProductScreen';
 import CheckoutScreen       from '../screens/buyer/CheckoutScreen';
+import PaymentScreen        from '../screens/buyer/PaymentScreen';
+import ProductInquiriesScreen from '../screens/buyer/ProductInquiriesScreen';
+import SamplesScreen        from '../screens/buyer/SamplesScreen';
+import ManagedRequestScreen from '../screens/buyer/ManagedRequestScreen';
 import FAQScreen            from '../screens/shared/FAQScreen';
 import FAQTradersScreen     from '../screens/shared/FAQTradersScreen';
 import FAQSuppliersScreen   from '../screens/shared/FAQSuppliersScreen';
@@ -42,8 +46,11 @@ function HomeStack() {
       <Stack.Screen name="ProductDetail"   component={ProductDetailScreen} />
       <Stack.Screen name="Suppliers"       component={SuppliersScreen} />
       <Stack.Screen name="SupplierProfile" component={SupplierProfileScreen} />
-      <Stack.Screen name="IdeaToProduct"   component={IdeaToProductScreen} />
+      <Stack.Screen name="IdeaToProduct"    component={IdeaToProductScreen} />
       <Stack.Screen name="Checkout"        component={CheckoutScreen} />
+      <Stack.Screen name="Payment"         component={PaymentScreen} />
+      <Stack.Screen name="ProductInquiries" component={ProductInquiriesScreen} />
+      <Stack.Screen name="Samples"         component={SamplesScreen} />
       <Stack.Screen name="FAQ"             component={FAQScreen} />
       <Stack.Screen name="FAQTraders"      component={FAQTradersScreen} />
       <Stack.Screen name="FAQSuppliers"    component={FAQSuppliersScreen} />
@@ -57,9 +64,11 @@ function HomeStack() {
 function RequestsStack() {
   return (
     <Stack.Navigator screenOptions={STACK_OPTS}>
-      <Stack.Screen name="RequestsList" component={RequestsScreen} />
+      <Stack.Screen name="RequestsList"    component={RequestsScreen} />
       <Stack.Screen name="NewRequestStack" component={NewRequestScreen} />
-      <Stack.Screen name="Offers"       component={OffersScreen} />
+      <Stack.Screen name="Offers"          component={OffersScreen} />
+      <Stack.Screen name="Payment"         component={PaymentScreen} />
+      <Stack.Screen name="ManagedRequest"  component={ManagedRequestScreen} />
     </Stack.Navigator>
   );
 }

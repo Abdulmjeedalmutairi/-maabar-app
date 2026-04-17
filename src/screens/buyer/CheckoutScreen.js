@@ -538,7 +538,7 @@ export default function CheckoutScreen({ navigation, route }) {
 
         <View style={s.payNotice}>
           <Text style={s.payNoticeText}>
-            بوابة الدفع ستكون متاحة قريباً — سيتم تأكيد طلبك الآن وستُحدَّد طريقة الدفع مع المورد.
+            ادفع بأمان عبر بطاقة مدى أو فيزا. ستُحفظ تفاصيل طلبك عند إتمام الدفع.
           </Text>
         </View>
       </>
@@ -586,14 +586,36 @@ export default function CheckoutScreen({ navigation, route }) {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[s.ctaBtn, submitting && { opacity: 0.6 }]}
-              onPress={handleConfirm}
-              disabled={submitting}
+              style={s.ctaBtn}
+              onPress={() => {
+                const amountSAR = hasPrice && qty > 0
+                  ? Number(priceUsd) * 3.75 * qty
+                  : 0;
+                const description = JSON.stringify({
+                  checkout: true,
+                  product_id: productId,
+                  specs: { color: specColorVal, dimensions: specDimVal },
+                  notes: notes.trim(),
+                  shipping: { city: city.trim(), address: address.trim(), phone: phone.trim() },
+                });
+                navigation.navigate('Payment', {
+                  amount: amountSAR,
+                  type: 'checkout',
+                  requestData: {
+                    title_ar: productNameAr || productNameEn || '',
+                    title_en: productNameEn || productNameAr || '',
+                    title_zh: productNameZh || productNameEn || '',
+                    description,
+                    quantity: String(qty),
+                    category: category || 'other',
+                    budget_per_unit: hasPrice ? Number(priceUsd) : null,
+                    sourcing_mode: 'direct',
+                  },
+                });
+              }}
               activeOpacity={0.85}
             >
-              {submitting
-                ? <ActivityIndicator color={C.btnPrimaryText} />
-                : <Text style={s.ctaBtnText}>تأكيد الدفع</Text>}
+              <Text style={s.ctaBtnText}>الدفع الآن</Text>
             </TouchableOpacity>
           )}
         </View>

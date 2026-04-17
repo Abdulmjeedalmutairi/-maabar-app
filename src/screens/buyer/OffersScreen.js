@@ -11,6 +11,25 @@ import { getLang } from '../../lib/lang';
 
 const USD_TO_SAR = 3.75;
 
+const STATUS_MAP = {
+  verified: 'verified', active: 'verified', approved: 'verified',
+  draft: 'registered', incomplete: 'registered',
+  pending: 'under_review', under_review: 'under_review',
+  submitted: 'under_review', review: 'under_review',
+  rejected: 'rejected', disabled: 'inactive', inactive: 'inactive', suspended: 'inactive',
+};
+function buildTrustSignals(profile = {}) {
+  const signals = [];
+  const status = STATUS_MAP[String(profile?.status || '').trim().toLowerCase()] || 'registered';
+  if (status === 'verified') signals.push('maabar_reviewed');
+  const tradeLinks = [...(Array.isArray(profile?.trade_links) ? profile.trade_links : []), profile?.trade_link].filter(Boolean);
+  if (tradeLinks.length > 0) signals.push('trade_profile_available');
+  if (profile?.wechat) signals.push('wechat_available');
+  if (profile?.whatsapp) signals.push('whatsapp_available');
+  if (Array.isArray(profile?.factory_images) && profile.factory_images.length > 0) signals.push('factory_media_available');
+  return signals;
+}
+
 // Fields to skip when rendering the dynamic details section
 const SKIP_FIELDS = new Set([
   'id', 'supplier_id', 'request_id', 'status', 'created_at', 'updated_at', 'profiles',
@@ -99,7 +118,7 @@ export default function OffersScreen({ route, navigation }) {
     const supplierIds = [...new Set(rows.map(o => o.supplier_id).filter(Boolean))];
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('id, company_name, maabar_supplier_id, trust_score')
+      .select('id, company_name, maabar_supplier_id, trust_score, status, wechat, whatsapp, trade_link, trade_links, factory_images, years_experience, reviews_count')
       .in('id', supplierIds);
 
     const profileMap = (profilesData || []).reduce((acc, p) => {
@@ -111,18 +130,23 @@ export default function OffersScreen({ route, navigation }) {
     setLoading(false);
   }
 
-  async function handleAccept(offerId) {
+  function handleAccept(offer) {
     Alert.alert(
       isAr ? 'قبول العرض' : 'Accept Offer',
       isAr ? 'هل أنت متأكد من قبول هذا العرض؟' : 'Are you sure you want to accept this offer?',
       [
         { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
-          text: isAr ? 'قبول' : 'Accept',
-          onPress: async () => {
-            await supabase.from('offers').update({ status: 'accepted' }).eq('id', offerId);
-            await supabase.from('requests').update({ status: 'closed' }).eq('id', requestId);
-            loadOffers();
+          text: isAr ? 'متابعة للدفع' : 'Continue to Payment',
+          onPress: () => {
+            const total = (parseFloat(offer.price) || 0) + (parseFloat(offer.shipping_cost) || 0);
+            const amountSAR = total * USD_TO_SAR;
+            navigation.navigate('Payment', {
+              amount: amountSAR,
+              type: 'offer',
+              offerId: offer.id,
+              requestId,
+            });
           },
         },
       ]
@@ -238,6 +262,28 @@ export default function OffersScreen({ route, navigation }) {
                   <Text style={s.supplierId}>{offer.profiles.maabar_supplier_id}</Text>
                 )}
 
+                {/* ── Trust signal badges ── */}
+                {(() => {
+                  const signals = buildTrustSignals(offer.profiles);
+                  if (signals.length === 0) return null;
+                  const SIGNAL_LABELS = {
+                    maabar_reviewed:        isAr ? '✓ موثّق معبر' : '✓ Maabar Verified',
+                    trade_profile_available: isAr ? 'رابط تجاري' : 'Trade Link',
+                    wechat_available:       'WeChat',
+                    whatsapp_available:     'WhatsApp',
+                    factory_media_available: isAr ? 'صور المصنع' : 'Factory Photos',
+                  };
+                  return (
+                    <View style={s.trustRow}>
+                      {signals.map(sig => (
+                        <View key={sig} style={s.trustBadge}>
+                          <Text style={s.trustBadgeText}>{SIGNAL_LABELS[sig] || sig}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()}
+
                 {/* ── Price summary ── */}
                 <View style={s.priceRow}>
                   <View style={s.priceItem}>
@@ -295,7 +341,7 @@ export default function OffersScreen({ route, navigation }) {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={s.acceptBtn}
-                        onPress={() => handleAccept(offer.id)}
+                        onPress={() => handleAccept(offer)}
                         activeOpacity={0.85}
                       >
                         <Text style={s.acceptBtnText}>{isAr ? 'قبول العرض' : 'Accept Offer'}</Text>
@@ -359,6 +405,17 @@ const s = StyleSheet.create({
 
   acceptedBadge: { backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   acceptedText:  { color: C.green, fontFamily: F.arSemi, fontSize: 12 },
+
+  trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  trustBadge: {
+    backgroundColor: C.bgOverlay,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.borderSubtle,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  trustBadgeText: { color: C.textTertiary, fontFamily: F.ar, fontSize: 11 },
 
   priceRow: { flexDirection: 'row', gap: 12, marginBottom: 10, marginTop: 4 },
   priceItem: {

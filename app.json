@@ -36,9 +36,11 @@
     "updates": {
       "url": "https://u.expo.dev/9a226e92-5822-4227-9abf-c9fabaf65009"
     },
+    "scheme": "maabar",
     "plugins": [
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ]
   }
 }

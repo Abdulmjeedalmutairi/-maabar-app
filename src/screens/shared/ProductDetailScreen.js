@@ -119,9 +119,13 @@ export default function ProductDetailScreen({ route, navigation }) {
   const [loading, setLoading]             = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
   const [photoViewer, setPhotoViewer]     = useState(null);   // uri string | null
-  const [inquiryModal, setInquiryModal]   = useState(false);  // استفسار modal
+  const [inquiryModal, setInquiryModal]   = useState(false);
   const [inquiryText, setInquiryText]     = useState('');
   const [inquirySending, setInquirySending] = useState(false);
+  const [sampleModal, setSampleModal]     = useState(false);
+  const [sampleQty, setSampleQty]         = useState('1');
+  const [sampleNotes, setSampleNotes]     = useState('');
+  const [sampleSending, setSampleSending] = useState(false);
 
   /* ── Supabase query — exact copy from web loadProduct ─────────── */
   useEffect(() => {
@@ -195,15 +199,53 @@ export default function ProductDetailScreen({ route, navigation }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setInquirySending(false); return; }
 
-    await supabase.from('messages').insert({
-      sender_id:   user.id,
-      receiver_id: supplierId,
-      content:     text,
+    await supabase.from('product_inquiries').insert({
+      product_id:    product.id,
+      buyer_id:      user.id,
+      supplier_id:   supplierId,
+      question_text: text,
+    });
+    await supabase.from('notifications').insert({
+      user_id:   supplierId,
+      type:      'product_inquiry',
+      title:     'استفسار عن منتج',
+      body:      text.slice(0, 100),
+      data:      JSON.stringify({ product_id: product.id }),
+      is_read:   false,
     });
 
     setInquirySending(false);
     setInquiryModal(false);
     setInquiryText('');
+  }
+
+  async function handleRequestSample() {
+    const supplierId = product?.supplier_id;
+    if (!supplierId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { navigation.navigate('Login'); return; }
+    setSampleQty('1');
+    setSampleNotes('');
+    setSampleModal(true);
+  }
+
+  async function handleSendSampleRequest() {
+    if (sampleSending) return;
+    setSampleSending(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSampleSending(false); return; }
+    await supabase.from('samples').insert({
+      product_id:  product.id,
+      buyer_id:    user.id,
+      supplier_id: product.supplier_id,
+      quantity:    parseInt(sampleQty, 10) || 1,
+      notes:       sampleNotes.trim(),
+      status:      'pending',
+    });
+    setSampleSending(false);
+    setSampleModal(false);
+    setSampleQty('1');
+    setSampleNotes('');
   }
 
   /* ── Loading ─────────────────────────────────────────────────── */
@@ -593,15 +635,7 @@ export default function ProductDetailScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {/* ── DEBUG: log navigator state ───────────────────── */}
-        <TouchableOpacity
-          onPress={() => console.log('All routes:', JSON.stringify(navigation.getState(), null, 2))}
-          style={{ margin: 20, padding: 10, backgroundColor: '#eee', borderRadius: 8, alignItems: 'center' }}
-        >
-          <Text style={{ fontFamily: F.en, fontSize: 12, color: '#333' }}>DEBUG: log nav state</Text>
-        </TouchableOpacity>
-
-        {/* ── 15. Three action buttons ─────────────────────── */}
+        {/* ── 15. Action buttons ───────────────────────────── */}
         <View style={s.actionsSection}>
           {/* اشتر الآن */}
           <TouchableOpacity style={s.btnPrimary} onPress={handleBuyNow} activeOpacity={0.85}>
@@ -610,7 +644,16 @@ export default function ProductDetailScreen({ route, navigation }) {
             </Text>
           </TouchableOpacity>
 
-          {/* استفسار — opens inline message modal */}
+          {/* طلب عينة — only when sample_available */}
+          {product.sample_available && (
+            <TouchableOpacity style={s.btnSecondary} onPress={handleRequestSample} activeOpacity={0.8}>
+              <Text style={[s.btnSecondaryText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+                {isAr ? 'طلب عينة' : lang === 'zh' ? '申请样品' : 'Request Sample'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* استفسار — opens inline text modal */}
           <TouchableOpacity style={s.btnSecondary} onPress={handleOpenInquiry} activeOpacity={0.8}>
             <Text style={[s.btnSecondaryText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
               {isAr ? 'استفسار' : lang === 'zh' ? '咨询' : 'Inquiry'}
@@ -705,6 +748,81 @@ export default function ProductDetailScreen({ route, navigation }) {
                   {inquirySending
                     ? (isAr ? 'جاري الإرسال...' : 'Sending...')
                     : (isAr ? 'إرسال' : 'Send')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Sample request modal ──────────────────────────────── */}
+      <Modal
+        visible={sampleModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSampleModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={s.inquiryOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableWithoutFeedback onPress={() => setSampleModal(false)}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+
+          <View style={s.inquirySheet}>
+            <View style={s.inquiryHandle} />
+
+            <Text style={[s.inquiryTitle, { textAlign: isAr ? 'right' : 'left' }]}>
+              {isAr ? 'طلب عينة' : 'Request Sample'}
+            </Text>
+
+            <Text style={[{ color: C.textTertiary, fontFamily: isAr ? F.ar : F.en, fontSize: 12, textAlign: isAr ? 'right' : 'left', marginBottom: 6 }]}>
+              {isAr ? 'الكمية' : 'Quantity'}
+            </Text>
+            <TextInput
+              style={[s.inquiryInput, { textAlign: isAr ? 'right' : 'left', minHeight: 44 }]}
+              value={sampleQty}
+              onChangeText={setSampleQty}
+              keyboardType="numeric"
+              placeholder="1"
+              placeholderTextColor={C.textDisabled}
+            />
+
+            <Text style={[{ color: C.textTertiary, fontFamily: isAr ? F.ar : F.en, fontSize: 12, textAlign: isAr ? 'right' : 'left', marginBottom: 6, marginTop: 10 }]}>
+              {isAr ? 'ملاحظات (اختياري)' : 'Notes (optional)'}
+            </Text>
+            <TextInput
+              style={[s.inquiryInput, { textAlign: isAr ? 'right' : 'left' }]}
+              value={sampleNotes}
+              onChangeText={setSampleNotes}
+              placeholder={isAr ? 'أي متطلبات خاصة...' : 'Any special requirements...'}
+              placeholderTextColor={C.textDisabled}
+              multiline
+              maxLength={300}
+            />
+
+            <View style={s.inquiryActions}>
+              <TouchableOpacity
+                style={s.inquiryCancelBtn}
+                onPress={() => setSampleModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.inquiryCancelText, { fontFamily: isAr ? F.ar : F.en }]}>
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.inquirySendBtn, sampleSending && s.inquirySendBtnDisabled]}
+                onPress={handleSendSampleRequest}
+                disabled={sampleSending}
+                activeOpacity={0.85}
+              >
+                <Text style={[s.inquirySendText, { fontFamily: isAr ? F.arBold : F.enBold }]}>
+                  {sampleSending
+                    ? (isAr ? 'جاري الإرسال...' : 'Sending...')
+                    : (isAr ? 'إرسال الطلب' : 'Submit')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -78,7 +78,7 @@ export default function NewRequestScreen({ navigation, route }) {
     const { data: { user } } = await supabase.auth.getUser();
     console.log('[NewRequest] handleSubmit — user?.id:', user?.id ?? 'null');
     if (!user) {
-      navigation.navigate('Login');
+      setShowSignup(true);
       return;
     }
     await doInsert(user.id);
