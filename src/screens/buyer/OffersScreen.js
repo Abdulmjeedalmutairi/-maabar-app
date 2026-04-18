@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_ANON_KEY, SEND_EMAIL_URL } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
@@ -138,7 +138,81 @@ export default function OffersScreen({ route, navigation }) {
         { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
           text: isAr ? 'متابعة للدفع' : 'Continue to Payment',
-          onPress: () => {
+          onPress: async () => {
+            try {
+              const reqTitle = title || '';
+
+              // Fetch other pending offers to notify/reject
+              const { data: otherOffers } = await supabase
+                .from('offers')
+                .select('id, supplier_id')
+                .eq('request_id', requestId)
+                .eq('status', 'pending')
+                .neq('id', offer.id);
+              console.log('[OffersScreen] other pending offers:', otherOffers);
+
+              // Accept this offer, close request, reject others
+              const { data: aod, error: aoe } = await supabase
+                .from('offers').update({ status: 'accepted' }).eq('id', offer.id);
+              console.log('[OffersScreen] offer.accepted:', aod, aoe);
+
+              const { data: rqd, error: rqe } = await supabase
+                .from('requests').update({ status: 'closed' }).eq('id', requestId);
+              console.log('[OffersScreen] request.closed:', rqd, rqe);
+
+              if (otherOffers?.length) {
+                const otherIds = otherOffers.map(o => o.id);
+                const { data: rejd, error: reje } = await supabase
+                  .from('offers').update({ status: 'rejected' }).in('id', otherIds);
+                console.log('[OffersScreen] others.rejected:', rejd, reje);
+              }
+
+              // Notify + email winning supplier
+              await supabase.from('notifications').insert({
+                user_id: offer.supplier_id,
+                type: 'offer_accepted',
+                title_ar: 'تم قبول عرضك',
+                title_en: 'Your offer has been accepted',
+                title_zh: '您的报价已被接受',
+                ref_id: offer.id,
+                is_read: false,
+              });
+              console.log('[OffersScreen] notification sent to winner:', offer.supplier_id);
+              try {
+                await fetch(SEND_EMAIL_URL, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+                  body: JSON.stringify({ type: 'offer_accepted', data: { recipientUserId: offer.supplier_id, name: 'Supplier', requestTitle: reqTitle } }),
+                });
+              } catch (e) { console.error('[OffersScreen] offer_accepted email error:', e); }
+
+              // Notify + email rejected suppliers
+              if (otherOffers?.length) {
+                await Promise.all(otherOffers.map(async o => {
+                  await supabase.from('notifications').insert({
+                    user_id: o.supplier_id,
+                    type: 'offer_rejected',
+                    title_ar: `تم اختيار عرض آخر على الطلب: ${reqTitle}`,
+                    title_en: `Another offer was selected for: ${reqTitle}`,
+                    title_zh: `已选择其他报价: ${reqTitle}`,
+                    ref_id: requestId,
+                    is_read: false,
+                  });
+                  console.log('[OffersScreen] notification sent to rejected:', o.supplier_id);
+                  try {
+                    await fetch(SEND_EMAIL_URL, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+                      body: JSON.stringify({ type: 'offer_rejected', data: { recipientUserId: o.supplier_id, name: 'Supplier', requestTitle: reqTitle } }),
+                    });
+                  } catch (e) { console.error('[OffersScreen] offer_rejected email error:', e); }
+                }));
+              }
+            } catch (e) {
+              console.error('[OffersScreen] handleAccept cascade error:', e);
+            }
+
+            // Navigate to payment — cascade already committed to DB above
             const total = (parseFloat(offer.price) || 0) + (parseFloat(offer.shipping_cost) || 0);
             const amountSAR = total * USD_TO_SAR;
             navigation.navigate('Payment', {
@@ -146,6 +220,9 @@ export default function OffersScreen({ route, navigation }) {
               type: 'offer',
               offerId: offer.id,
               requestId,
+              supplierId: offer.supplier_id,
+              offerPriceUsd: total,
+              paymentPct: 30,
             });
           },
         },
