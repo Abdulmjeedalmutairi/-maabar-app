@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
@@ -52,6 +52,9 @@ export default function PaymentScreen({ navigation, route }) {
     requestId,
     offerId,
     sampleId,
+    supplierId,    // offer's supplier_id
+    offerPriceUsd, // total (price+shipping) in USD; absent → amount/3.75
+    paymentPct,    // e.g. 30 for 30/70 split
   } = route.params || {};
 
   const [name, setName]       = useState('');
@@ -118,7 +121,7 @@ export default function PaymentScreen({ navigation, route }) {
     }
 
     if (res.status === 'paid') {
-      await runDbAction();
+      await runDbAction(res.id);
       setLoading(false);
       setSuccess(true);
       return;
@@ -133,7 +136,7 @@ export default function PaymentScreen({ navigation, route }) {
 
       if (result.type === 'success' && result.url?.includes('status=paid')) {
         setLoading(true);
-        await runDbAction();
+        await runDbAction(res.id);
         setLoading(false);
         setSuccess(true);
       } else {
@@ -147,20 +150,137 @@ export default function PaymentScreen({ navigation, route }) {
     setLoading(false);
   }
 
-  async function runDbAction() {
+  async function runDbAction(moyasarId) {
     try {
-      if (type === 'checkout' && requestData) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('requests').insert({ ...requestData, buyer_id: user.id, status: 'open' });
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('[PaymentScreen] runDbAction user:', user?.id, 'type:', type, 'moyasarId:', moyasarId);
+
+      let resolvedRequestId = requestId;
+      let resolvedSupplierId = supplierId || null;
+
+      // ── 1. DB state transition ──────────────────────────────────────
+      if (type === 'checkout') {
+        if (requestId) {
+          // Existing request (accepted offer, first installment) — promote to paid
+          const pct = paymentPct || 30;
+          const totalUsd = offerPriceUsd != null ? offerPriceUsd : amount / 3.75;
+          const second = parseFloat((totalUsd * (1 - pct / 100)).toFixed(2));
+          const { data, error } = await supabase
+            .from('requests')
+            .update({ status: 'paid', payment_pct: pct, payment_second: second })
+            .eq('id', requestId);
+          console.log('[PaymentScreen] requests.update checkout:', data, error);
+        } else if (requestData && user) {
+          // New request from product checkout — create it
+          const { data, error } = await supabase
+            .from('requests')
+            .insert({ ...requestData, buyer_id: user.id, status: 'open' })
+            .select('id')
+            .single();
+          console.log('[PaymentScreen] requests.insert checkout:', data, error);
+          if (data?.id) resolvedRequestId = data.id;
         }
       } else if (type === 'second_installment' && requestId) {
-        await supabase.from('requests').update({ status: 'shipping' }).eq('id', requestId);
-      } else if (type === 'offer' && offerId && requestId) {
-        await supabase.from('offers').update({ status: 'accepted' }).eq('id', offerId);
-        await supabase.from('requests').update({ status: 'closed' }).eq('id', requestId);
+        const { data, error } = await supabase
+          .from('requests')
+          .update({ status: 'shipping', shipping_status: 'shipping' })
+          .eq('id', requestId);
+        console.log('[PaymentScreen] requests.update second_installment:', data, error);
+      } else if (type === 'offer' && requestId) {
+        // Cascade (accept offer, reject others, notify) already done in OffersScreen.
+        // Just transition request to paid.
+        const pct = paymentPct || 30;
+        const totalUsd = offerPriceUsd != null ? offerPriceUsd : amount / 3.75;
+        const second = parseFloat((totalUsd * (1 - pct / 100)).toFixed(2));
+        const { data, error } = await supabase
+          .from('requests')
+          .update({ status: 'paid', payment_pct: pct, payment_second: second })
+          .eq('id', requestId);
+        console.log('[PaymentScreen] requests.update offer→paid:', data, error);
       } else if (type === 'sample' && sampleId) {
-        await supabase.from('samples').update({ status: 'paid' }).eq('id', sampleId);
+        const { data, error } = await supabase
+          .from('samples')
+          .update({ status: 'paid' })
+          .eq('id', sampleId);
+        console.log('[PaymentScreen] samples.update:', data, error);
+      }
+
+      // ── 2. Resolve supplierId if not provided ───────────────────────
+      if (!resolvedSupplierId && resolvedRequestId) {
+        const { data: ao } = await supabase
+          .from('offers')
+          .select('supplier_id')
+          .eq('request_id', resolvedRequestId)
+          .eq('status', 'accepted')
+          .maybeSingle();
+        console.log('[PaymentScreen] offer lookup for supplierId:', ao);
+        resolvedSupplierId = ao?.supplier_id || null;
+      }
+
+      // ── 3. Insert payments row ──────────────────────────────────────
+      if (user && moyasarId) {
+        const totalUsd = offerPriceUsd != null ? offerPriceUsd : amount / 3.75;
+        const pct = paymentPct || (type === 'sample' ? 100 : 30);
+        let paymentRow;
+
+        if (type === 'second_installment') {
+          paymentRow = {
+            request_id: resolvedRequestId || null,
+            buyer_id: user.id,
+            supplier_id: resolvedSupplierId,
+            amount: totalUsd,
+            amount_first: 0,
+            amount_second: totalUsd,
+            payment_pct: pct,
+            maabar_fee: 0,
+            supplier_amount: parseFloat((totalUsd * 0.96).toFixed(2)),
+            status: 'second_paid',
+            moyasar_id: moyasarId,
+          };
+        } else if (type === 'sample') {
+          paymentRow = {
+            request_id: null,
+            buyer_id: user.id,
+            supplier_id: resolvedSupplierId,
+            amount: totalUsd,
+            amount_first: totalUsd,
+            amount_second: 0,
+            payment_pct: 100,
+            maabar_fee: 0,
+            supplier_amount: 0,
+            status: 'first_paid',
+            moyasar_id: moyasarId,
+          };
+        } else {
+          // checkout (new or existing) and offer — first installment
+          const amountFirst = parseFloat((totalUsd * pct / 100).toFixed(2));
+          const amountSecond = parseFloat((totalUsd - amountFirst).toFixed(2));
+          paymentRow = {
+            request_id: resolvedRequestId || null,
+            buyer_id: user.id,
+            supplier_id: resolvedSupplierId,
+            amount: totalUsd,
+            amount_first: amountFirst,
+            amount_second: amountSecond,
+            payment_pct: pct,
+            maabar_fee: 0,
+            supplier_amount: parseFloat((totalUsd * 0.96).toFixed(2)),
+            status: 'first_paid',
+            moyasar_id: moyasarId,
+          };
+        }
+
+        const { data: pd, error: pe } = await supabase
+          .from('payments')
+          .insert(paymentRow)
+          .select('id')
+          .single();
+        console.log('[PaymentScreen] payments.insert:', pd, pe);
+
+        if (pd?.id && resolvedRequestId && type !== 'sample') {
+          await supabase.from('requests').update({ payment_id: pd.id }).eq('id', resolvedRequestId);
+          console.log('[PaymentScreen] requests.payment_id updated:', pd.id);
+        }
       }
     } catch (e) {
       console.error('[PaymentScreen] runDbAction error:', e);
