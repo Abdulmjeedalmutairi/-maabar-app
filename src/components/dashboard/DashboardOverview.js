@@ -107,7 +107,8 @@ function PendingBanner({ action, isAr, navigation }) {
 
   function onGo() {
     if (action.type === 'messages') { navigation.navigate('Inbox'); return; }
-    navigation.navigate('Requests');
+    const requestId = action.request?.id;
+    navigation.navigate('Requests', requestId ? { requestId } : undefined);
   }
 
   return (
