@@ -250,7 +250,7 @@ export default function RequestsScreen({ navigation, route }) {
           const total = subtotal + shipping;
           const pct = r.payment_pct > 0 ? r.payment_pct : 30;
           const firstAmt = total * pct / 100;
-          navigation.navigate('Payment', { amount: firstAmt * 3.75, type: 'checkout', requestId: r.id, requestData: r });
+          navigation.navigate('Payment', { amount: firstAmt * 3.75, type: 'checkout', requestId: r.id, requestData: r, supplierId: offer.supplier_id, offerPriceUsd: total, paymentPct: pct });
         },
       }]);
   }
@@ -612,7 +612,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onConfirmDeliv
       return { title: tx('الطلب الآن داخل المسار المُدار', 'This request is now inside the managed flow'), body: tx('معبر يجهّز الـ brief ويطابق الموردين المناسبين.', 'Maabar is preparing the brief and matching suitable suppliers.') };
     }
     if (accepted && !['paid','ready_to_ship','shipping','arrived','delivered'].includes(r.status)) return { title: tx('الخطوة التالية: ادفع الدفعة الأولى', 'Next step: pay the 1st installment'), body: tx('أكمل الدفع من نفس الطلب.', 'Complete checkout from this request.') };
-    if (r.status === 'ready_to_ship' && r.payment_second > 0) return { title: tx('الخطوة التالية: ادفع الدفعة الثانية', 'Next step: pay the second installment'), body: tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed shipment readiness.'), onPress: () => navigation.navigate('Payment', { amount: Number(r.payment_second) * 3.75, type: 'second_installment', requestId: r.id }) };
+    if (r.status === 'ready_to_ship' && r.payment_second > 0) return { title: tx('الخطوة التالية: ادفع الدفعة الثانية', 'Next step: pay the second installment'), body: tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed shipment readiness.'), onPress: () => navigation.navigate('Payment', { amount: Number(r.payment_second) * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: Number(r.payment_second) }) };
     if (r.status === 'shipping') return { title: tx('الخطوة التالية: تابع التتبع ثم أكد وصول الشحنة', 'Next step: follow tracking, then confirm arrival'), body: tx('بمجرد الوصول يمكنك تأكيد الاستلام.', 'Once arrived, confirm final delivery.') };
     if (r.status === 'arrived') return { title: tx('الخطوة التالية: أكد الاستلام لإغلاق الصفقة', 'Next step: confirm delivery to close the deal'), body: tx('إذا استلمت البضاعة كما هو متفق عليه، أكد الاستلام.', 'If goods arrived as agreed, confirm delivery.') };
     if (pending.length > 0) { const n = pending.length; return { title: tx(`الخطوة التالية: قارن ${n} عرض${n > 1 ? 'اً' : ''} واختر الأنسب`, `Next step: compare ${n} offer${n > 1 ? 's' : ''} and pick the best fit`), body: tx('راجع الإجمالي ومدة التجهيز قبل قبول العرض.', 'Review total cost and lead time before accepting an offer.') }; }
@@ -780,7 +780,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onConfirmDeliv
             <View style={{ gap: 8 }}>
               <TouchableOpacity
                 style={s.payBtn}
-                onPress={() => navigation.navigate('Payment', { amount: firstAmt * 3.75, type: 'checkout', requestId: r.id, requestData: r })}
+                onPress={() => navigation.navigate('Payment', { amount: firstAmt * 3.75, type: 'checkout', requestId: r.id, requestData: r, supplierId: accepted.supplier_id, offerPriceUsd: total, paymentPct: pct })}
                 activeOpacity={0.85}
               >
                 <Text style={s.payBtnText}>{tx(`ادفع الدفعة الأولى — ${firstAmt.toFixed(0)} ${accepted.currency || 'USD'}`, `Pay 1st Installment — ${firstAmt.toFixed(0)} ${accepted.currency || 'USD'}`)}</Text>
@@ -796,7 +796,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onConfirmDeliv
           return (
             <TouchableOpacity
               style={s.payBtn}
-              onPress={() => navigation.navigate('Payment', { amount: secondAmt * 3.75, type: 'second_installment', requestId: r.id })}
+              onPress={() => navigation.navigate('Payment', { amount: secondAmt * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: secondAmt })}
               activeOpacity={0.85}
             >
               <Text style={s.payBtnText}>{tx(`ادفع الدفعة الثانية${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`, `Pay 2nd Installment${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`)}</Text>
