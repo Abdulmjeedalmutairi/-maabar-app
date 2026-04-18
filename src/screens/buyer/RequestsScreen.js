@@ -182,7 +182,7 @@ export default function RequestsScreen({ navigation, route }) {
 
   /* ── Cancel request (web-exact) ── */
   async function handleCancelRequest(r) {
-    Alert.alert(tx('إلغاء الطلب', 'Cancel Request'), tx('هل أنت متأكد من إلغاء هذا الطلب؟', 'Are you sure you want to cancel this request?'),
+    Alert.alert(tx('إلغاء الطلب', 'Cancel Request'), tx('هل أنت متأكد من إلغاء هذا الطلب؟ الطلبات التي تم الدفع عليها لا يمكن ردّ مبالغها.', 'Are you sure you want to cancel? Paid orders are non-refundable.'),
       [{ text: tx('لا', 'No'), style: 'cancel' }, {
         text: tx('نعم، إلغاء', 'Yes, Cancel'), style: 'destructive',
         onPress: async () => {
