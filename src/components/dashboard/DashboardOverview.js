@@ -205,7 +205,7 @@ export default function DashboardOverview({
               <TouchableOpacity
                 key={r.id}
                 style={s.activeOrderCard}
-                onPress={() => navigation.navigate('Requests')}
+                onPress={() => navigation.navigate('Requests', { requestId: r.id })}
                 activeOpacity={0.8}
               >
                 <View style={s.activeOrderHeader}>
@@ -254,7 +254,7 @@ export default function DashboardOverview({
             const st     = isAr ? (STATUS_AR[r.status] || r.status) : (STATUS_EN[r.status] || r.status);
             const rTitle = isAr ? (r.title_ar || r.title_en) : (r.title_en || r.title_ar);
             return (
-              <TouchableOpacity key={r.id} style={s.recentCard} onPress={() => navigation.navigate('Requests')} activeOpacity={0.8}>
+              <TouchableOpacity key={r.id} style={s.recentCard} onPress={() => navigation.navigate('Requests', { requestId: r.id })} activeOpacity={0.8}>
                 <Text style={s.recentStatus}>{st}</Text>
                 <Text style={s.recentTitle} numberOfLines={1}>{rTitle}</Text>
               </TouchableOpacity>
