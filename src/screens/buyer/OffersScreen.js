@@ -240,7 +240,21 @@ export default function OffersScreen({ route, navigation }) {
           text: isAr ? 'تأكيد الرفض' : 'Confirm Reject',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('offers').update({ status: 'rejected' }).eq('id', offerId);
+            const { data, error } = await supabase.from('offers').update({ status: 'rejected' }).eq('id', offerId);
+            console.log('[OffersScreen] handleReject update:', data, error);
+            const rejected = offers.find(o => o.id === offerId);
+            if (rejected?.supplier_id) {
+              const { data: nd, error: ne } = await supabase.from('notifications').insert({
+                user_id: rejected.supplier_id,
+                type: 'offer_rejected',
+                title_ar: `تم رفض عرضك على الطلب: ${title || ''}`,
+                title_en: `Your offer was rejected for: ${title || ''}`,
+                title_zh: `您的报价已被拒绝: ${title || ''}`,
+                ref_id: offerId,
+                is_read: false,
+              });
+              console.log('[OffersScreen] handleReject notification:', nd, ne);
+            }
             // Show "تم الرفض" flash on the card
             setRejectedMap(prev => ({ ...prev, [offerId]: true }));
             // After 1.5s remove from list
