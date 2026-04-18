@@ -129,7 +129,7 @@ export default function RequestsScreen({ navigation, route }) {
       const requestIds = rows.map(r => r.id);
       const { data: offerRows } = await supabase
         .from('offers')
-        .select('id, status, request_id, price, shipping_cost, currency, notes, delivery_time, supplier_id, profiles(company_name, full_name, verified, rating, reviews_count, maabar_id)')
+        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id, profiles(company_name, full_name, verified, rating, reviews_count, maabar_id)')
         .in('request_id', requestIds);
 
       const byReq = (offerRows || []).reduce((acc, o) => {
@@ -708,44 +708,66 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       {!isManaged && r.status === 'offers_received' && pending.length > 0 && (
         <View style={{ marginBottom: 12 }}>
           <Text style={s.offersHeading}>{tx(`${pending.length} عرض ينتظرك`, `${pending.length} offer${pending.length > 1 ? 's' : ''} waiting`)}</Text>
-          {pending.slice(0, 3).map(offer => {
-            const subtotal = (offer.price || 0) * (Number(r.quantity) || 1);
-            const shipping = parseFloat(offer.shipping_cost) || 0;
-            const total    = subtotal + shipping;
-            const sName    = offer.profiles?.company_name || offer.profiles?.full_name || '—';
-            return (
-              <View key={offer.id} style={s.offerRow}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                    {offer.profiles?.verified && <Text style={s.offerVerified}>✓</Text>}
-                    <Text style={s.offerSupplier} numberOfLines={1}>{sName}</Text>
-                    {offer.profiles?.rating > 0 && <Text style={s.offerRating}>★ {Number(offer.profiles.rating).toFixed(1)}</Text>}
+          {(() => {
+            const lowestTotal = Math.min(...pending.map(o => (parseFloat(o.price) || 0) + (parseFloat(o.shipping_cost) || 0)));
+            return pending.slice(0, 3).map(offer => {
+              const subtotal  = (offer.price || 0) * (Number(r.quantity) || 1);
+              const shipping  = parseFloat(offer.shipping_cost) || 0;
+              const total     = subtotal + shipping;
+              const isLowest  = lowestTotal > 0 && total === lowestTotal;
+              const sName     = offer.profiles?.company_name || offer.profiles?.full_name || '—';
+              return (
+                <View key={offer.id} style={s.offerRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      {offer.profiles?.verified && <Text style={s.offerVerified}>✓</Text>}
+                      <Text style={s.offerSupplier} numberOfLines={1}>{sName}</Text>
+                      {offer.profiles?.rating > 0 && <Text style={s.offerRating}>★ {Number(offer.profiles.rating).toFixed(1)}</Text>}
+                      {isLowest && <Text style={s.offerLowestBadge}>{tx('الأقل سعراً', 'Lowest')}</Text>}
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                      {total > 0 && <Text style={s.offerTotal}>{total.toFixed(0)} {offer.currency || 'USD'}</Text>}
+                      {offer.price > 0 && <Text style={s.offerUnit}>{tx('الوحدة:', 'Unit:')} {offer.price}</Text>}
+                      {shipping > 0 && <Text style={s.offerUnit}>{tx('شحن:', 'Ship:')} {shipping.toFixed(0)}</Text>}
+                      {offer.delivery_time && <Text style={s.offerLead}>{offer.delivery_time}</Text>}
+                    </View>
+                    {(offer.shipping_method || offer.moq || offer.origin) && (
+                      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                        {!!offer.shipping_method && <Text style={s.offerMeta}>{offer.shipping_method}</Text>}
+                        {!!offer.moq && <Text style={s.offerMeta}>{tx('MOQ:', 'MOQ:')} {offer.moq}</Text>}
+                        {!!offer.origin && <Text style={s.offerMeta}>{offer.origin}</Text>}
+                      </View>
+                    )}
+                    {!!(offer.note || offer.notes) && (
+                      <Text style={s.offerNote} numberOfLines={2}>{offer.note || offer.notes}</Text>
+                    )}
+                    <TouchableOpacity
+                      onPress={e => { e.stopPropagation?.(); navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: offer.supplier_id } }); }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={s.offerChatLink}>{tx('تواصل مع المورد', 'Chat with supplier')}</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    {total > 0 && <Text style={s.offerTotal}>{total.toFixed(0)} {offer.currency || 'USD'}</Text>}
-                    {offer.price > 0 && <Text style={s.offerUnit}>{tx('الوحدة:', 'Unit:')} {offer.price}</Text>}
-                    {offer.delivery_time && <Text style={s.offerLead}>{offer.delivery_time}</Text>}
+                  <View style={{ gap: 6 }}>
+                    <TouchableOpacity
+                      style={s.acceptBtn}
+                      onPress={e => { e.stopPropagation?.(); onAcceptOffer(offer, r); }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={s.acceptBtnText}>{tx('قبول', 'Accept')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.rejectBtn}
+                      onPress={e => { e.stopPropagation?.(); onRejectOffer(offer, r); }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={s.rejectBtnText}>{tx('رفض', 'Reject')}</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <View style={{ gap: 6 }}>
-                  <TouchableOpacity
-                    style={s.acceptBtn}
-                    onPress={e => { e.stopPropagation?.(); onAcceptOffer(offer, r); }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={s.acceptBtnText}>{tx('قبول', 'Accept')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.rejectBtn}
-                    onPress={e => { e.stopPropagation?.(); onRejectOffer(offer, r); }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={s.rejectBtnText}>{tx('رفض', 'Reject')}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
+              );
+            });
+          })()}
           {pending.length > 3 && (
             <TouchableOpacity style={s.offersBtn} onPress={() => navigation.navigate('Offers', { requestId: r.id, title: title || r.title_ar || r.title_en })} activeOpacity={0.8}>
               <Text style={s.offersBtnText}>{tx(`عرض كل العروض (${pending.length}) →`, `View all offers (${pending.length}) →`)}</Text>
@@ -1003,6 +1025,10 @@ const s = StyleSheet.create({
 
   offersBtn: { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault, marginTop: 4 },
   offersBtnText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 13 },
+  offerLowestBadge: { fontSize: 9, color: '#5a9a72', fontFamily: F.arSemi, backgroundColor: 'rgba(90,154,114,0.1)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(90,154,114,0.25)' },
+  offerMeta:     { fontSize: 10, color: C.textTertiary, fontFamily: F.ar, backgroundColor: C.bgOverlay, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  offerNote:     { fontSize: 11, color: C.textSecondary, fontFamily: F.ar, textAlign: 'right', lineHeight: 16, marginBottom: 4 },
+  offerChatLink: { fontSize: 11, color: C.textTertiary, fontFamily: F.arSemi, textAlign: 'right', marginTop: 2 },
 
   /* Review modal */
   reviewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
