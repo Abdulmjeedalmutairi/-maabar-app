@@ -759,6 +759,17 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
         </TouchableOpacity>
       )}
 
+      {/* ── Chat with supplier (when offer accepted) ── */}
+      {!isManaged && accepted?.supplier_id && ['supplier_confirmed','paid','ready_to_ship','shipping','arrived'].includes(r.status) && (
+        <TouchableOpacity
+          style={s.chatBtn}
+          onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: accepted.supplier_id } })}
+          activeOpacity={0.8}
+        >
+          <Text style={s.chatBtnText}>{tx('تواصل مع المورد', 'Chat with Supplier')}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* ── Tracking section ── */}
       {!isManaged && !!r.tracking_number && (
         <View style={s.trackBox}>
@@ -970,6 +981,8 @@ const s = StyleSheet.create({
   cancelBtnText: { color: C.red, fontFamily: F.arSemi, fontSize: 13 },
   reportBtn:     { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault },
   reportBtnText: { color: C.textSecondary, fontFamily: F.ar, fontSize: 13 },
+  chatBtn:     { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault, marginBottom: 8 },
+  chatBtnText: { color: C.textPrimary, fontFamily: F.arSemi, fontSize: 13 },
 
   offersBtn: { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault, marginTop: 4 },
   offersBtnText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 13 },
