@@ -43,7 +43,7 @@ export default function ProductInquiriesScreen({ navigation }) {
     /* Fetch inquiries + products */
     const { data: rows } = await supabase
       .from('product_inquiries')
-      .select('*, products(id, name_ar, name_en, name_zh)')
+      .select('*, products(id, name_ar, name_en, name_zh), supplier:supplier_id(company_name, full_name)')
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -112,6 +112,10 @@ export default function ProductInquiriesScreen({ navigation }) {
                     </View>
                     <Text style={s.productName} numberOfLines={1}>{getProductName(inq)}</Text>
                   </View>
+
+                  {!!(inq.supplier?.company_name || inq.supplier?.full_name) && (
+                    <Text style={s.supplierName}>{inq.supplier.company_name || inq.supplier.full_name}</Text>
+                  )}
 
                   {!!inq.question_text && (
                     <Text style={s.question} numberOfLines={3}>{inq.question_text}</Text>
@@ -192,6 +196,7 @@ const s = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontFamily: F.arSemi },
   productName: { flex: 1, color: C.textPrimary, fontFamily: F.arSemi, fontSize: 14, textAlign: 'right' },
+  supplierName: { color: C.textTertiary, fontFamily: F.arSemi, fontSize: 12, textAlign: 'right', marginBottom: 6 },
   question: { color: C.textSecondary, fontFamily: F.ar, fontSize: 13, textAlign: 'right', lineHeight: 20, marginBottom: 10 },
 
   answerBox: { backgroundColor: C.bgOverlay, borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: C.borderSubtle },
