@@ -225,6 +225,22 @@ export default function RequestsScreen({ navigation, route }) {
       }]);
   }
 
+  /* ── Mark as Arrived ── */
+  async function handleMarkArrived(r) {
+    Alert.alert(tx('تأكيد الوصول', 'Confirm Arrival'), tx('هل وصلت البضاعة إلى السعودية؟', 'Has the shipment arrived in Saudi Arabia?'),
+      [{ text: tx('إلغاء', 'Cancel'), style: 'cancel' }, {
+        text: tx('نعم، وصل', 'Yes, Arrived'),
+        onPress: async () => {
+          const { data, error } = await supabase
+            .from('requests')
+            .update({ status: 'arrived', shipping_status: 'arrived' })
+            .eq('id', r.id);
+          console.log('[RequestsScreen] markArrived:', data, error);
+          load();
+        },
+      }]);
+  }
+
   /* ── Accept offer with full cascade (web-exact) ── */
   async function handleAcceptOffer(offer, r) {
     Alert.alert(tx('قبول العرض', 'Accept Offer'), tx(`قبول العرض من ${offer.profiles?.company_name || 'المورد'}؟`, `Accept offer from ${offer.profiles?.company_name || 'supplier'}?`),
@@ -387,6 +403,7 @@ export default function RequestsScreen({ navigation, route }) {
                 onEdit={openEdit}
                 onDelete={deleteRequest}
                 onCancel={handleCancelRequest}
+                onMarkArrived={handleMarkArrived}
                 onConfirmDelivery={handleConfirmDelivery}
                 onAcceptOffer={handleAcceptOffer}
                 onRejectOffer={handleRejectOffer}
@@ -587,7 +604,7 @@ function PaymentPlanRow({ request, offer }) {
 
 /* ════════════════════════════════════════════════════════════ */
 /* ── Request Card ── */
-function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onConfirmDelivery, onAcceptOffer, onRejectOffer }) {
+function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived, onConfirmDelivery, onAcceptOffer, onRejectOffer, onRateSupplier }) {
   const lang      = getLang();
   const isAr      = lang === 'ar';
   const isManaged = String(r.sourcing_mode || 'direct') === 'managed';
@@ -800,6 +817,13 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onConfirmDeliv
               activeOpacity={0.85}
             >
               <Text style={s.payBtnText}>{tx(`ادفع الدفعة الثانية${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`, `Pay 2nd Installment${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`)}</Text>
+            </TouchableOpacity>
+          );
+        }
+        if (r.status === 'shipping') {
+          return (
+            <TouchableOpacity style={s.payBtn} onPress={() => onMarkArrived(r)} activeOpacity={0.85}>
+              <Text style={s.payBtnText}>{tx('أكد الوصول إلى السعودية', 'Mark as Arrived in KSA')}</Text>
             </TouchableOpacity>
           );
         }
