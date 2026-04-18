@@ -50,7 +50,7 @@ export default function SamplesScreen({ navigation }) {
 
     const { data } = await supabase
       .from('samples')
-      .select('*, products(name_ar, name_en, name_zh), profiles(company_name, full_name, verified, rating, reviews_count)')
+      .select('*, products(name_ar, name_en, name_zh), profiles:supplier_id(company_name, full_name, verified, rating, reviews_count)')
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -132,11 +132,22 @@ export default function SamplesScreen({ navigation }) {
 
                   <View style={s.cardFooter}>
                     <Text style={s.date}>{new Date(sample.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}</Text>
-                    {canPay && (
-                      <TouchableOpacity style={s.payBtn} activeOpacity={0.85} onPress={() => navigation.navigate('Payment', { amount: payAmount, type: 'sample', sampleId: sample.id })}>
-                        <Text style={s.payBtnText}>{tx('ادفع الآن', 'Pay Now')}</Text>
-                      </TouchableOpacity>
-                    )}
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      {!!sample.supplier_id && (
+                        <TouchableOpacity
+                          style={s.chatBtn}
+                          onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: sample.supplier_id } })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={s.chatBtnText}>{tx('تواصل', 'Chat')}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {canPay && (
+                        <TouchableOpacity style={s.payBtn} activeOpacity={0.85} onPress={() => navigation.navigate('Payment', { amount: payAmount, type: 'sample', sampleId: sample.id, supplierId: sample.supplier_id })}>
+                          <Text style={s.payBtnText}>{tx('ادفع الآن', 'Pay Now')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 </View>
               );
@@ -179,4 +190,6 @@ const s = StyleSheet.create({
   date: { color: C.textDisabled, fontFamily: F.en, fontSize: 11 },
   payBtn:     { backgroundColor: C.btnPrimary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   payBtnText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 13 },
+  chatBtn:     { backgroundColor: C.bgHover, borderRadius: 10, borderWidth: 1, borderColor: C.borderDefault, paddingHorizontal: 14, paddingVertical: 8 },
+  chatBtnText: { color: C.textPrimary, fontFamily: F.arSemi, fontSize: 13 },
 });
