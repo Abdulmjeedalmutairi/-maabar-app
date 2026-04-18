@@ -20,6 +20,7 @@ export default function AccountScreen() {
   const [loading, setLoading]   = useState(true);
   const [editing, setEditing]   = useState(false);
   const [saving, setSaving]     = useState(false);
+  const [savedBanner, setSavedBanner] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
 
   const [editName,     setEditName]     = useState('');
@@ -71,6 +72,8 @@ export default function AccountScreen() {
     setSaving(false);
     setEditing(false);
     loadProfile();
+    setSavedBanner(true);
+    setTimeout(() => setSavedBanner(false), 2500);
   }
 
   async function handleSignOut() {
@@ -106,6 +109,12 @@ export default function AccountScreen() {
         </TouchableOpacity>
         <Text style={s.pageTitle}>{tx('حسابي', 'My Account')}</Text>
       </View>
+
+      {savedBanner && (
+        <View style={s.savedBanner}>
+          <Text style={s.savedBannerText}>{tx('تم حفظ التعديلات', 'Changes saved')}</Text>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={s.content}>
         {/* Avatar */}
@@ -251,6 +260,8 @@ const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  savedBanner: { backgroundColor: 'rgba(90,154,114,0.1)', borderBottomWidth: 1, borderBottomColor: 'rgba(90,154,114,0.25)', paddingHorizontal: 20, paddingVertical: 10 },
+  savedBannerText: { color: '#5a9a72', fontFamily: F.arSemi, fontSize: 13, textAlign: 'center' },
   pageTitle: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 17 },
   editBtn:   { color: C.textSecondary, fontFamily: F.ar, fontSize: 14 },
 
