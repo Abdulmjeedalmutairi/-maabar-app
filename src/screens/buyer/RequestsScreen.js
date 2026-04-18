@@ -407,6 +407,10 @@ export default function RequestsScreen({ navigation, route }) {
                 onConfirmDelivery={handleConfirmDelivery}
                 onAcceptOffer={handleAcceptOffer}
                 onRejectOffer={handleRejectOffer}
+                onRateSupplier={(supplierId, supplierName, requestId) => {
+                  setReviewRating(0); setReviewComment('');
+                  setReviewModal({ supplierId, requestId, supplierName });
+                }}
               />
             ))
           )}
@@ -845,15 +849,28 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
             </TouchableOpacity>
           );
         }
-        if (r.status === 'delivered' && ['paid','ready_to_ship','shipping','arrived','delivered'].includes(r.status)) {
+        if (r.status === 'delivered') {
+          const supId   = accepted?.supplier_id;
+          const supName = accepted?.profiles?.company_name || accepted?.profiles?.full_name || '';
           return (
-            <TouchableOpacity
-              style={s.reportBtn}
-              onPress={() => navigation.navigate('Support')}
-              activeOpacity={0.8}
-            >
-              <Text style={s.reportBtnText}>{tx('تواصل مع الدعم', 'Contact Support')}</Text>
-            </TouchableOpacity>
+            <View style={{ gap: 8 }}>
+              {supId && (
+                <TouchableOpacity
+                  style={s.payBtn}
+                  onPress={() => onRateSupplier(supId, supName, r.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.payBtnText}>{tx('قيّم المورد', 'Rate Supplier')}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={s.reportBtn}
+                onPress={() => Linking.openURL('mailto:support@maabar.io').catch(() => {})}
+                activeOpacity={0.8}
+              >
+                <Text style={s.reportBtnText}>{tx('تواصل مع الدعم', 'Contact Support')}</Text>
+              </TouchableOpacity>
+            </View>
           );
         }
         return null;
