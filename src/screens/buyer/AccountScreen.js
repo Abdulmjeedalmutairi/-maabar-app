@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator, Modal, FlatList,
+  StyleSheet, Alert, ActivityIndicator, Modal, FlatList, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -15,7 +15,7 @@ const CITIES_AR = ['الرياض', 'جدة', 'مكة المكرمة', 'المد�
 const CITIES_EN = ['Riyadh', 'Jeddah', 'Mecca', 'Medina', 'Dammam', 'Khobar', 'Tabuk', 'Abha', 'Qassim', 'Hail', 'Jazan', 'Najran'];
 const DISPLAY_CURRENCIES = ['USD', 'SAR', 'CNY'];
 
-export default function AccountScreen() {
+export default function AccountScreen({ navigation }) {
   const [profile, setProfile]   = useState(null);
   const [loading, setLoading]   = useState(true);
   const [editing, setEditing]   = useState(false);
@@ -190,9 +190,9 @@ export default function AccountScreen() {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>{tx('الدعم والمعلومات', 'Support & Info')}</Text>
-          <LinkRow label={tx('الشروط والأحكام', 'Terms & Conditions')} />
-          <LinkRow label={tx('سياسة الخصوصية', 'Privacy Policy')} />
-          <LinkRow label={tx('تواصل معنا', 'Contact Us')} />
+          <LinkRow label={tx('الشروط والأحكام', 'Terms & Conditions')} onPress={() => navigation.navigate('Home', { screen: 'Terms' })} />
+          <LinkRow label={tx('سياسة الخصوصية', 'Privacy Policy')}     onPress={() => navigation.navigate('Home', { screen: 'Terms' })} />
+          <LinkRow label={tx('تواصل معنا', 'Contact Us')}              onPress={() => navigation.navigate('Home', { screen: 'Contact' })} />
         </View>
 
         <TouchableOpacity style={s.signOutBtn} onPress={handleSignOut} activeOpacity={0.85}>
@@ -246,9 +246,9 @@ function InfoRow({ label, value }) {
   );
 }
 
-function LinkRow({ label }) {
+function LinkRow({ label, onPress }) {
   return (
-    <TouchableOpacity style={s.linkRow} activeOpacity={0.7}>
+    <TouchableOpacity style={s.linkRow} activeOpacity={0.7} onPress={onPress}>
       <Text style={s.linkArrow}>›</Text>
       <Text style={s.linkLabel}>{label}</Text>
     </TouchableOpacity>

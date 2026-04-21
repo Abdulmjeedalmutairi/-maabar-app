@@ -21,24 +21,27 @@ export default function DashboardScreen({ navigation, route }) {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) { navigation.navigate('Login'); return; }
 
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('full_name, city, preferred_language')
+        .select('full_name, city, lang')
         .eq('id', user.id)
         .single();
+      if (profileError) console.error('DashboardScreen profile error:', profileError);
       setProfile(profileData);
-      if (profileData?.preferred_language) setIsArabic(profileData.preferred_language === 'ar');
+      if (profileData?.lang) setIsArabic(profileData.lang === 'ar');
 
       /* All requests with offers */
-      const { data: reqs } = await supabase
+      const { data: reqs, error: reqsError } = await supabase
         .from('requests')
         .select('id, title_ar, title_en, status, sourcing_mode, managed_status, quantity, payment_pct, amount, payment_second, payment_second_paid, created_at, updated_at, tracking_number, shipping_company, estimated_delivery')
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
+      if (reqsError) console.error('DashboardScreen requests error:', reqsError);
 
       const rows = reqs || [];
       setRequests(rows);
@@ -92,11 +95,12 @@ export default function DashboardScreen({ navigation, route }) {
           if (r.status === 'arrived')            actions.push({ type: 'arrived', request: r });
         });
       }
-      const { data: msgs } = await supabase
+      const { data: msgs, error: msgsError } = await supabase
         .from('messages')
         .select('id')
         .eq('receiver_id', user.id)
         .eq('is_read', false);
+      if (msgsError) console.error('DashboardScreen messages error:', msgsError);
       if (msgs?.length > 0) actions.push({ type: 'messages', count: msgs.length });
       setPendingActions(actions);
 

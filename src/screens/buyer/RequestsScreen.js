@@ -383,7 +383,8 @@ export default function RequestsScreen({ navigation, route }) {
         <View style={s.center}><ActivityIndicator color={C.textDisabled} size="large" /></View>
       ) : (
         <ScrollView
-          contentContainerStyle={s.list}
+          style={s.list}
+          contentContainerStyle={s.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.textDisabled} />}
           showsVerticalScrollIndicator={false}
         >
@@ -939,7 +940,7 @@ const s = StyleSheet.create({
   newBtnText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 13 },
 
   /* Sub-filter tabs */
-  tabsScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  tabsScroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
   tabsRow:    { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: 'row' },
   tab:        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: C.borderSubtle, backgroundColor: C.bgBase },
   tabActive:  { borderColor: C.textPrimary, backgroundColor: C.textPrimary },
@@ -953,7 +954,8 @@ const s = StyleSheet.create({
   statValue:       { fontSize: 24, fontFamily: F.en, color: C.textPrimary, lineHeight: 28 },
   statLabel:       { fontSize: 10, fontFamily: F.ar, color: C.textDisabled, marginTop: 2, letterSpacing: 0.5 },
 
-  list: { padding: 16, paddingBottom: 40 },
+  list:        { flex: 1 },
+  listContent: { padding: 16, paddingBottom: 40 },
   emptyCard: { backgroundColor: C.bgRaised, borderRadius: 16, padding: 40, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault },
   emptyText:    { color: C.textSecondary, fontFamily: F.ar, fontSize: 15, marginBottom: 16 },
   emptyBtn:     { backgroundColor: C.btnPrimary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
