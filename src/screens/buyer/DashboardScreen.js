@@ -37,7 +37,7 @@ export default function DashboardScreen({ navigation, route }) {
       /* All requests with offers */
       const { data: reqs, error: reqsError } = await supabase
         .from('requests')
-        .select('id, title_ar, title_en, status, sourcing_mode, managed_status, quantity, payment_pct, amount, payment_second, payment_second_paid, created_at, updated_at, tracking_number, shipping_company, estimated_delivery')
+        .select('*')
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
