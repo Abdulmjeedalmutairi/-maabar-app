@@ -190,7 +190,7 @@ export default function AccountScreen({ navigation }) {
 
         <View style={s.section}>
           <Text style={s.sectionTitle}>{tx('الدعم والمعلومات', 'Support & Info')}</Text>
-          <LinkRow label={tx('الشروط والأحكام', 'Terms & Conditions')} onPress={() => Linking.openURL('https://maabar.io/terms').catch(() => {})} />
+          <LinkRow label={tx('الشروط والأحكام', 'Terms & Conditions')} onPress={() => navigation.navigate('Home', { screen: 'WebView', params: { url: 'https://maabar.io/terms', title: tx('الشروط والأحكام', 'Terms & Conditions') } })} />
           <LinkRow label={tx('تواصل معنا', 'Contact Us')}              onPress={() => navigation.navigate('Home', { screen: 'Contact' })} />
         </View>
 

@@ -31,6 +31,7 @@ import FAQSuppliersScreen   from '../screens/shared/FAQSuppliersScreen';
 import TermsScreen          from '../screens/shared/TermsScreen';
 import ContactScreen        from '../screens/shared/ContactScreen';
 import SupportScreen        from '../screens/shared/SupportScreen';
+import WebViewScreen        from '../screens/shared/WebViewScreen';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -57,6 +58,7 @@ function HomeStack() {
       <Stack.Screen name="Terms"           component={TermsScreen} />
       <Stack.Screen name="Contact"         component={ContactScreen} />
       <Stack.Screen name="Support"         component={SupportScreen} />
+      <Stack.Screen name="WebView"         component={WebViewScreen} />
     </Stack.Navigator>
   );
 }
