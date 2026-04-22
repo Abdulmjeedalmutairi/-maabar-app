@@ -166,7 +166,7 @@ export default function DashboardOverview({
         {[
           { label: isAr ? 'يحتاج إجراء' : 'Needs Action', value: stats.needsAction || 0, red: (stats.needsAction || 0) > 0, onPress: () => navigation.navigate('Requests') },
           { label: isAr ? 'طلبات' : 'Active',              value: stats.requests  || 0, onPress: () => navigation.navigate('Requests') },
-          { label: isAr ? 'عروض' : 'Offers',               value: stats.offers    || 0, green: (stats.offers || 0) > 0, onPress: () => navigation.navigate('Requests') },
+          { label: isAr ? 'عروض' : 'Offers',               value: stats.offers    || 0, green: (stats.offers || 0) > 0, onPress: () => navigation.navigate('Requests', { screen: 'Offers' }) },
           { label: isAr ? 'رسائل جديدة' : 'Messages',     value: stats.messages  || 0, onPress: () => navigation.navigate('Inbox') },
         ].map((st, i) => (
           <TouchableOpacity key={i} style={[s.statCell, i < 3 && s.statCellBorder]} onPress={st.onPress} activeOpacity={0.75}>

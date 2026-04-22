@@ -242,10 +242,11 @@ export default function CheckoutScreen({ navigation, route }) {
   const [phone,   setPhone]   = useState('');
 
   // Step 4
-  const [payMethod,   setPayMethod]   = useState('mada');
-  const [submitting,  setSubmitting]  = useState(false);
-  const [error,       setError]       = useState('');
-  const [success,     setSuccess]     = useState(false);
+  const [payMethod,     setPayMethod]     = useState('mada');
+  const [submitting,    setSubmitting]    = useState(false);
+  const [error,         setError]         = useState('');
+  const [success,       setSuccess]       = useState(false);
+  const [isNavigating,  setIsNavigating]  = useState(false);
 
   /* ── Derived ── */
   const qty       = parseInt(quantity, 10) || 0;
@@ -586,8 +587,11 @@ export default function CheckoutScreen({ navigation, route }) {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={s.ctaBtn}
+              style={[s.ctaBtn, isNavigating && { opacity: 0.6 }]}
+              disabled={isNavigating}
               onPress={() => {
+                if (isNavigating) return;
+                setIsNavigating(true);
                 const amountSAR = hasPrice && qty > 0
                   ? Number(priceUsd) * 3.75 * qty
                   : 0;
