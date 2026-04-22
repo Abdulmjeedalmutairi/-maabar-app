@@ -35,12 +35,13 @@ export default function AccountScreen({ navigation }) {
   async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('full_name, email, phone, city, company_name, role, created_at, preferred_language, preferred_display_currency')
+      .select('*')
       .eq('id', user.id)
       .single();
-    setProfile(data);
+    if (error) console.error('[AccountScreen] loadProfile error:', error);
+    setProfile(data ? { ...data, email: user.email } : null);
     setLoading(false);
   }
 
@@ -49,7 +50,7 @@ export default function AccountScreen({ navigation }) {
     setEditCompany(profile?.company_name || '');
     setEditPhone(profile?.phone || '');
     setEditCity(profile?.city || '');
-    setEditLang(profile?.preferred_language || getLang());
+    setEditLang(profile?.lang || getLang());
     setEditCurrency(profile?.preferred_display_currency || 'USD');
     setEditing(true);
   }
@@ -60,14 +61,15 @@ export default function AccountScreen({ navigation }) {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
-    await supabase.from('profiles').update({
+    const { error: saveError } = await supabase.from('profiles').update({
       full_name:                  editName.trim(),
       company_name:               editCompany.trim(),
       phone:                      editPhone.trim(),
       city:                       editCity.trim(),
-      preferred_language:         editLang,
+      lang:                       editLang,
       preferred_display_currency: editCurrency,
     }).eq('id', user.id);
+    if (saveError) console.error('[AccountScreen] saveEdit error:', saveError);
     setLang(editLang);
     setSaving(false);
     setEditing(false);
@@ -183,7 +185,7 @@ export default function AccountScreen({ navigation }) {
             <InfoRow label={tx('الجوال', 'Phone')}                 value={profile?.phone || '—'} />
             <InfoRow label={tx('المدينة', 'City')}                  value={profile?.city || '—'} />
             <InfoRow label={tx('تاريخ الانضمام', 'Joined')}         value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US') : '—'} />
-            <InfoRow label={tx('اللغة', 'Language')}                value={profile?.preferred_language === 'en' ? 'English' : 'العربية'} />
+            <InfoRow label={tx('اللغة', 'Language')}                value={profile?.lang === 'en' ? 'English' : 'العربية'} />
             <InfoRow label={tx('عملة العرض', 'Display Currency')}   value={profile?.preferred_display_currency || 'USD'} />
           </View>
         )}

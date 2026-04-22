@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, Modal, RefreshControl,
@@ -129,7 +130,7 @@ export default function RequestsScreen({ navigation, route }) {
       const requestIds = rows.map(r => r.id);
       const { data: offerRows } = await supabase
         .from('offers')
-        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id, profiles(company_name, full_name, verified, rating, reviews_count, maabar_id)')
+        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id, profiles(company_name, full_name, verified, rating, reviews_count, maabar_supplier_id)')
         .in('request_id', requestIds);
 
       const byReq = (offerRows || []).reduce((acc, o) => {
@@ -144,7 +145,7 @@ export default function RequestsScreen({ navigation, route }) {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   useEffect(() => {
     const channel = supabase.channel('requests-screen-rt')
@@ -516,14 +517,16 @@ const TIMELINE_STEPS = [
   { key: 'received',  ar: 'الاستلام',      en: 'Received'    },
 ];
 
-function timelineIndex(status) {
-  const map = { open: 0, offers_received: 0, closed: 1, supplier_confirmed: 1, paid: 2, ready_to_ship: 3, shipping: 4, arrived: 5, delivered: 5 };
+function timelineIndex(status, shippingStatus) {
+  if (shippingStatus === 'delivered') return 5;
+  if (shippingStatus === 'arrived' || shippingStatus === 'shipped') return 4;
+  const map = { open: 0, offers_received: 0, closed: 1, paid: 2, supplier_confirmed: 3, ready_to_ship: 3, shipping: 4, arrived: 4, delivered: 5 };
   return map[status] ?? 0;
 }
 
-function StatusTimeline({ status }) {
+function StatusTimeline({ status, shippingStatus }) {
   const lang    = getLang();
-  const current = timelineIndex(status);
+  const current = timelineIndex(status, shippingStatus);
   return (
     <View style={{ marginBottom: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -625,7 +628,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
   /* Supplier strip — shows when offer is accepted */
   const supplierName    = accepted?.profiles?.company_name || accepted?.profiles?.full_name || null;
   const supplierVerified = !!accepted?.profiles?.verified;
-  const supplierMaabarId = accepted?.profiles?.maabar_id || null;
+  const supplierMaabarId = accepted?.profiles?.maabar_supplier_id || null;
 
   /* Next step copy */
   const nextStep = (() => {
@@ -643,11 +646,29 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
     return null;
   })();
 
+  function handleCardPress() {
+    // Managed requests: no navigation for now
+    if (isManaged) return;
+    const cardTitle = title || r.title_ar || r.title_en;
+    // Pre-acceptance: open OffersScreen (may be empty for 'open' status)
+    if (['open', 'offers_received'].includes(r.status)) {
+      navigation.navigate('Offers', {
+        requestId: r.id,
+        title: cardTitle,
+        quantity: r.quantity,
+        paymentPct: r.payment_pct > 0 ? r.payment_pct : 30,
+      });
+    } else {
+      // Post-acceptance: open OrderDetail for all remaining statuses
+      navigation.navigate('OrderDetail', { requestId: r.id });
+    }
+  }
+
   return (
     <TouchableOpacity
       style={s.card}
       activeOpacity={0.92}
-      onPress={() => navigation.navigate('Offers', { requestId: r.id, title: title || r.title_ar || r.title_en })}
+      onPress={handleCardPress}
     >
       {/* ── Title + Status Badge ── */}
       <View style={s.cardTitleRow}>
@@ -683,7 +704,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
 
       {/* ── StatusTimeline (replaces ProgressBar) ── */}
       {!isManaged
-        ? <StatusTimeline status={r.shipping_status || r.status} />
+        ? <StatusTimeline status={r.status} shippingStatus={r.shipping_status} />
         : (
           <View style={s.managedNote}>
             <Text style={s.managedNoteText}>{tx('طلب مُدار — معبر يتابع لك', 'Managed request — Maabar handles sourcing')}</Text>

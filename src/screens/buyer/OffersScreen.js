@@ -64,7 +64,7 @@ function getLabel(key, isAr) {
 }
 
 export default function OffersScreen({ route, navigation }) {
-  const { requestId, title } = route.params || {};
+  const { requestId, title, quantity, paymentPct: routePaymentPct } = route.params || {};
   const [offers, setOffers]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [expandedMap, setExpandedMap] = useState({});  // { [offerId]: boolean }
@@ -213,16 +213,19 @@ export default function OffersScreen({ route, navigation }) {
             }
 
             // Navigate to payment — cascade already committed to DB above
-            const total = (parseFloat(offer.price) || 0) + (parseFloat(offer.shipping_cost) || 0);
-            const amountSAR = total * USD_TO_SAR;
+            const qty = Number(quantity) || 1;
+            const pct = routePaymentPct || 30;
+            const unitTotal = (parseFloat(offer.price) || 0) * qty;
+            const shippingTotal = parseFloat(offer.shipping_cost) || 0;
+            const total = unitTotal + shippingTotal;
+            const firstInstalment = total * pct / 100;
             navigation.navigate('Payment', {
-              amount: amountSAR,
-              type: 'offer',
-              offerId: offer.id,
+              amount: firstInstalment * USD_TO_SAR,
+              type: 'checkout',
               requestId,
               supplierId: offer.supplier_id,
               offerPriceUsd: total,
-              paymentPct: 30,
+              paymentPct: pct,
             });
           },
         },

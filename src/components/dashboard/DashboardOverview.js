@@ -19,14 +19,14 @@ const TIMELINE_STEPS = [
 ];
 
 function timelineIndex(status) {
-  const map = { open: 0, offers_received: 0, closed: 1, supplier_confirmed: 1, paid: 2, ready_to_ship: 3, shipping: 4, arrived: 5, delivered: 5 };
+  const map = { open: 0, offers_received: 0, closed: 1, paid: 2, supplier_confirmed: 3, ready_to_ship: 3, shipping: 4, arrived: 4, delivered: 5 };
   return map[status] ?? 0;
 }
 
 function MiniTimeline({ status, isArabic }) {
   const current = timelineIndex(status);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+    <View style={{ flexDirection: isArabic ? 'row-reverse' : 'row', alignItems: 'center', marginTop: 8 }}>
       {TIMELINE_STEPS.map((step, i) => {
         const done   = i < current;
         const active = i === current;
@@ -156,16 +156,17 @@ export default function DashboardOverview({
       showsVerticalScrollIndicator={false}
     >
 
-      {/* ── Stats strip (3 cells) ── */}
+      {/* ── Stats strip (4 cells) ── */}
       <View style={s.statsStrip}>
         {[
           { label: isAr ? 'يحتاج إجراء' : 'Needs Action', value: stats.needsAction || 0, red: (stats.needsAction || 0) > 0, onPress: () => navigation.navigate('Requests') },
           { label: isAr ? 'طلبات' : 'Active',              value: stats.requests  || 0, onPress: () => navigation.navigate('Requests') },
+          { label: isAr ? 'عروض' : 'Offers',               value: stats.offers    || 0, green: (stats.offers || 0) > 0, onPress: () => navigation.navigate('Requests') },
           { label: isAr ? 'رسائل جديدة' : 'Messages',     value: stats.messages  || 0, onPress: () => navigation.navigate('Inbox') },
         ].map((st, i) => (
-          <TouchableOpacity key={i} style={[s.statCell, i < 2 && s.statCellBorder]} onPress={st.onPress} activeOpacity={0.75}>
+          <TouchableOpacity key={i} style={[s.statCell, i < 3 && s.statCellBorder]} onPress={st.onPress} activeOpacity={0.75}>
             <Text style={s.statLabel}>{st.label}</Text>
-            <Text style={[s.statValue, st.red && { color: C.red }]}>{st.value}</Text>
+            <Text style={[s.statValue, st.red && { color: C.red }, st.green && { color: '#5a9a72' }]}>{st.value}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -205,7 +206,7 @@ export default function DashboardOverview({
               <TouchableOpacity
                 key={r.id}
                 style={s.activeOrderCard}
-                onPress={() => navigation.navigate('Requests', { requestId: r.id })}
+                onPress={() => navigation.navigate('OrderDetail', { requestId: r.id })}
                 activeOpacity={0.8}
               >
                 <View style={s.activeOrderHeader}>
@@ -228,7 +229,7 @@ export default function DashboardOverview({
         <Text style={s.sectionTitle}>{isAr ? 'إجراءات سريعة' : 'Quick Actions'}</Text>
         <View style={s.quickGrid}>
           {[
-            { label: isAr ? 'رفع طلب جديد' : 'Post New Request', sub: isAr ? 'ارفع طلبك للموردين' : 'Post your RFQ to suppliers', primary: true,  screen: 'NewRequest' },
+            { label: isAr ? 'رفع طلب جديد' : 'Post New Request', sub: isAr ? 'ارفع طلبك للموردين' : 'Post your RFQ to suppliers', primary: true,  screen: 'NewRequestStack', params: { mode: 'direct' } },
             { label: isAr ? 'تصفح المنتجات' : 'Browse Products',  sub: isAr ? 'استعرض الكتالوج'   : 'Browse available catalog',  primary: false, screen: 'Products'   },
             { label: isAr ? 'طلباتي' : 'My Requests',             sub: isAr ? 'جميع طلباتك'       : 'View all your requests',    primary: false, screen: 'Requests'   },
             { label: isAr ? 'العينات' : 'Samples',                sub: isAr ? 'طلبات العينات'      : 'Your sample requests',     primary: false, screen: 'Samples'    },
@@ -236,7 +237,7 @@ export default function DashboardOverview({
             <TouchableOpacity
               key={i}
               style={[s.quickCard, a.primary && s.quickCardPrimary]}
-              onPress={() => navigation.navigate(a.screen)}
+              onPress={() => navigation.navigate(a.screen, a.params)}
               activeOpacity={0.8}
             >
               <Text style={s.quickLabel}>{a.label}</Text>
@@ -254,7 +255,7 @@ export default function DashboardOverview({
             const st     = isAr ? (STATUS_AR[r.status] || r.status) : (STATUS_EN[r.status] || r.status);
             const rTitle = isAr ? (r.title_ar || r.title_en) : (r.title_en || r.title_ar);
             return (
-              <TouchableOpacity key={r.id} style={s.recentCard} onPress={() => navigation.navigate('Requests', { requestId: r.id })} activeOpacity={0.8}>
+              <TouchableOpacity key={r.id} style={s.recentCard} onPress={() => navigation.navigate('OrderDetail', { requestId: r.id })} activeOpacity={0.8}>
                 <Text style={s.recentStatus}>{st}</Text>
                 <Text style={s.recentTitle} numberOfLines={1}>{rTitle}</Text>
               </TouchableOpacity>
@@ -281,7 +282,7 @@ const s = StyleSheet.create({
   statCell:       { flex: 1, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' },
   statCellBorder: { borderRightWidth: 1, borderRightColor: C.borderSubtle },
   statLabel:      { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: C.textDisabled, marginBottom: 8, fontFamily: F.en, fontWeight: '500' },
-  statValue:      { fontSize: 32, fontWeight: '300', color: C.textPrimary, lineHeight: 36, fontFamily: F.en },
+  statValue:      { fontSize: 32, fontWeight: '300', color: C.textPrimary, lineHeight: 44, fontFamily: F.ar },
 
   /* Section */
   section:    { paddingHorizontal: 16, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },

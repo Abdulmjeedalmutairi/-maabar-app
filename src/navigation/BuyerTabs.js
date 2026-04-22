@@ -32,6 +32,9 @@ import TermsScreen          from '../screens/shared/TermsScreen';
 import ContactScreen        from '../screens/shared/ContactScreen';
 import SupportScreen        from '../screens/shared/SupportScreen';
 import WebViewScreen        from '../screens/shared/WebViewScreen';
+import CalcToolScreen       from '../screens/buyer/CalcToolScreen';
+import OrderDetailScreen    from '../screens/buyer/OrderDetailScreen';
+import AIHub                from '../components/AIHub';
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -59,6 +62,8 @@ function HomeStack() {
       <Stack.Screen name="Contact"         component={ContactScreen} />
       <Stack.Screen name="Support"         component={SupportScreen} />
       <Stack.Screen name="WebView"         component={WebViewScreen} />
+      <Stack.Screen name="CalcTool"        component={CalcToolScreen} />
+      <Stack.Screen name="OrderDetail"     component={OrderDetailScreen} />
     </Stack.Navigator>
   );
 }
@@ -71,6 +76,7 @@ function RequestsStack() {
       <Stack.Screen name="Offers"          component={OffersScreen} />
       <Stack.Screen name="Payment"         component={PaymentScreen} />
       <Stack.Screen name="ManagedRequest"  component={ManagedRequestScreen} />
+      <Stack.Screen name="OrderDetail"     component={OrderDetailScreen} />
     </Stack.Navigator>
   );
 }
@@ -114,7 +120,7 @@ export default function BuyerTabs() {
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -167,7 +173,13 @@ export default function BuyerTabs() {
           tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
         })}
       >
-        <Tab.Screen name="Home"       component={HomeStack} />
+        <Tab.Screen
+          name="Home"
+          component={HomeStack}
+          listeners={({ navigation }) => ({
+            focus: () => { tabNavRef.current = navigation; },
+          })}
+        />
         <Tab.Screen
           name="NewRequest"
           component={NewRequestTab}
@@ -183,6 +195,10 @@ export default function BuyerTabs() {
         <Tab.Screen name="Inbox"      component={InboxStack} />
         <Tab.Screen name="Account"    component={AccountScreen} />
       </Tab.Navigator>
+
+      <AIHub goTo={(screen) => {
+        if (tabNavRef.current) tabNavRef.current.navigate('Home', { screen });
+      }} />
 
       {/* ── New Request Bottom Sheet ────────────────────────────────── */}
       <Modal
@@ -243,7 +259,7 @@ export default function BuyerTabs() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </>
+    </View>
   );
 }
 
