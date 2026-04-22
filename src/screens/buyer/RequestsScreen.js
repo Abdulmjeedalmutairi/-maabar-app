@@ -137,10 +137,22 @@ export default function RequestsScreen({ navigation, route }) {
       const requestIds = rows.map(r => r.id);
       const { data: offerRows } = await supabase
         .from('offers')
-        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id, profiles(company_name, full_name, verified, rating, reviews_count, maabar_supplier_id)')
+        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id')
         .in('request_id', requestIds);
 
-      const byReq = (offerRows || []).reduce((acc, o) => {
+      const rawOffers = offerRows || [];
+      const supplierUids = [...new Set(rawOffers.map(o => o.supplier_id).filter(Boolean))];
+      let profileByUid = {};
+      if (supplierUids.length > 0) {
+        const { data: profRows } = await supabase
+          .from('profiles')
+          .select('id, full_name, company_name, maabar_supplier_id, status, rating, reviews_count')
+          .in('id', supplierUids);
+        profileByUid = (profRows || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+      }
+      const mergedOffers = rawOffers.map(o => ({ ...o, profiles: profileByUid[o.supplier_id] || null }));
+
+      const byReq = mergedOffers.reduce((acc, o) => {
         (acc[o.request_id] = acc[o.request_id] || []).push(o);
         return acc;
       }, {});
@@ -668,7 +680,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
 
   /* Supplier strip — shows when offer is accepted */
   const supplierName    = accepted?.profiles?.company_name || accepted?.profiles?.full_name || null;
-  const supplierVerified = !!accepted?.profiles?.verified;
+  const supplierVerified = ['verified', 'active', 'approved'].includes(accepted?.profiles?.status);
   const supplierMaabarId = accepted?.profiles?.maabar_supplier_id || null;
 
   /* Next step copy */
@@ -782,7 +794,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
                 <View key={offer.id} style={s.offerRow}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      {offer.profiles?.verified && <Text style={s.offerVerified}>✓</Text>}
+                      {['verified', 'active', 'approved'].includes(offer.profiles?.status) && <Text style={s.offerVerified}>✓</Text>}
                       <Text style={s.offerSupplier} numberOfLines={1}>{sName}</Text>
                       {offer.profiles?.rating > 0 && <Text style={s.offerRating}>★ {Number(offer.profiles.rating).toFixed(1)}</Text>}
                       {isLowest && <Text style={s.offerLowestBadge}>{tx('الأقل سعراً', 'Lowest')}</Text>}

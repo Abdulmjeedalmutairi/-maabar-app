@@ -29,7 +29,12 @@ import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
 
 const MOYASAR_API = 'https://api.moyasar.com/v1/payments';
-const MOYASAR_KEY = 'pk_test_gYDMsvJ8sAetQWtBXfzGPMz6B1kiu38TJYTJu5Rn';
+const MOYASAR_KEY = process.env.EXPO_PUBLIC_MOYASAR_API_KEY || 'pk_test_gYDMsvJ8sAetQWtBXfzGPMz6B1kiu38TJYTJu5Rn';
+
+function fmtSAR(n) {
+  const num = Number(n) || 0;
+  return num % 1 === 0 ? String(num) : num.toFixed(2);
+}
 
 const tx = (ar, en) => getLang() === 'ar' ? ar : en;
 
@@ -322,7 +327,7 @@ export default function PaymentScreen({ navigation, route }) {
           {/* Amount display */}
           <View style={s.amountCard}>
             <Text style={s.amountLabel}>{tx('المبلغ المستحق', 'Amount Due')}</Text>
-            <Text style={s.amountValue}>{amount.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} {tx('ر.س', 'SAR')}</Text>
+            <Text style={s.amountValue}>{fmtSAR(amount)} {tx('ر.س', 'SAR')}</Text>
           </View>
 
           {/* Card form */}
@@ -393,7 +398,7 @@ export default function PaymentScreen({ navigation, route }) {
           >
             {loading
               ? <ActivityIndicator color="#fff" />
-              : <Text style={s.payBtnText}>{tx('ادفع الآن', 'Pay Now')} — {amount.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} {tx('ر.س', 'SAR')}</Text>
+              : <Text style={s.payBtnText}>{tx('ادفع الآن', 'Pay Now')} — {fmtSAR(amount)} {tx('ر.س', 'SAR')}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -409,8 +414,6 @@ function Field({ label, ...props }) {
       <TextInput
         style={s.input}
         placeholderTextColor={C.textDisabled}
-        color={C.textPrimary}
-        textAlign="right"
         {...props}
       />
     </View>

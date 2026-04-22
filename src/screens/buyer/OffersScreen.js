@@ -118,7 +118,7 @@ export default function OffersScreen({ route, navigation }) {
     const supplierIds = [...new Set(rows.map(o => o.supplier_id).filter(Boolean))];
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('id, company_name, maabar_supplier_id, trust_score, status, wechat, whatsapp, trade_link, trade_links, factory_images, years_experience, reviews_count')
+      .select('id, full_name, company_name, maabar_supplier_id, status, trust_score, wechat, whatsapp, trade_link, factory_images, reviews_count')
       .in('id', supplierIds);
 
     const profileMap = (profilesData || []).reduce((acc, p) => {
@@ -344,7 +344,7 @@ export default function OffersScreen({ route, navigation }) {
                 {/* ── Supplier header ── */}
                 <View style={s.supplierRow}>
                   <Text style={s.supplierName}>
-                    {offer.profiles?.company_name || (isAr ? 'مورد' : 'Supplier')}
+                    {offer.profiles?.company_name || offer.profiles?.full_name || (isAr ? 'مورد' : 'Supplier')}
                   </Text>
                   {isAccepted && (
                     <View style={s.acceptedBadge}>

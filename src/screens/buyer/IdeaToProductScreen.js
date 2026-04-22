@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -213,10 +213,17 @@ export default function IdeaToProductScreen({ navigation }) {
       sample_requirement: draft.sampleReq || null,
       sourcing_mode:      'idea',
     });
-    setSubmitting(false);
-    if (error) { setFormError('حدث خطأ، حاول مرة أخرى.'); return; }
-    try { navigation.navigate('Requests'); } catch {}
-    // If guest: RootNavigator switches to BuyerTabs automatically after signup
+    if (error) {
+      setSubmitting(false);
+      setFormError('حدث خطأ، حاول مرة أخرى.');
+      return;
+    }
+    // Keep submitting=true so the button stays disabled until navigation fires
+    Alert.alert(
+      'تم الإرسال بنجاح ✓',
+      'تم إرسال فكرتك للموردين المختصين. سيتواصلون معك قريباً.',
+      [{ text: 'حسناً', onPress: () => navigation.goBack() }]
+    );
   };
 
   const handleSignupSuccess = async (user) => {

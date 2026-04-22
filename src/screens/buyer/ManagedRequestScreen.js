@@ -22,21 +22,41 @@ function verificationLabel(level) {
   return getLang() === 'ar' ? entry.ar : entry.en;
 }
 
+const MANAGED_STATUS_LABELS = {
+  submitted:      { ar: 'تم التقديم',           en: 'Submitted' },
+  admin_review:   { ar: 'قيد المراجعة',         en: 'Under Review' },
+  sourcing:       { ar: 'قيد البحث عن موردين',  en: 'Sourcing Suppliers' },
+  matching:       { ar: 'قيد المطابقة',          en: 'Matching' },
+  buyer_review:   { ar: 'بانتظار مراجعتك',      en: 'Awaiting Your Review' },
+  buyer_selected: { ar: 'تم الاختيار',          en: 'Selected' },
+  negotiation:    { ar: 'قيد التفاوض',           en: 'Negotiation' },
+  completed:      { ar: 'مكتمل',                en: 'Completed' },
+};
+
+const MANAGED_STATUS_ORDER = ['submitted', 'admin_review', 'sourcing', 'matching', 'buyer_review', 'buyer_selected', 'completed'];
+
+function getManagedStatusLabel(status) {
+  const entry = MANAGED_STATUS_LABELS[status];
+  if (!entry) return status;
+  return getLang() === 'ar' ? entry.ar : entry.en;
+}
+
 export default function ManagedRequestScreen({ route, navigation }) {
   const { requestId, title } = route.params || {};
-  const [offers, setOffers]   = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [offers, setOffers]     = useState([]);
+  const [request, setRequest]   = useState(null);
+  const [loading, setLoading]   = useState(true);
 
   const load = useCallback(async () => {
     if (!requestId) { setLoading(false); return; }
 
-    const { data } = await supabase
-      .from('managed_shortlisted_offers')
-      .select('*')
-      .eq('request_id', requestId)
-      .order('rank', { ascending: true });
+    const [{ data: reqData }, { data: offersData }] = await Promise.all([
+      supabase.from('requests').select('id, managed_status').eq('id', requestId).single(),
+      supabase.from('managed_shortlisted_offers').select('*').eq('request_id', requestId).order('rank', { ascending: true }),
+    ]);
 
-    setOffers(data || []);
+    setRequest(reqData || null);
+    setOffers(offersData || []);
     setLoading(false);
   }, [requestId]);
 
@@ -94,6 +114,42 @@ export default function ManagedRequestScreen({ route, navigation }) {
           {tx('مَعبر اختار لك أفضل 3 موردين. اختر وتفاوض مباشرة.', 'Maabar selected the top 3 suppliers for you. Choose and negotiate directly.')}
         </Text>
       </View>
+
+      {/* Pipeline status */}
+      {!!request?.managed_status && (
+        <View style={s.pipelineBox}>
+          <View style={s.pipelineRow}>
+            {MANAGED_STATUS_ORDER.map((step, i) => {
+              const currentIdx = MANAGED_STATUS_ORDER.indexOf(request.managed_status);
+              const done   = i < currentIdx;
+              const active = i === currentIdx;
+              const isLast = i === MANAGED_STATUS_ORDER.length - 1;
+              return (
+                <React.Fragment key={step}>
+                  <View style={s.pipelineStep}>
+                    <View style={[s.pipelineDot,
+                      done   && s.pipelineDotDone,
+                      active && s.pipelineDotActive,
+                    ]} />
+                    {active && (
+                      <Text style={s.pipelineStepLabel} numberOfLines={2}>
+                        {getManagedStatusLabel(step)}
+                      </Text>
+                    )}
+                  </View>
+                  {!isLast && (
+                    <View style={[s.pipelineLine, done && s.pipelineLineDone]} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+          <Text style={s.pipelineStatusText}>
+            {tx('المرحلة الحالية: ', 'Current stage: ')}
+            <Text style={s.pipelineStatusValue}>{getManagedStatusLabel(request.managed_status)}</Text>
+          </Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={s.center}><ActivityIndicator color={C.textDisabled} size="large" /></View>
@@ -229,6 +285,42 @@ const s = StyleSheet.create({
   bannerText: { color: C.textTertiary, fontFamily: F.ar, fontSize: 12, textAlign: 'right', lineHeight: 18 },
 
   list: { padding: 16, paddingBottom: 40 },
+
+  pipelineBox: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderSubtle,
+    backgroundColor: C.bgBase,
+  },
+  pipelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  pipelineStep: { alignItems: 'center', minWidth: 20 },
+  pipelineDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: C.bgRaised,
+    borderWidth: 1.5,
+    borderColor: C.borderDefault,
+  },
+  pipelineDotDone:   { backgroundColor: '#5a9a72', borderColor: '#5a9a72' },
+  pipelineDotActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
+  pipelineLine: { flex: 1, height: 1.5, marginTop: 3, backgroundColor: C.borderSubtle },
+  pipelineLineDone: { backgroundColor: '#5a9a72' },
+  pipelineStepLabel: {
+    fontSize: 8, textAlign: 'center', marginTop: 3,
+    color: C.textPrimary, fontFamily: F.ar,
+    fontWeight: '600', maxWidth: 44, lineHeight: 11,
+  },
+  pipelineStatusText: {
+    fontSize: 12, color: C.textSecondary, fontFamily: F.ar,
+    textAlign: 'right',
+  },
+  pipelineStatusValue: {
+    color: C.textPrimary, fontFamily: F.arSemi,
+  },
 
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyText:    { color: C.textSecondary, fontFamily: F.ar, fontSize: 15, marginBottom: 8 },
