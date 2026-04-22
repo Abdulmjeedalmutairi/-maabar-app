@@ -73,6 +73,7 @@ function RequestsStack() {
     <Stack.Navigator screenOptions={STACK_OPTS}>
       <Stack.Screen name="RequestsList"    component={RequestsScreen} />
       <Stack.Screen name="NewRequestStack" component={NewRequestScreen} />
+      <Stack.Screen name="IdeaToProduct"   component={IdeaToProductScreen} />
       <Stack.Screen name="Offers"          component={OffersScreen} />
       <Stack.Screen name="Payment"         component={PaymentScreen} />
       <Stack.Screen name="ManagedRequest"  component={ManagedRequestScreen} />

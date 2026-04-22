@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, SafeAreaView, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
@@ -121,8 +122,9 @@ export default function DashboardScreen({ navigation, route }) {
     }
   }, [navigation]);
 
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
   useEffect(() => {
-    loadData();
     const channel = supabase.channel('dashboard-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' },   () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => loadData())

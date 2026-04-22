@@ -53,6 +53,12 @@ const EMPTY_FORM = {
   budgetPerUnit: '', paymentPlan: '30', sampleReq: 'preferred',
 };
 
+const MAIN_TABS = [
+  { id: 'direct',  ar: 'طلب عادي',     en: 'Standard' },
+  { id: 'managed', ar: 'الطلب المُدار', en: 'Managed'  },
+  { id: 'idea',    ar: 'اصنع فكرتك',   en: 'Idea'     },
+];
+
 function getTrackingUrl(company, num) {
   const urls = { DHL: `https://www.dhl.com/track?tracking-id=${num}`, FedEx: `https://www.fedex.com/tracking?tracknumbers=${num}`, Aramex: `https://www.aramex.com/track/${num}`, UPS: `https://www.ups.com/track?tracknum=${num}`, SMSA: `https://www.smsaexpress.com/track?awbno=${num}` };
   return urls[company] || `https://t.17track.net/en#nums=${num}`;
@@ -86,6 +92,7 @@ export default function RequestsScreen({ navigation, route }) {
   const [requests, setRequests]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [mainTab, setMainTab]       = useState('direct');
   const [subFilter, setSubFilter]   = useState('all');
 
   /* ── New request modal ── */
@@ -160,6 +167,10 @@ export default function RequestsScreen({ navigation, route }) {
   function setEditField(k, v) { setEditForm(f => ({ ...f, [k]: v })); }
   function openNew(mode = 'direct') { setSourcingMode(mode); setForm(EMPTY_FORM); setFormError(''); setShowNew(true); }
   function closeNew() { setShowNew(false); setForm(EMPTY_FORM); setFormError(''); }
+  function handleNewRequest() {
+    if (mainTab === 'idea') { navigation.navigate('IdeaToProduct'); return; }
+    openNew(mainTab);
+  }
   function openEdit(r) {
     setEditReq(r);
     setEditForm({ title_ar: r.title_ar || '', title_en: r.title_en || '', desc_ar: r.desc_ar || r.description || '', quantity: String(r.quantity || '') });
@@ -320,52 +331,73 @@ export default function RequestsScreen({ navigation, route }) {
   }
 
   /* ── Derived lists ── */
-  const filteredRequests = requests.filter(r => {
+  const tabRequests = requests.filter(r => (r.sourcing_mode || 'direct') === mainTab);
+
+  const filteredRequests = tabRequests.filter(r => {
+    if (mainTab !== 'direct') return true;
     if (subFilter === 'open')      return ['open', 'offers_received'].includes(r.status);
     if (subFilter === 'active')    return ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship', 'shipping', 'arrived'].includes(r.status);
     if (subFilter === 'completed') return r.status === 'delivered';
     return true;
   });
-  const needsAction   = requests.filter(r => ['offers_received', 'supplier_confirmed', 'arrived', 'ready_to_ship'].includes(r.status)).length;
-  const activeCount   = requests.filter(r => ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship', 'shipping', 'arrived'].includes(r.status)).length;
-  const completedCount = requests.filter(r => r.status === 'delivered').length;
+  const needsAction    = tabRequests.filter(r => ['offers_received', 'supplier_confirmed', 'arrived', 'ready_to_ship'].includes(r.status)).length;
+  const activeCount    = tabRequests.filter(r => ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship', 'shipping', 'arrived'].includes(r.status)).length;
+  const completedCount = tabRequests.filter(r => r.status === 'delivered').length;
 
   const SUB_TABS = [
-    { id: 'all',       ar: 'الكل',      en: 'All',       count: requests.length },
-    { id: 'open',      ar: 'مفتوح',     en: 'Open',      count: requests.filter(r => ['open','offers_received'].includes(r.status)).length },
-    { id: 'active',    ar: 'نشط',       en: 'Active',    count: activeCount },
-    { id: 'completed', ar: 'مكتمل',     en: 'Completed', count: completedCount },
+    { id: 'all',       ar: 'الكل',    en: 'All',       count: tabRequests.length },
+    { id: 'open',      ar: 'مفتوح',   en: 'Open',      count: tabRequests.filter(r => ['open','offers_received'].includes(r.status)).length },
+    { id: 'active',    ar: 'نشط',     en: 'Active',    count: activeCount },
+    { id: 'completed', ar: 'مكتمل',   en: 'Completed', count: completedCount },
   ];
 
   return (
     <SafeAreaView style={s.safe}>
       {/* ── Top bar ── */}
       <View style={s.topBar}>
-        <TouchableOpacity style={s.newBtn} onPress={() => openNew('direct')} activeOpacity={0.85}>
+        <TouchableOpacity style={s.newBtn} onPress={handleNewRequest} activeOpacity={0.85}>
           <Text style={s.newBtnText}>+ {tx('طلب جديد', 'New Request')}</Text>
         </TouchableOpacity>
         <Text style={s.pageTitle}>{tx('طلباتي', 'My Requests')}</Text>
       </View>
 
-      {/* ── Sub-filter tabs ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsRow}>
-        {SUB_TABS.map(tab => (
+      {/* ── Main tabs ── */}
+      <View style={s.mainTabsRow}>
+        {MAIN_TABS.map(tab => (
           <TouchableOpacity
             key={tab.id}
-            style={[s.tab, subFilter === tab.id && s.tabActive]}
-            onPress={() => setSubFilter(tab.id)}
+            style={[s.mainTab, mainTab === tab.id && s.mainTabActive]}
+            onPress={() => { setMainTab(tab.id); setSubFilter('all'); }}
             activeOpacity={0.75}
           >
-            <Text style={[s.tabText, subFilter === tab.id && s.tabTextActive]}>
+            <Text style={[s.mainTabText, mainTab === tab.id && s.mainTabTextActive]}>
               {getLang() === 'ar' ? tab.ar : tab.en}
-              {tab.count > 0 ? ` ${tab.count}` : ''}
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
-      {/* ── Mini stats strip ── */}
-      {requests.length > 0 && (
+      {/* ── Sub-filter tabs (direct tab only) ── */}
+      {mainTab === 'direct' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsRow}>
+          {SUB_TABS.map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[s.tab, subFilter === tab.id && s.tabActive]}
+              onPress={() => setSubFilter(tab.id)}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.tabText, subFilter === tab.id && s.tabTextActive]}>
+                {getLang() === 'ar' ? tab.ar : tab.en}
+                {tab.count > 0 ? ` ${tab.count}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* ── Mini stats strip (direct tab only) ── */}
+      {mainTab === 'direct' && tabRequests.length > 0 && (
         <View style={s.statsStrip}>
           {[
             { label: tx('يحتاج إجراء', 'Needs Action'), value: needsAction, red: needsAction > 0 },
@@ -391,9 +423,17 @@ export default function RequestsScreen({ navigation, route }) {
         >
           {filteredRequests.length === 0 ? (
             <View style={s.emptyCard}>
-              <Text style={s.emptyText}>{tx('ما عندك طلبات بعد', 'No requests yet')}</Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={() => openNew('direct')}>
-                <Text style={s.emptyBtnText}>{tx('ارفع أول طلب', 'Post First Request')}</Text>
+              <Text style={s.emptyText}>{
+                mainTab === 'idea'    ? tx('ما عندك أفكار بعد', 'No ideas yet') :
+                mainTab === 'managed' ? tx('ما عندك طلبات مُدارة بعد', 'No managed requests yet') :
+                tx('ما عندك طلبات بعد', 'No requests yet')
+              }</Text>
+              <TouchableOpacity style={s.emptyBtn} onPress={handleNewRequest}>
+                <Text style={s.emptyBtnText}>{
+                  mainTab === 'idea'    ? tx('ابدأ بفكرتك', 'Start with your idea') :
+                  mainTab === 'managed' ? tx('ارفع طلباً مُداراً', 'Post Managed Request') :
+                  tx('ارفع أول طلب', 'Post First Request')
+                }</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -616,6 +656,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
   const lang      = getLang();
   const isAr      = lang === 'ar';
   const isManaged = String(r.sourcing_mode || 'direct') === 'managed';
+  const isIdea    = String(r.sourcing_mode || 'direct') === 'idea';
   const offers    = r.offers || [];
   const pending   = offers.filter(o => o.status === 'pending');
   const accepted  = offers.find(o => o.status === 'accepted');
@@ -632,6 +673,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
 
   /* Next step copy */
   const nextStep = (() => {
+    if (isIdea) return null;
     if (isManaged) {
       if (String(r.managed_status || '') === 'shortlist_ready') return { title: tx('الخطوة التالية: راجع العروض المختارة لك', 'Next step: review your selected offers'), body: tx('كل قرار في هذا الطلب المُدار يتم من نفس الصفحة.', 'Every decision for this managed request stays in the same page.'), onPress: () => navigation.navigate('ManagedRequest', { requestId: r.id, title: r.title_ar || r.title_en }) };
       return { title: tx('الطلب الآن داخل المسار المُدار', 'This request is now inside the managed flow'), body: tx('معبر يجهّز الـ brief ويطابق الموردين المناسبين.', 'Maabar is preparing the brief and matching suitable suppliers.') };
@@ -647,8 +689,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
   })();
 
   function handleCardPress() {
-    // Managed requests: no navigation for now
-    if (isManaged) return;
+    if (isManaged || isIdea) return;
     const cardTitle = title || r.title_ar || r.title_en;
     // Pre-acceptance: open OffersScreen (may be empty for 'open' status)
     if (['open', 'offers_received'].includes(r.status)) {
@@ -702,18 +743,16 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
         </View>
       )}
 
-      {/* ── StatusTimeline (replaces ProgressBar) ── */}
-      {!isManaged
-        ? <StatusTimeline status={r.status} shippingStatus={r.shipping_status} />
-        : (
-          <View style={s.managedNote}>
-            <Text style={s.managedNoteText}>{tx('طلب مُدار — معبر يتابع لك', 'Managed request — Maabar handles sourcing')}</Text>
-          </View>
-        )
+      {/* ── StatusTimeline / sourcing note ── */}
+      {isIdea
+        ? <View style={s.managedNote}><Text style={s.managedNoteText}>{tx('فكرتك وصلت لمعبر — سيتواصل معك الموردون عبر الرسائل', 'Your idea reached Maabar — suppliers will contact you via chat')}</Text></View>
+        : isManaged
+        ? <View style={s.managedNote}><Text style={s.managedNoteText}>{tx('طلب مُدار — معبر يتابع لك', 'Managed request — Maabar handles sourcing')}</Text></View>
+        : <StatusTimeline status={r.status} shippingStatus={r.shipping_status} />
       }
 
       {/* ── Payment Plan Row ── */}
-      {!isManaged && <PaymentPlanRow request={r} offer={accepted} />}
+      {!isManaged && !isIdea && <PaymentPlanRow request={r} offer={accepted} />}
 
       {/* ── Info chips: qty · offers count · relative date ── */}
       <View style={s.chipsRow}>
@@ -728,7 +767,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       </View>
 
       {/* ── Inline offer comparison (when offers_received) ── */}
-      {!isManaged && r.status === 'offers_received' && pending.length > 0 && (
+      {!isManaged && !isIdea && r.status === 'offers_received' && pending.length > 0 && (
         <View style={{ marginBottom: 12 }}>
           <Text style={s.offersHeading}>{tx(`${pending.length} عرض ينتظرك`, `${pending.length} offer${pending.length > 1 ? 's' : ''} waiting`)}</Text>
           {(() => {
@@ -809,7 +848,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       )}
 
       {/* ── Chat with supplier (when offer accepted) ── */}
-      {!isManaged && accepted?.supplier_id && ['supplier_confirmed','paid','ready_to_ship','shipping','arrived'].includes(r.status) && (
+      {!isManaged && !isIdea && accepted?.supplier_id && ['supplier_confirmed','paid','ready_to_ship','shipping','arrived'].includes(r.status) && (
         <TouchableOpacity
           style={s.chatBtn}
           onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: accepted.supplier_id } })}
@@ -820,7 +859,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       )}
 
       {/* ── Tracking section ── */}
-      {!isManaged && !!r.tracking_number && (
+      {!isManaged && !isIdea && !!r.tracking_number && (
         <View style={s.trackBox}>
           <View style={s.trackRow}>
             <TouchableOpacity onPress={() => Linking.openURL(getTrackingUrl(r.shipping_company, r.tracking_number)).catch(() => {})} activeOpacity={0.8}>
@@ -839,7 +878,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       )}
 
       {/* ── Inline action buttons (status-driven) ── */}
-      {!isManaged && (() => {
+      {!isManaged && !isIdea && (() => {
         if (['open','offers_received'].includes(r.status)) {
           return (
             <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(r)} activeOpacity={0.85}>
@@ -959,6 +998,13 @@ const s = StyleSheet.create({
   pageTitle:  { color: C.textPrimary, fontFamily: F.arBold, fontSize: 18 },
   newBtn:     { backgroundColor: C.btnPrimary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   newBtnText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 13 },
+
+  /* Main tabs */
+  mainTabsRow:      { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.borderSubtle },
+  mainTab:          { flex: 1, paddingVertical: 13, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  mainTabActive:    { borderBottomColor: C.textPrimary },
+  mainTabText:      { fontSize: 13, color: C.textSecondary, fontFamily: F.ar },
+  mainTabTextActive:{ color: C.textPrimary, fontFamily: F.arBold },
 
   /* Sub-filter tabs */
   tabsScroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: C.borderSubtle },

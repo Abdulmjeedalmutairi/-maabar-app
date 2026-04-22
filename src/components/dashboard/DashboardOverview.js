@@ -99,7 +99,7 @@ function PendingBanner({ action, isAr, navigation }) {
     if (action.type === 'arrived')            return isAr ? `وصل الطلب — أكد الاستلام · ${rTitle}` : `Order arrived — confirm delivery · ${rTitle}`;
     if (action.type === 'offers')             return isAr ? `${action.count} عرض ينتظرك — ${rTitle}` : `${action.count} offer(s) waiting — ${rTitle}`;
     if (action.type === 'managed_shortlist')  return isAr ? `العروض المختارة جاهزة — ${rTitle}` : `Selected offers ready — ${rTitle}`;
-    if (action.type === 'payment_sent')       return isAr ? 'تم الدفع — في انتظار تجهيز المورد' : 'Payment sent — Awaiting preparation';
+    if (action.type === 'payment_sent')       return isAr ? `تم الدفع — في انتظار تجهيز المورد · ${rTitle}` : `Payment sent — Awaiting preparation · ${rTitle}`;
     if (action.type === 'delivery')           return isAr ? `أكد الاستلام — ${rTitle}` : `Confirm delivery — ${rTitle}`;
     if (action.type === 'messages')           return isAr ? `${action.count} رسالة غير مقروءة` : `${action.count} unread message(s)`;
     return '';
@@ -108,6 +108,11 @@ function PendingBanner({ action, isAr, navigation }) {
   function onGo() {
     if (action.type === 'messages') { navigation.navigate('Inbox'); return; }
     const requestId = action.request?.id;
+    const postAcceptance = ['supplier_confirmed', 'paid', 'ready_to_ship', 'delivery', 'arrived'];
+    if (requestId && postAcceptance.includes(action.type)) {
+      navigation.navigate('OrderDetail', { requestId });
+      return;
+    }
     navigation.navigate('Requests', requestId ? { requestId } : undefined);
   }
 

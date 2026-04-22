@@ -211,7 +211,7 @@ export default function IdeaToProductScreen({ navigation }) {
       budget_per_unit:    draft.budgetPerUnit ? parseFloat(draft.budgetPerUnit) : null,
       payment_plan:       draft.paymentPlan ? parseInt(draft.paymentPlan, 10) : null,
       sample_requirement: draft.sampleReq || null,
-      sourcing_mode:      'direct',
+      sourcing_mode:      'idea',
     });
     setSubmitting(false);
     if (error) { setFormError('حدث خطأ، حاول مرة أخرى.'); return; }
