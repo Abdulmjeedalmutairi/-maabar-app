@@ -39,7 +39,7 @@ function parseChips(str) {
 
 function fmtSar(usd, qty = 1) {
   const total = Number(usd || 0) * 3.75 * qty;
-  return total.toLocaleString('ar-SA', { maximumFractionDigits: 2 }) + ' ر.س';
+  return (total % 1 === 0 ? String(total) : total.toFixed(2)) + ' ر.س';
 }
 
 /* ─────────────────────────────────────────────────────────────────── */

@@ -210,7 +210,6 @@ function Field({ label, style, ...props }) {
         placeholderTextColor={C.textDisabled}
         textAlign="right"
         textAlignVertical={props.multiline ? 'top' : 'center'}
-        color={C.textPrimary}
         {...props}
       />
     </View>

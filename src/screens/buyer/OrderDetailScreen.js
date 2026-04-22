@@ -489,7 +489,6 @@ export default function OrderDetailScreen({ navigation, route }) {
               multiline
               numberOfLines={3}
               textAlign="right"
-              color={C.textPrimary}
             />
             <TouchableOpacity
               style={[s.payBtn, (!reviewRating || submittingReview) && { opacity: 0.5 }]}

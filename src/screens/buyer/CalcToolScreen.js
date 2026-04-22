@@ -41,8 +41,10 @@ function parseJSON(text) {
   }
 }
 
-const fmt = (n) =>
-  n ? Number(n).toLocaleString('ar-SA', { maximumFractionDigits: 0 }) : '0';
+const fmt = (n) => {
+  const num = Number(n) || 0;
+  return num === 0 ? '0' : String(Math.round(num));
+};
 
 /* ── Sub-components ───────────────────────────────── */
 

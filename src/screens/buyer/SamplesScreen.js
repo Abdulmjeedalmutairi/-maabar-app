@@ -121,7 +121,7 @@ export default function SamplesScreen({ navigation }) {
                     {(sample.sample_price > 0 || sample.total_price > 0) && (
                       <View style={s.infoItem}>
                         <Text style={s.infoLabel}>{tx('السعر', 'Price')}</Text>
-                        <Text style={s.infoValue}>{payAmount.toLocaleString('ar-SA', { maximumFractionDigits: 2 })} {tx('ر.س', 'SAR')}</Text>
+                        <Text style={s.infoValue}>{((n) => Number(n) % 1 === 0 ? String(Number(n)) : Number(n).toFixed(2))(payAmount)} {tx('ر.س', 'SAR')}</Text>
                       </View>
                     )}
                   </View>

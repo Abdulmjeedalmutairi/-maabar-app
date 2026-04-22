@@ -163,7 +163,7 @@ export default function ManagedRequestScreen({ route, navigation }) {
           {offers.map((offer, idx) => {
             const isSelected = !!offer.selected_by_buyer;
             const unitPrice = offer.unit_price
-              ? `${(Number(offer.unit_price) * 3.75).toLocaleString('ar-SA', { maximumFractionDigits: 2 })} ${tx('ر.س', 'SAR')}`
+              ? `${((v) => v % 1 === 0 ? String(v) : v.toFixed(2))(Number(offer.unit_price) * 3.75)} ${tx('ر.س', 'SAR')}`
               : '—';
 
             return (

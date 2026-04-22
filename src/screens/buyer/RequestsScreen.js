@@ -543,7 +543,6 @@ export default function RequestsScreen({ navigation, route }) {
               multiline
               numberOfLines={3}
               textAlign="right"
-              color={C.textPrimary}
             />
             <TouchableOpacity style={[s.submitBtn, (!reviewRating || submittingReview) && { opacity: 0.5 }]} onPress={submitReview} disabled={!reviewRating || submittingReview} activeOpacity={0.85}>
               {submittingReview ? <ActivityIndicator color={C.btnPrimaryText} /> : <Text style={s.submitBtnText}>{tx('إرسال التقييم', 'Submit Review')}</Text>}
@@ -981,7 +980,7 @@ function Field({ label, style: extraStyle, ...props }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput style={[s.input, extraStyle]} placeholderTextColor={C.textDisabled} textAlignVertical={props.multiline ? 'top' : 'center'} color={C.textPrimary} textAlign="right" {...props} />
+      <TextInput style={[s.input, extraStyle]} placeholderTextColor={C.textDisabled} textAlignVertical={props.multiline ? 'top' : 'center'} textAlign="right" {...props} />
     </View>
   );
 }
