@@ -38,7 +38,9 @@ export async function writeCachedNote(offerId, lang, text, source) {
 }
 
 // Pick the best source language note present on the offer.
-// Legacy plain `note` is excluded on purpose — its language is unknown.
+// Prefer the explicit note_{ar,en,zh} columns. When only the legacy plain
+// `note` column is populated, assume zh — the supplier pool on this platform
+// is Chinese, and every observed legacy note has been Chinese in practice.
 function pickTranslatableSource(offer, targetLang) {
   const priority = ['en', 'ar', 'zh'].filter((l) => l !== targetLang);
   for (const l of priority) {
@@ -46,6 +48,10 @@ function pickTranslatableSource(offer, targetLang) {
     if (val && String(val).trim()) {
       return { sourceLang: l, text: String(val).trim() };
     }
+  }
+  const legacy = offer.note;
+  if (legacy && String(legacy).trim() && targetLang !== 'zh') {
+    return { sourceLang: 'zh', text: String(legacy).trim() };
   }
   return null;
 }
