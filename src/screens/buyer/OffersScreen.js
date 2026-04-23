@@ -8,6 +8,7 @@ import { supabase, SUPABASE_ANON_KEY, SEND_EMAIL_URL } from '../../lib/supabase'
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
+import { buildOfferDetailRows } from '../../lib/offerFields';
 
 const USD_TO_SAR = 3.75;
 
@@ -28,39 +29,6 @@ function buildTrustSignals(profile = {}) {
   if (profile?.whatsapp) signals.push('whatsapp_available');
   if (Array.isArray(profile?.factory_images) && profile.factory_images.length > 0) signals.push('factory_media_available');
   return signals;
-}
-
-// Fields to skip when rendering the dynamic details section
-const SKIP_FIELDS = new Set([
-  'id', 'supplier_id', 'request_id', 'status', 'created_at', 'updated_at', 'profiles',
-]);
-
-// Fields that contain price values (converted to local currency)
-const PRICE_FIELDS = new Set(['price', 'shipping_cost', 'sample_cost']);
-
-// Labels matching the web DashboardBuyer.jsx (Arabic + English)
-const FIELD_LABELS = {
-  price:            { ar: 'سعر الوحدة',             en: 'Unit Price' },
-  shipping_cost:    { ar: 'تكلفة الشحن',            en: 'Shipping Cost' },
-  shipping_method:  { ar: 'طريقة الشحن',            en: 'Shipping Method' },
-  moq:              { ar: 'الحد الأدنى للطلب (MOQ)', en: 'Min. Order Qty (MOQ)' },
-  delivery_days:    { ar: 'مدة التجهيز (أيام)',      en: 'Lead Time (days)' },
-  origin:           { ar: 'بلد المنشأ',              en: 'Origin' },
-  note:             { ar: 'ملاحظة تجارية',           en: 'Commercial Note' },
-  payment_terms:    { ar: 'شروط الدفع',             en: 'Payment Terms' },
-  warranty:         { ar: 'الضمان',                  en: 'Warranty' },
-  sample_available: { ar: 'عينة متاحة',             en: 'Sample Available' },
-  sample_cost:      { ar: 'تكلفة العينة',           en: 'Sample Cost' },
-  certifications:   { ar: 'الشهادات',               en: 'Certifications' },
-  packaging:        { ar: 'التغليف',                en: 'Packaging' },
-  currency:         { ar: 'العملة',                 en: 'Currency' },
-};
-
-function getLabel(key, isAr) {
-  const entry = FIELD_LABELS[key];
-  if (entry) return isAr ? entry.ar : entry.en;
-  // Fallback: convert snake_case to Title Case
-  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 export default function OffersScreen({ route, navigation }) {
@@ -118,7 +86,7 @@ export default function OffersScreen({ route, navigation }) {
     const supplierIds = [...new Set(rows.map(o => o.supplier_id).filter(Boolean))];
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('id, full_name, company_name, maabar_supplier_id, status, trust_score, wechat, whatsapp, trade_link, factory_images, reviews_count')
+      .select('id, full_name, company_name, maabar_supplier_id, status, wechat, whatsapp, trade_link, factory_images, reviews_count')
       .in('id', supplierIds);
 
     const profileMap = (profilesData || []).reduce((acc, p) => {
@@ -290,19 +258,11 @@ export default function OffersScreen({ route, navigation }) {
     );
   }
 
-  // Build the dynamic details list from all non-null, non-metadata offer fields
   function renderDetails(offer) {
-    return Object.entries(offer)
-      .filter(([key, val]) => {
-        if (SKIP_FIELDS.has(key)) return false;
-        if (val === null || val === undefined || val === '') return false;
-        return true;
-      })
-      .map(([key, val]) => {
-        const label = getLabel(key, isAr);
-        const displayVal = PRICE_FIELDS.has(key) ? fmtPrice(val) : String(val);
-        return <DetailRow key={key} label={label} value={displayVal} />;
-      });
+    return buildOfferDetailRows(offer, lang, { fmtPrice })
+      .map(({ key, label, value }) => (
+        <DetailRow key={key} label={label} value={value} />
+      ));
   }
 
   return (
@@ -343,18 +303,24 @@ export default function OffersScreen({ route, navigation }) {
 
                 {/* ── Supplier header ── */}
                 <View style={s.supplierRow}>
-                  <Text style={s.supplierName}>
-                    {offer.profiles?.company_name || offer.profiles?.full_name || (isAr ? 'مورد' : 'Supplier')}
-                  </Text>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    activeOpacity={offer.supplier_id ? 0.65 : 1}
+                    onPress={() => offer.supplier_id && navigation.navigate('SupplierProfile', { supplierId: offer.supplier_id })}
+                  >
+                    <Text style={[s.supplierName, offer.supplier_id && { textDecorationLine: 'underline' }]}>
+                      {offer.profiles?.company_name || offer.profiles?.full_name || (isAr ? 'مورد' : 'Supplier')}
+                    </Text>
+                    {!!offer.profiles?.maabar_supplier_id && (
+                      <Text style={s.supplierId}>{offer.profiles.maabar_supplier_id}</Text>
+                    )}
+                  </TouchableOpacity>
                   {isAccepted && (
                     <View style={s.acceptedBadge}>
                       <Text style={s.acceptedText}>✓ {isAr ? 'مقبول' : 'Accepted'}</Text>
                     </View>
                   )}
                 </View>
-                {!!offer.profiles?.maabar_supplier_id && (
-                  <Text style={s.supplierId}>{offer.profiles.maabar_supplier_id}</Text>
-                )}
 
                 {/* ── Trust signal badges ── */}
                 {(() => {
