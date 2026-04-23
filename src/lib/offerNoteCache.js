@@ -43,16 +43,29 @@ export async function writeCachedNote(offerId, lang, text, source) {
 // is Chinese, and every observed legacy note has been Chinese in practice.
 function pickTranslatableSource(offer, targetLang) {
   const priority = ['en', 'ar', 'zh'].filter((l) => l !== targetLang);
+  console.log('[offerNoteCache] pickTranslatableSource: scan', {
+    offerId: offer?.id,
+    targetLang,
+    priority,
+    note_ar_present: !!offer.note_ar,
+    note_en_present: !!offer.note_en,
+    note_zh_present: !!offer.note_zh,
+    legacy_note_present: !!offer.note,
+    legacy_note_preview: offer.note ? String(offer.note).slice(0, 40) : null,
+  });
   for (const l of priority) {
     const val = offer[`note_${l}`];
     if (val && String(val).trim()) {
+      console.log('[offerNoteCache] pickTranslatableSource: chose note_' + l);
       return { sourceLang: l, text: String(val).trim() };
     }
   }
   const legacy = offer.note;
   if (legacy && String(legacy).trim() && targetLang !== 'zh') {
+    console.log('[offerNoteCache] pickTranslatableSource: chose legacy note as zh');
     return { sourceLang: 'zh', text: String(legacy).trim() };
   }
+  console.log('[offerNoteCache] pickTranslatableSource: no source available');
   return null;
 }
 
@@ -64,28 +77,52 @@ function pickTranslatableSource(offer, targetLang) {
 //
 // Returns { text, source } where source is 'supplier' | 'cache' | 'auto' | null.
 export async function resolveOfferNote(offer, lang) {
-  if (!offer || !isSupportedLang(lang)) return { text: null, source: null };
+  console.log('[offerNoteCache] resolveOfferNote: entry', {
+    offerId: offer?.id,
+    lang,
+    langSupported: isSupportedLang(lang),
+  });
+  if (!offer || !isSupportedLang(lang)) {
+    console.log('[offerNoteCache] resolveOfferNote: bail (bad inputs)');
+    return { text: null, source: null };
+  }
 
   const supplied = offer[`note_${lang}`];
   if (supplied && String(supplied).trim()) {
+    console.log('[offerNoteCache] resolveOfferNote: short-circuit on supplier note_' + lang);
     return { text: String(supplied).trim(), source: 'supplier' };
   }
 
   const cached = await readCachedNote(offer.id, lang);
+  console.log('[offerNoteCache] resolveOfferNote: cache check', { hit: !!cached?.text });
   if (cached?.text) {
     return { text: cached.text, source: 'cache' };
   }
 
   const src = pickTranslatableSource(offer, lang);
-  if (!src) return { text: null, source: null };
+  if (!src) {
+    console.log('[offerNoteCache] resolveOfferNote: nothing translatable, return null');
+    return { text: null, source: null };
+  }
 
+  console.log('[offerNoteCache] resolveOfferNote: invoking translateText', {
+    sourceLang: src.sourceLang,
+    targetLang: lang,
+    textPreview: src.text.slice(0, 40),
+  });
   const translated = await translateText({
     text: src.text,
     sourceLang: src.sourceLang,
     targetLang: lang,
   });
+  console.log('[offerNoteCache] resolveOfferNote: translateText returned', {
+    ok: !!translated,
+    length: translated ? translated.length : 0,
+    preview: translated ? translated.slice(0, 40) : null,
+  });
   if (!translated) return { text: null, source: null };
 
   await writeCachedNote(offer.id, lang, translated, src.sourceLang);
+  console.log('[offerNoteCache] resolveOfferNote: persisted to cache');
   return { text: translated, source: 'auto' };
 }
