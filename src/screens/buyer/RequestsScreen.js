@@ -164,15 +164,15 @@ export default function RequestsScreen({ navigation, route }) {
     setRefreshing(false);
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  useEffect(() => {
-    const channel = supabase.channel('requests-screen-rt')
+  useFocusEffect(useCallback(() => {
+    load();
+    const channel = supabase
+      .channel(`requests-rt-${Date.now()}-${Math.random()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' },   () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [load]);
+  }, [load]));
 
   /* ── Form helpers ── */
   function setField(k, v)     { setForm(f => ({ ...f, [k]: v })); }
@@ -339,7 +339,7 @@ export default function RequestsScreen({ navigation, route }) {
     setSubmitting(false);
     if (error) { setFormError(tx('حدث خطأ، حاول مرة أخرى.', 'An error occurred, please try again.')); return; }
     closeNew(); load();
-    if (isManaged && inserted?.id) navigation.navigate('Offers', { requestId: inserted.id, title });
+    if (isManaged && inserted?.id) navigation.navigate('ManagedRequest', { requestId: inserted.id, title });
   }
 
   /* ── Derived lists ── */

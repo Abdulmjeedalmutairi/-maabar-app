@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert,
+  View, Text, ScrollView, TouchableOpacity, TextInput,
+  StyleSheet, ActivityIndicator, Alert, Modal,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -23,17 +24,27 @@ function verificationLabel(level) {
 }
 
 const MANAGED_STATUS_LABELS = {
-  submitted:      { ar: 'تم التقديم',           en: 'Submitted' },
-  admin_review:   { ar: 'قيد المراجعة',         en: 'Under Review' },
-  sourcing:       { ar: 'قيد البحث عن موردين',  en: 'Sourcing Suppliers' },
-  matching:       { ar: 'قيد المطابقة',          en: 'Matching' },
-  buyer_review:   { ar: 'بانتظار مراجعتك',      en: 'Awaiting Your Review' },
-  buyer_selected: { ar: 'تم الاختيار',          en: 'Selected' },
-  negotiation:    { ar: 'قيد التفاوض',           en: 'Negotiation' },
-  completed:      { ar: 'مكتمل',                en: 'Completed' },
+  submitted:       { ar: 'تم التقديم',           en: 'Submitted' },
+  admin_review:    { ar: 'قيد المراجعة',         en: 'Under Review' },
+  sourcing:        { ar: 'قيد البحث عن موردين',  en: 'Sourcing Suppliers' },
+  matching:        { ar: 'قيد المطابقة',          en: 'Matching' },
+  shortlist_ready: { ar: 'القائمة جاهزة',        en: 'Shortlist Ready' },
+  buyer_review:    { ar: 'بانتظار مراجعتك',      en: 'Awaiting Your Review' },
+  buyer_selected:  { ar: 'تم الاختيار',          en: 'Selected' },
+  negotiation:     { ar: 'قيد التفاوض',           en: 'Negotiation' },
+  completed:       { ar: 'مكتمل',                en: 'Completed' },
 };
 
-const MANAGED_STATUS_ORDER = ['submitted', 'admin_review', 'sourcing', 'matching', 'buyer_review', 'buyer_selected', 'completed'];
+const MANAGED_STATUS_ORDER = [
+  'submitted',
+  'admin_review',
+  'sourcing',
+  'matching',
+  'shortlist_ready',
+  'buyer_review',
+  'buyer_selected',
+  'completed',
+];
 
 function getManagedStatusLabel(status) {
   const entry = MANAGED_STATUS_LABELS[status];
@@ -43,16 +54,31 @@ function getManagedStatusLabel(status) {
 
 export default function ManagedRequestScreen({ route, navigation }) {
   const { requestId, title } = route.params || {};
+  const [userId, setUserId]     = useState(null);
   const [offers, setOffers]     = useState([]);
   const [request, setRequest]   = useState(null);
   const [loading, setLoading]   = useState(true);
+  const [busy, setBusy]         = useState(false);
+  const [negotiateFor, setNegotiateFor] = useState(null); // shortlist offer being negotiated
+  const [negotiateReason, setNegotiateReason] = useState('');
 
   const load = useCallback(async () => {
     if (!requestId) { setLoading(false); return; }
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) setUserId(user.id);
+
     const [{ data: reqData }, { data: offersData }] = await Promise.all([
-      supabase.from('requests').select('id, managed_status').eq('id', requestId).single(),
-      supabase.from('managed_shortlisted_offers').select('*').eq('request_id', requestId).order('rank', { ascending: true }),
+      supabase
+        .from('requests')
+        .select('id, title_ar, title_en, quantity, payment_pct, managed_status, managed_research_requested_count, sourcing_mode, status')
+        .eq('id', requestId)
+        .single(),
+      supabase
+        .from('managed_shortlisted_offers')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('rank', { ascending: true }),
     ]);
 
     setRequest(reqData || null);
@@ -62,6 +88,87 @@ export default function ManagedRequestScreen({ route, navigation }) {
 
   useEffect(() => { load(); }, [load]);
 
+  /* ── Feedback logging (mirrors web recordManagedShortlistAction) ── */
+  async function recordManagedShortlistAction({ shortlistOffer = null, action, reason = null }) {
+    if (!userId || !request?.id) return;
+    await supabase.from('managed_shortlist_feedback').insert({
+      request_id: request.id,
+      buyer_id: userId,
+      shortlist_offer_id: shortlistOffer?.id || null,
+      action,
+      reason,
+    });
+  }
+
+  /* ── Ensure buyer-visible `offers` row exists (mirrors web helper) ── */
+  async function ensureBuyerVisibleOfferForShortlist(shortlistOffer) {
+    const now = new Date().toISOString();
+    const shippingDays = shortlistOffer.shipping_time_days;
+    const shippingMethodText = shippingDays ? `${shippingDays} shipping days` : null;
+    const negotiationNote    = shippingDays ? `shipping_time_days:${shippingDays}` : null;
+
+    if (shortlistOffer.offer_id) {
+      const updates = {
+        managed_visibility: 'buyer_visible',
+        status: 'accepted',
+        shortlisted_at: now,
+      };
+      if (shortlistOffer.unit_price != null)            updates.price         = shortlistOffer.unit_price;
+      if (shortlistOffer.moq)                            updates.moq           = shortlistOffer.moq;
+      if (shortlistOffer.production_time_days != null)   updates.delivery_days = shortlistOffer.production_time_days;
+      if (shippingMethodText) {
+        updates.shipping_method = shippingMethodText;
+        updates.negotiation_note = negotiationNote;
+      }
+      const { data, error } = await supabase
+        .from('offers')
+        .update(updates)
+        .eq('id', shortlistOffer.offer_id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+
+    const { data: matchRow } = await supabase
+      .from('managed_supplier_matches')
+      .select('id')
+      .eq('request_id', shortlistOffer.request_id)
+      .eq('supplier_id', shortlistOffer.supplier_id)
+      .maybeSingle();
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('offers')
+      .insert({
+        request_id:         shortlistOffer.request_id,
+        supplier_id:        shortlistOffer.supplier_id,
+        price:              shortlistOffer.unit_price,
+        shipping_cost:      0,
+        shipping_method:    shippingMethodText,
+        moq:                shortlistOffer.moq,
+        delivery_days:      shortlistOffer.production_time_days,
+        origin:             'China',
+        note:               shortlistOffer.selection_reason || shortlistOffer.maabar_notes || null,
+        status:             'accepted',
+        managed_match_id:   matchRow?.id || null,
+        managed_visibility: 'buyer_visible',
+        shortlisted_at:     now,
+        negotiation_note:   negotiationNote,
+      })
+      .select()
+      .maybeSingle();
+    if (insertError) throw insertError;
+
+    if (inserted?.id) {
+      await supabase
+        .from('managed_shortlisted_offers')
+        .update({ offer_id: inserted.id })
+        .eq('id', shortlistOffer.id);
+    }
+    return inserted;
+  }
+
+  /* ── Choose flow (mirrors web chooseManagedOffer) ── */
   function handleChoose(offer) {
     Alert.alert(
       tx('اختيار المورد', 'Choose Supplier'),
@@ -74,26 +181,169 @@ export default function ManagedRequestScreen({ route, navigation }) {
         {
           text: tx('تأكيد', 'Confirm'),
           onPress: async () => {
-            await supabase
-              .from('managed_shortlisted_offers')
-              .update({ selected_by_buyer: true })
-              .eq('id', offer.id);
-            await supabase
-              .from('requests')
-              .update({ managed_status: 'buyer_selected' })
-              .eq('id', requestId);
-            load();
+            if (!request) return;
+            setBusy(true);
+            try {
+              await recordManagedShortlistAction({ shortlistOffer: offer, action: 'choose_offer' });
+
+              await supabase
+                .from('managed_shortlisted_offers')
+                .update({
+                  selected_by_buyer: true,
+                  buyer_selected_at: new Date().toISOString(),
+                  status: 'selected_by_buyer',
+                })
+                .eq('id', offer.id);
+
+              await supabase
+                .from('managed_shortlisted_offers')
+                .update({ selected_by_buyer: false })
+                .eq('request_id', request.id)
+                .neq('id', offer.id);
+
+              let realOffer = null;
+              try {
+                realOffer = await ensureBuyerVisibleOfferForShortlist(offer);
+              } catch (err) {
+                console.error('ensureBuyerVisibleOfferForShortlist error:', err);
+              }
+
+              if (!realOffer) {
+                Alert.alert(
+                  tx('تعذر المتابعة', 'Unable to continue'),
+                  tx('تعذر فتح صفحة الدفع الآن', 'Unable to open checkout right now'),
+                );
+                await load();
+                return;
+              }
+
+              await supabase
+                .from('requests')
+                .update({
+                  managed_status: 'buyer_selected',
+                  managed_last_buyer_action: 'choose_offer',
+                  status: 'supplier_confirmed',
+                })
+                .eq('id', request.id);
+
+              const qty       = Number(request.quantity) || 1;
+              const price     = Number(realOffer.price) || 0;
+              const shipping  = parseFloat(realOffer.shipping_cost) || 0;
+              const totalUsd  = price * qty + shipping;
+              const pct       = request.payment_pct > 0 ? request.payment_pct : 30;
+              const firstAmt  = totalUsd * pct / 100;
+
+              navigation.navigate('Payment', {
+                amount: firstAmt * 3.75,
+                type: 'checkout',
+                requestId: request.id,
+                supplierId: realOffer.supplier_id,
+                offerPriceUsd: totalUsd,
+                paymentPct: pct,
+              });
+            } finally {
+              setBusy(false);
+            }
           },
         },
       ]
     );
   }
 
-  function handleNegotiate(offer) {
+  /* ── Negotiate flow (mirrors web requestManagedNegotiation) ── */
+  function openNegotiate(offer) {
+    setNegotiateReason('');
+    setNegotiateFor(offer);
+  }
+
+  async function submitNegotiate() {
+    if (!negotiateFor || !request) return;
+    const reason = negotiateReason.trim();
+    if (!reason) {
+      Alert.alert(tx('سبب مطلوب', 'Reason required'), tx('يرجى إدخال سبب التفاوض.', 'Please enter a negotiation reason.'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await recordManagedShortlistAction({ shortlistOffer: negotiateFor, action: 'request_negotiation', reason });
+      await supabase
+        .from('requests')
+        .update({ managed_status: 'sourcing', managed_last_buyer_action: 'request_negotiation' })
+        .eq('id', request.id);
+      setNegotiateFor(null);
+      setNegotiateReason('');
+      await load();
+      Alert.alert(
+        tx('تم الإرسال', 'Sent'),
+        tx('سيتواصل معبر مع المورد بشأن التفاوض.', 'Maabar will contact the supplier about the negotiation.'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ── Reject flow (mirrors web rejectManagedOffer) ── */
+  function handleReject(offer) {
     Alert.alert(
-      tx('التفاوض', 'Negotiate'),
-      tx('سيتم التواصل مع المورد بشأن التفاوض.', 'Maabar will contact the supplier for negotiation.'),
-      [{ text: tx('حسناً', 'OK') }]
+      tx('رفض العرض', 'Reject Offer'),
+      tx('هل تريد رفض هذا العرض؟', 'Reject this offer?'),
+      [
+        { text: tx('إلغاء', 'Cancel'), style: 'cancel' },
+        {
+          text: tx('رفض', 'Reject'),
+          style: 'destructive',
+          onPress: async () => {
+            if (!request) return;
+            setBusy(true);
+            try {
+              await recordManagedShortlistAction({ shortlistOffer: offer, action: 'not_suitable' });
+              await supabase
+                .from('managed_shortlisted_offers')
+                .update({ status: 'dismissed' })
+                .eq('id', offer.id);
+              await supabase
+                .from('requests')
+                .update({ managed_last_buyer_action: 'not_suitable' })
+                .eq('id', request.id);
+              await load();
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  /* ── Restart search flow (mirrors web restartManagedSearch) ── */
+  function handleRestartSearch() {
+    Alert.alert(
+      tx('إعادة البحث', 'Restart Search'),
+      tx('هل تريد إعادة البحث عن موردين؟', 'Do you want to restart supplier search?'),
+      [
+        { text: tx('إلغاء', 'Cancel'), style: 'cancel' },
+        {
+          text: tx('نعم، إعادة', 'Yes, Restart'),
+          onPress: async () => {
+            if (!request) return;
+            setBusy(true);
+            try {
+              await recordManagedShortlistAction({ action: 'restart_search' });
+              await supabase
+                .from('requests')
+                .update({
+                  managed_status: 'sourcing',
+                  managed_last_buyer_action: 'restart_search',
+                  managed_research_requested_count: (request.managed_research_requested_count || 0) + 1,
+                })
+                .eq('id', request.id);
+              await load();
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
     );
   }
 
@@ -121,7 +371,7 @@ export default function ManagedRequestScreen({ route, navigation }) {
           <View style={s.pipelineRow}>
             {MANAGED_STATUS_ORDER.map((step, i) => {
               const currentIdx = MANAGED_STATUS_ORDER.indexOf(request.managed_status);
-              const done   = i < currentIdx;
+              const done   = currentIdx >= 0 && i < currentIdx;
               const active = i === currentIdx;
               const isLast = i === MANAGED_STATUS_ORDER.length - 1;
               return (
@@ -151,6 +401,20 @@ export default function ManagedRequestScreen({ route, navigation }) {
         </View>
       )}
 
+      {/* Restart search — always available on the managed page */}
+      {!loading && !!request && (
+        <View style={s.topActions}>
+          <TouchableOpacity
+            style={s.restartBtn}
+            onPress={handleRestartSearch}
+            activeOpacity={0.8}
+            disabled={busy}
+          >
+            <Text style={s.restartBtnText}>{tx('إعادة البحث', 'Restart Search')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {loading ? (
         <View style={s.center}><ActivityIndicator color={C.textDisabled} size="large" /></View>
       ) : offers.length === 0 ? (
@@ -161,13 +425,14 @@ export default function ManagedRequestScreen({ route, navigation }) {
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
           {offers.map((offer, idx) => {
-            const isSelected = !!offer.selected_by_buyer;
+            const isSelected  = !!offer.selected_by_buyer;
+            const isDismissed = offer.status === 'dismissed';
             const unitPrice = offer.unit_price
               ? `${((v) => v % 1 === 0 ? String(v) : v.toFixed(2))(Number(offer.unit_price) * 3.75)} ${tx('ر.س', 'SAR')}`
               : '—';
 
             return (
-              <View key={offer.id} style={[s.card, isSelected && s.cardSelected]}>
+              <View key={offer.id} style={[s.card, isSelected && s.cardSelected, isDismissed && s.cardDismissed]}>
                 {/* Rank badge */}
                 <View style={s.rankRow}>
                   <View style={s.rankBadge}>
@@ -176,6 +441,11 @@ export default function ManagedRequestScreen({ route, navigation }) {
                   {isSelected && (
                     <View style={s.selectedBadge}>
                       <Text style={s.selectedText}>✓ {tx('مختار', 'Selected')}</Text>
+                    </View>
+                  )}
+                  {isDismissed && (
+                    <View style={s.dismissedBadge}>
+                      <Text style={s.dismissedText}>{tx('مرفوض', 'Rejected')}</Text>
                     </View>
                   )}
                   <Text style={s.supplierName} numberOfLines={1}>
@@ -218,15 +488,24 @@ export default function ManagedRequestScreen({ route, navigation }) {
                   </View>
                 )}
 
-                {/* Actions */}
-                {!isSelected && (
+                {/* Actions — hidden when selected or dismissed */}
+                {!isSelected && !isDismissed && (
                   <View style={s.actions}>
                     <TouchableOpacity
                       style={s.negotiateBtn}
-                      onPress={() => handleNegotiate(offer)}
+                      onPress={() => openNegotiate(offer)}
                       activeOpacity={0.8}
+                      disabled={busy}
                     >
                       <Text style={s.negotiateBtnText}>{tx('تفاوض', 'Negotiate')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.rejectBtn}
+                      onPress={() => handleReject(offer)}
+                      activeOpacity={0.8}
+                      disabled={busy}
+                    >
+                      <Text style={s.rejectBtnText}>{tx('رفض', 'Reject')}</Text>
                     </TouchableOpacity>
                     {!!offer.supplier_id && (
                       <TouchableOpacity
@@ -241,6 +520,7 @@ export default function ManagedRequestScreen({ route, navigation }) {
                       style={s.chooseBtn}
                       onPress={() => handleChoose(offer)}
                       activeOpacity={0.85}
+                      disabled={busy}
                     >
                       <Text style={s.chooseBtnText}>{tx('اختر هذا المورد', 'Choose')}</Text>
                     </TouchableOpacity>
@@ -251,6 +531,48 @@ export default function ManagedRequestScreen({ route, navigation }) {
           })}
         </ScrollView>
       )}
+
+      {/* Negotiation reason modal */}
+      <Modal visible={!!negotiateFor} transparent animationType="slide" onRequestClose={() => setNegotiateFor(null)}>
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.modalTitle}>{tx('طلب التفاوض', 'Request Negotiation')}</Text>
+            <Text style={s.modalSub}>
+              {tx('أخبر معبر بما تريد التفاوض عليه (السعر، الشروط، …).', 'Tell Maabar what you want to negotiate (price, terms, …).')}
+            </Text>
+            <TextInput
+              style={s.modalInput}
+              placeholder={tx('سبب التفاوض', 'Negotiation reason')}
+              placeholderTextColor={C.textDisabled}
+              value={negotiateReason}
+              onChangeText={setNegotiateReason}
+              multiline
+              numberOfLines={4}
+              textAlign={getLang() === 'ar' ? 'right' : 'left'}
+            />
+            <TouchableOpacity
+              style={[s.modalSubmit, busy && { opacity: 0.6 }]}
+              onPress={submitNegotiate}
+              disabled={busy}
+              activeOpacity={0.85}
+            >
+              {busy ? <ActivityIndicator color={C.btnPrimaryText} /> : <Text style={s.modalSubmitText}>{tx('إرسال', 'Send')}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setNegotiateFor(null)}
+              activeOpacity={0.7}
+              style={{ alignItems: 'center', marginTop: 12 }}
+              disabled={busy}
+            >
+              <Text style={{ color: C.textDisabled, fontFamily: F.ar, fontSize: 13 }}>{tx('إلغاء', 'Cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -322,6 +644,22 @@ const s = StyleSheet.create({
     color: C.textPrimary, fontFamily: F.arSemi,
   },
 
+  topActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  restartBtn: {
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: C.bgRaised,
+  },
+  restartBtnText: { color: C.textSecondary, fontFamily: F.ar, fontSize: 12 },
+
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyText:    { color: C.textSecondary, fontFamily: F.ar, fontSize: 15, marginBottom: 8 },
   emptySubText: { color: C.textTertiary, fontFamily: F.ar, fontSize: 13 },
@@ -334,7 +672,8 @@ const s = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
   },
-  cardSelected: { borderColor: C.green },
+  cardSelected:  { borderColor: C.green },
+  cardDismissed: { opacity: 0.55 },
 
   rankRow: {
     flexDirection: 'row',
@@ -348,9 +687,11 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.borderDefault,
   },
   rankText: { color: C.textSecondary, fontFamily: F.enSemi, fontSize: 12 },
-  selectedBadge: { backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  selectedText:  { color: C.green, fontFamily: F.arSemi, fontSize: 11 },
-  supplierName:  { flex: 1, color: C.textPrimary, fontFamily: F.arBold, fontSize: 15, textAlign: 'right' },
+  selectedBadge:  { backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  selectedText:   { color: C.green, fontFamily: F.arSemi, fontSize: 11 },
+  dismissedBadge: { backgroundColor: C.bgOverlay, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: C.borderDefault },
+  dismissedText:  { color: C.textTertiary, fontFamily: F.arSemi, fontSize: 11 },
+  supplierName:   { flex: 1, color: C.textPrimary, fontFamily: F.arBold, fontSize: 15, textAlign: 'right' },
 
   verifiedLine: { color: C.textTertiary, fontFamily: F.ar, fontSize: 11, textAlign: 'right', marginBottom: 12 },
 
@@ -385,6 +726,14 @@ const s = StyleSheet.create({
     paddingVertical: 9,
   },
   negotiateBtnText: { color: C.textSecondary, fontFamily: F.ar, fontSize: 13 },
+  rejectBtn: {
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  rejectBtnText: { color: C.red || '#b4401e', fontFamily: F.ar, fontSize: 13 },
   chatBtn: {
     borderWidth: 1,
     borderColor: C.borderDefault,
@@ -401,4 +750,48 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   chooseBtnText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 14 },
+
+  /* Negotiation modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: C.bgBase,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalHandle: {
+    width: 40, height: 4,
+    backgroundColor: C.borderDefault,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 16, textAlign: 'right', marginBottom: 6 },
+  modalSub:   { color: C.textTertiary, fontFamily: F.ar, fontSize: 12, textAlign: 'right', lineHeight: 18, marginBottom: 14 },
+  modalInput: {
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    borderRadius: 12,
+    padding: 12,
+    color: C.textPrimary,
+    fontFamily: F.ar,
+    fontSize: 14,
+    backgroundColor: C.bgRaised,
+    marginBottom: 16,
+    textAlignVertical: 'top',
+  },
+  modalSubmit: {
+    backgroundColor: C.btnPrimary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalSubmitText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 14 },
 });

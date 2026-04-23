@@ -113,6 +113,16 @@ function PendingBanner({ action, isAr, navigation }) {
       navigation.navigate('OrderDetail', { requestId });
       return;
     }
+    if (requestId && action.type === 'managed_shortlist') {
+      const title = action.request?.title_ar || action.request?.title_en;
+      navigation.navigate('Requests', { screen: 'ManagedRequest', params: { requestId, title } });
+      return;
+    }
+    if (requestId && action.type === 'offers') {
+      const title = action.request?.title_ar || action.request?.title_en;
+      navigation.navigate('Requests', { screen: 'Offers', params: { requestId, title } });
+      return;
+    }
     navigation.navigate('Requests', requestId ? { requestId } : undefined);
   }
 
