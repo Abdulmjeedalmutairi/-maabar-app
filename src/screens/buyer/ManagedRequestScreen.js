@@ -23,6 +23,44 @@ function verificationLabel(level) {
   return getLang() === 'ar' ? entry.ar : entry.en;
 }
 
+// If the shortlist row has no verification_level, derive one from the supplier profile.
+function deriveVerificationLevel(offer) {
+  if (offer?.verification_level) return offer.verification_level;
+  const status = offer?.profile?.status;
+  if (status === 'verified' || status === 'approved' || status === 'active') return 'verified';
+  return 'registered';
+}
+
+// Pick the best supplier display name, falling back to the profile columns.
+function pickSupplierName(offer) {
+  return offer?.supplier_name
+    || offer?.profile?.company_name
+    || offer?.profile?.full_name
+    || null;
+}
+
+// Pick the localised supplier_brief when the AI returned per-language variants.
+function pickSupplierBrief(brief, lang) {
+  if (!brief) return '';
+  const all = brief.ai_output?.supplier_brief_all;
+  if (all && typeof all === 'object') {
+    return all[lang] || all.en || all.ar || brief.supplier_brief || '';
+  }
+  return brief.supplier_brief || '';
+}
+
+const AI_CONFIDENCE_LABELS = {
+  high:   { ar: 'ثقة عالية',   en: 'High confidence' },
+  medium: { ar: 'ثقة متوسطة',  en: 'Medium confidence' },
+  low:    { ar: 'ثقة منخفضة',  en: 'Low confidence' },
+};
+
+function aiConfidenceLabel(level) {
+  const entry = AI_CONFIDENCE_LABELS[level];
+  if (!entry) return level || '';
+  return getLang() === 'ar' ? entry.ar : entry.en;
+}
+
 const MANAGED_STATUS_LABELS = {
   submitted:       { ar: 'تم التقديم',           en: 'Submitted' },
   admin_review:    { ar: 'قيد المراجعة',         en: 'Under Review' },
@@ -57,6 +95,7 @@ export default function ManagedRequestScreen({ route, navigation }) {
   const [userId, setUserId]     = useState(null);
   const [offers, setOffers]     = useState([]);
   const [request, setRequest]   = useState(null);
+  const [brief, setBrief]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [busy, setBusy]         = useState(false);
   const [negotiateFor, setNegotiateFor] = useState(null); // shortlist offer being negotiated
@@ -68,7 +107,7 @@ export default function ManagedRequestScreen({ route, navigation }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) setUserId(user.id);
 
-    const [{ data: reqData }, { data: offersData }] = await Promise.all([
+    const [{ data: reqData }, { data: offersData }, { data: briefData }] = await Promise.all([
       supabase
         .from('requests')
         .select('id, title_ar, title_en, quantity, payment_pct, managed_status, managed_research_requested_count, sourcing_mode, status')
@@ -79,10 +118,29 @@ export default function ManagedRequestScreen({ route, navigation }) {
         .select('*')
         .eq('request_id', requestId)
         .order('rank', { ascending: true }),
+      supabase
+        .from('managed_request_briefs')
+        .select('cleaned_description, supplier_brief, ai_confidence, ai_output, ai_status')
+        .eq('request_id', requestId)
+        .maybeSingle(),
     ]);
 
+    // Enrich shortlist rows with supplier profile (company_name, status, …).
+    const rawOffers   = offersData || [];
+    const supplierIds = [...new Set(rawOffers.map(o => o.supplier_id).filter(Boolean))];
+    let profileMap    = {};
+    if (supplierIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name, company_name, status, maabar_supplier_id')
+        .in('id', supplierIds);
+      profileMap = (profs || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+    }
+    const offersWithProfile = rawOffers.map(o => ({ ...o, profile: profileMap[o.supplier_id] || null }));
+
     setRequest(reqData || null);
-    setOffers(offersData || []);
+    setOffers(offersWithProfile);
+    setBrief(briefData || null);
     setLoading(false);
   }, [requestId]);
 
@@ -401,6 +459,45 @@ export default function ManagedRequestScreen({ route, navigation }) {
         </View>
       )}
 
+      {/* Brief card — what Maabar extracted from the request */}
+      {(() => {
+        if (!brief) return null;
+        const lang            = getLang();
+        const cleaned         = (brief.cleaned_description || '').trim();
+        const supplierBriefTx = (pickSupplierBrief(brief, lang) || '').trim();
+        const confidence      = brief.ai_confidence;
+        if (!cleaned && !supplierBriefTx && !confidence) return null;
+
+        return (
+          <View style={s.briefBox}>
+            <View style={s.briefHeader}>
+              <Text style={s.briefTitle}>{tx('ملخّص معبر لطلبك', 'Maabar’s brief for your request')}</Text>
+              {!!confidence && (
+                <View style={[s.briefConfidence, confidence === 'high' && s.briefConfidenceHigh, confidence === 'low' && s.briefConfidenceLow]}>
+                  <Text style={[s.briefConfidenceText, confidence === 'high' && s.briefConfidenceTextHigh, confidence === 'low' && s.briefConfidenceTextLow]}>
+                    {aiConfidenceLabel(confidence)}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {!!cleaned && (
+              <View style={s.briefSection}>
+                <Text style={s.briefSectionLabel}>{tx('طلبك بصيغة مهنية:', 'Your request, cleaned up:')}</Text>
+                <Text style={s.briefSectionBody}>{cleaned}</Text>
+              </View>
+            )}
+
+            {!!supplierBriefTx && (
+              <View style={s.briefSection}>
+                <Text style={s.briefSectionLabel}>{tx('ما يراه المورد:', 'What suppliers see:')}</Text>
+                <Text style={s.briefSectionBody}>{supplierBriefTx}</Text>
+              </View>
+            )}
+          </View>
+        );
+      })()}
+
       {/* Restart search — always available on the managed page */}
       {!loading && !!request && (
         <View style={s.topActions}>
@@ -425,11 +522,14 @@ export default function ManagedRequestScreen({ route, navigation }) {
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
           {offers.map((offer, idx) => {
-            const isSelected  = !!offer.selected_by_buyer;
-            const isDismissed = offer.status === 'dismissed';
-            const unitPrice = offer.unit_price
-              ? `${((v) => v % 1 === 0 ? String(v) : v.toFixed(2))(Number(offer.unit_price) * 3.75)} ${tx('ر.س', 'SAR')}`
+            const isSelected   = !!offer.selected_by_buyer;
+            const isDismissed  = offer.status === 'dismissed';
+            const currency     = offer.currency || 'USD';
+            const unitPrice    = offer.unit_price != null
+              ? `${((v) => v % 1 === 0 ? String(v) : v.toFixed(2))(Number(offer.unit_price))} ${currency}`
               : '—';
+            const supplierName = pickSupplierName(offer);
+            const verification = deriveVerificationLevel(offer);
 
             return (
               <View key={offer.id} style={[s.card, isSelected && s.cardSelected, isDismissed && s.cardDismissed]}>
@@ -449,14 +549,15 @@ export default function ManagedRequestScreen({ route, navigation }) {
                     </View>
                   )}
                   <Text style={s.supplierName} numberOfLines={1}>
-                    {offer.supplier_name || tx('مورد', 'Supplier')}
+                    {supplierName || tx('مورد', 'Supplier')}
+                    {offer.profile?.maabar_supplier_id ? ` · ${offer.profile.maabar_supplier_id}` : ''}
                   </Text>
                 </View>
 
                 {/* Verification level */}
-                {!!offer.verification_level && (
+                {!!verification && (
                   <Text style={s.verifiedLine}>
-                    {verificationLabel(offer.verification_level)}
+                    {verificationLabel(verification)}
                   </Text>
                 )}
 
@@ -794,4 +895,36 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   modalSubmitText: { color: C.btnPrimaryText, fontFamily: F.arBold, fontSize: 14 },
+
+  /* Brief card */
+  briefBox: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    backgroundColor: C.bgRaised,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.borderDefault,
+    padding: 14,
+  },
+  briefHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  briefTitle: { color: C.textPrimary, fontFamily: F.arBold, fontSize: 14, flex: 1, textAlign: 'right' },
+  briefConfidence: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: C.bgOverlay,
+    borderWidth: 1, borderColor: C.borderSubtle,
+  },
+  briefConfidenceHigh: { backgroundColor: C.greenSoft, borderColor: 'rgba(45,106,79,0.25)' },
+  briefConfidenceLow:  { backgroundColor: 'rgba(224,92,92,0.08)', borderColor: 'rgba(224,92,92,0.25)' },
+  briefConfidenceText:     { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 11 },
+  briefConfidenceTextHigh: { color: C.green },
+  briefConfidenceTextLow:  { color: C.red || '#e05c5c' },
+  briefSection: { marginTop: 8 },
+  briefSectionLabel: { color: C.textTertiary, fontFamily: F.arSemi, fontSize: 11, textAlign: 'right', marginBottom: 4 },
+  briefSectionBody:  { color: C.textSecondary, fontFamily: F.ar, fontSize: 13, textAlign: 'right', lineHeight: 20 },
 });

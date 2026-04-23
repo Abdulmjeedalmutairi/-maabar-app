@@ -335,7 +335,7 @@ export default function RequestsScreen({ navigation, route }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSubmitting(false); return; }
     const isManaged = sourcingMode === 'managed';
-    const { data: inserted, error } = await supabase.from('requests').insert({ buyer_id: user.id, title_ar: title, title_en: title, title_zh: title, description: form.description.trim(), quantity: qty, category: form.category || 'other', budget_per_unit: form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null, payment_plan: parseInt(form.paymentPlan, 10), sample_requirement: form.sampleReq, status: 'open', sourcing_mode: isManaged ? 'managed' : 'direct', managed_status: isManaged ? 'submitted' : null }).select('id').single();
+    const { data: inserted, error } = await supabase.from('requests').insert({ buyer_id: user.id, title_ar: title, title_en: title, title_zh: title, description: form.description.trim(), quantity: parseInt(qty, 10), category: form.category || 'other', budget_per_unit: form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null, payment_plan: parseInt(form.paymentPlan, 10), sample_requirement: form.sampleReq, status: 'open', sourcing_mode: isManaged ? 'managed' : 'direct', managed_status: isManaged ? 'submitted' : null }).select('id').single();
     setSubmitting(false);
     if (error) { setFormError(tx('حدث خطأ، حاول مرة أخرى.', 'An error occurred, please try again.')); return; }
     closeNew(); load();
@@ -700,8 +700,13 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
   })();
 
   function handleCardPress() {
-    if (isManaged || isIdea) return;
+    if (isIdea) return;
     const cardTitle = title || r.title_ar || r.title_en;
+    if (isManaged) {
+      // Managed requests always open the dedicated managed page.
+      navigation.navigate('ManagedRequest', { requestId: r.id, title: cardTitle });
+      return;
+    }
     // Pre-acceptance: open OffersScreen (may be empty for 'open' status)
     if (['open', 'offers_received'].includes(r.status)) {
       navigation.navigate('Offers', {

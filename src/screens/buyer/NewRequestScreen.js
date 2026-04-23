@@ -93,7 +93,7 @@ export default function NewRequestScreen({ navigation, route }) {
       title_en:           form.titleAr.trim(),
       title_zh:           form.titleAr.trim(),
       description:        form.description.trim(),
-      quantity:           form.quantity.trim(),
+      quantity:           parseInt(form.quantity, 10),
       category:           form.category || 'other',
       budget_per_unit:    form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null,
       payment_plan:       parseInt(form.paymentPlan, 10),
