@@ -9,6 +9,7 @@ import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
 import { buildOfferDetailRows } from '../../lib/offerFields';
+import { resolveOfferNote, readCachedNote } from '../../lib/offerNoteCache';
 
 const USD_TO_SAR = 3.75;
 
@@ -37,6 +38,8 @@ export default function OffersScreen({ route, navigation }) {
   const [loading, setLoading]       = useState(true);
   const [expandedMap, setExpandedMap] = useState({});  // { [offerId]: boolean }
   const [rejectedMap, setRejectedMap] = useState({});  // { [offerId]: true } — flashing "تم الرفض"
+  const [noteOverrides, setNoteOverrides] = useState({});   // { [offerId]: translated/cached note }
+  const [translatingNotes, setTranslatingNotes] = useState({}); // { [offerId]: true }
 
   const lang = getLang();
   const isAr = lang === 'ar';
@@ -50,7 +53,40 @@ export default function OffersScreen({ route, navigation }) {
   }
 
   function toggleExpanded(offerId) {
+    const willExpand = !expandedMap[offerId];
     setExpandedMap(prev => ({ ...prev, [offerId]: !prev[offerId] }));
+    if (willExpand) {
+      const offer = offers.find(o => o.id === offerId);
+      if (offer) ensureTranslatedNote(offer);
+    }
+  }
+
+  // When a buyer expands an offer whose note_{lang} is missing, fill it in:
+  // cache hit → use it instantly; otherwise call Grok once, then cache + render.
+  async function ensureTranslatedNote(offer) {
+    const existing = offer[`note_${lang}`];
+    if (existing && String(existing).trim()) return;
+    if (noteOverrides[offer.id]) return;
+    if (translatingNotes[offer.id]) return;
+
+    // Fast path: cache hit — avoids the "Translating…" flash
+    const cached = await readCachedNote(offer.id, lang);
+    if (cached?.text) {
+      setNoteOverrides(prev => ({ ...prev, [offer.id]: cached.text }));
+      return;
+    }
+
+    setTranslatingNotes(prev => ({ ...prev, [offer.id]: true }));
+    try {
+      const { text } = await resolveOfferNote(offer, lang);
+      if (text) setNoteOverrides(prev => ({ ...prev, [offer.id]: text }));
+    } finally {
+      setTranslatingNotes(prev => {
+        const n = { ...prev };
+        delete n[offer.id];
+        return n;
+      });
+    }
   }
 
   useEffect(() => {
@@ -259,7 +295,22 @@ export default function OffersScreen({ route, navigation }) {
   }
 
   function renderDetails(offer) {
-    return buildOfferDetailRows(offer, lang, { fmtPrice })
+    const override = noteOverrides[offer.id];
+    const isTranslating = !!translatingNotes[offer.id];
+
+    let effective = offer;
+    if (override) {
+      effective = { ...offer, [`note_${lang}`]: override };
+    } else if (isTranslating) {
+      const placeholder = isAr
+        ? 'جاري الترجمة…'
+        : lang === 'zh'
+          ? '翻译中…'
+          : 'Translating…';
+      effective = { ...offer, [`note_${lang}`]: placeholder };
+    }
+
+    return buildOfferDetailRows(effective, lang, { fmtPrice })
       .map(({ key, label, value }) => (
         <DetailRow key={key} label={label} value={value} />
       ));
