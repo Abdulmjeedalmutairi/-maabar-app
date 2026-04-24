@@ -125,7 +125,7 @@ const COPY = {
   },
 };
 
-export default function SupplierProductsScreen() {
+export default function SupplierProductsScreen({ navigation, route }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
@@ -136,6 +136,13 @@ export default function SupplierProductsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [myId, setMyId] = useState(null);
+
+  useEffect(() => {
+    if (route?.params?.openAdd) {
+      setShowAdd(true);
+      navigation?.setParams?.({ openAdd: undefined });
+    }
+  }, [route?.params?.openAdd, navigation]);
 
   const [form, setForm] = useState({
     nameAr: '', nameEn: '', nameZh: '',

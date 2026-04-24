@@ -185,7 +185,6 @@ export default function SupplierRequestsScreen({ navigation }) {
       shipping_method: form.shippingMethod || null,
       moq: form.moq || null,
       delivery_days: days,
-      origin: form.origin || 'China',
       note: form.note || null,
       status: 'pending',
     });

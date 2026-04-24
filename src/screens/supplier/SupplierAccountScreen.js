@@ -28,6 +28,15 @@ const COPY = {
     trustScore: 'التقييم',
     info: 'معلومات',
     joinDate: 'تاريخ الانضمام',
+    stats: 'إحصائيات',
+    statOffers: 'العروض المقدمة',
+    statProducts: 'المنتجات',
+    statAcceptRate: 'نسبة القبول',
+    statTotalSales: 'إجمالي المبيعات (USD)',
+    quickActions: 'إجراءات سريعة',
+    qaOpenRequests: 'طلبات المشترين المفتوحة',
+    qaMyProducts: 'منتجاتي',
+    qaAddProduct: 'إضافة منتج جديد',
     signOut: 'تسجيل الخروج',
     signOutConfirm: 'هل أنت متأكد؟',
     signOutCancel: 'إلغاء',
@@ -74,6 +83,15 @@ const COPY = {
     trustScore: 'Trust Score',
     info: 'Info',
     joinDate: 'Member Since',
+    stats: 'Stats',
+    statOffers: 'Offers Submitted',
+    statProducts: 'Products',
+    statAcceptRate: 'Accept Rate',
+    statTotalSales: 'Total Sales (USD)',
+    quickActions: 'Quick Actions',
+    qaOpenRequests: 'Open Buyer Requests',
+    qaMyProducts: 'My Products',
+    qaAddProduct: 'Add New Product',
     signOut: 'Sign Out',
     signOutConfirm: 'Are you sure?',
     signOutCancel: 'Cancel',
@@ -120,6 +138,15 @@ const COPY = {
     trustScore: '信任评分',
     info: '信息',
     joinDate: '注册日期',
+    stats: '统计',
+    statOffers: '已提交报价',
+    statProducts: '产品',
+    statAcceptRate: '接受率',
+    statTotalSales: '总销售额 (USD)',
+    quickActions: '快捷操作',
+    qaOpenRequests: '买家的开放需求',
+    qaMyProducts: '我的产品',
+    qaAddProduct: '添加新产品',
     signOut: '退出登录',
     signOutConfirm: '确认退出？',
     signOutCancel: '取消',
@@ -160,7 +187,7 @@ const VERIFY_COLOR = {
   inactive: C.textDisabled,
 };
 
-export default function SupplierAccountScreen() {
+export default function SupplierAccountScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
@@ -168,6 +195,7 @@ export default function SupplierAccountScreen() {
   const [profile, setProfile] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ offers: 0, products: 0, accepted: 0, totalSales: 0 });
   const [showVerify, setShowVerify] = useState(false);
   const [verifyForm, setVerifyForm] = useState({
     regNumber: '', yearsExperience: '',
@@ -205,7 +233,24 @@ export default function SupplierAccountScreen() {
         wechat: data.wechat || '',
       });
     }
+    loadStats(user.id);
     setLoading(false);
+  }
+
+  async function loadStats(userId) {
+    const [offersRes, productsRes, acceptedRes, paymentsRes] = await Promise.all([
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('supplier_id', userId),
+      supabase.from('products').select('id', { count: 'exact', head: true }).eq('supplier_id', userId).eq('is_active', true),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('supplier_id', userId).eq('status', 'accepted'),
+      supabase.from('payments').select('amount').eq('supplier_id', userId).eq('status', 'first_paid'),
+    ]);
+    const totalSales = (paymentsRes.data || []).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    setStats({
+      offers: offersRes.count || 0,
+      products: productsRes.count || 0,
+      accepted: acceptedRes.count || 0,
+      totalSales: Math.round(totalSales),
+    });
   }
 
   async function saveProfile() {
@@ -303,6 +348,47 @@ export default function SupplierAccountScreen() {
             <Text style={[s.verifyBannerSub, isAr && s.rtl]}>{t.verifyBannerSub}</Text>
           </TouchableOpacity>
         )}
+
+        {/* Stats */}
+        <Text style={[s.blockHeader, isAr && s.rtl]}>{t.stats}</Text>
+        <View style={s.statsGrid}>
+          <StatTile label={t.statOffers} value={String(stats.offers)} />
+          <StatTile label={t.statProducts} value={String(stats.products)} />
+          <StatTile
+            label={t.statAcceptRate}
+            value={stats.offers > 0 ? `${Math.round((stats.accepted / stats.offers) * 100)}%` : '—'}
+          />
+          <StatTile
+            label={t.statTotalSales}
+            value={stats.totalSales ? stats.totalSales.toLocaleString() : '—'}
+          />
+        </View>
+
+        {/* Quick Actions */}
+        <Text style={[s.blockHeader, isAr && s.rtl]}>{t.quickActions}</Text>
+        <View style={s.quickActions}>
+          <TouchableOpacity
+            style={[s.qaBtn, s.qaBtnPrimary]}
+            activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SRequests')}
+          >
+            <Text style={[s.qaText, s.qaTextPrimary, isAr && s.rtl]}>{t.qaOpenRequests}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.qaBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SProducts')}
+          >
+            <Text style={[s.qaText, isAr && s.rtl]}>{t.qaMyProducts}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.qaBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SProducts', { openAdd: true })}
+          >
+            <Text style={[s.qaText, isAr && s.rtl]}>{t.qaAddProduct}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Company details */}
         <View style={s.section}>
@@ -415,6 +501,15 @@ function InfoRow({ label, value, isAr }) {
   );
 }
 
+function StatTile({ label, value }) {
+  return (
+    <View style={s.statTile}>
+      <Text style={s.statValue} numberOfLines={1}>{value}</Text>
+      <Text style={s.statLabel} numberOfLines={2}>{label}</Text>
+    </View>
+  );
+}
+
 function VField({ label, isAr, ...props }) {
   return (
     <View style={s.fieldWrap}>
@@ -463,6 +558,41 @@ const s = StyleSheet.create({
   },
   verifyBannerTitle: { color: C.textPrimary, fontSize: 15, fontFamily: F.arSemi, marginBottom: 4 },
   verifyBannerSub: { color: C.textSecondary, fontSize: 13, fontFamily: F.ar, textAlign: 'center' },
+
+  blockHeader: {
+    color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi,
+    letterSpacing: 0.5, marginBottom: 10, marginTop: 4,
+  },
+  statsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20,
+  },
+  statTile: {
+    flexBasis: '48%', flexGrow: 1,
+    backgroundColor: C.bgRaised, borderRadius: 14,
+    paddingVertical: 16, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: C.borderDefault,
+  },
+  statValue: {
+    color: C.textPrimary, fontSize: 22, fontFamily: F.enBold,
+    lineHeight: 26, marginBottom: 4,
+  },
+  statLabel: {
+    color: C.textSecondary, fontSize: 11, fontFamily: F.ar,
+  },
+  quickActions: {
+    gap: 8, marginBottom: 20,
+  },
+  qaBtn: {
+    backgroundColor: C.bgRaised, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: C.borderDefault,
+    alignItems: 'center',
+  },
+  qaBtnPrimary: {
+    backgroundColor: C.btnPrimary, borderColor: C.btnPrimary,
+  },
+  qaText: { color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi },
+  qaTextPrimary: { color: C.btnPrimaryText },
 
   section: {
     backgroundColor: C.bgRaised, borderRadius: 16,
