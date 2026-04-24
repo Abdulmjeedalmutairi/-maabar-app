@@ -16,7 +16,7 @@ function parseDesc(raw, lang) {
   return String(raw);
 }
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
+import { supabase, SEND_EMAIL_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
@@ -199,7 +199,7 @@ export default function SupplierRequestsScreen({ navigation }) {
       .eq('id', selectedRequest.id)
       .eq('status', 'open');
 
-    // Notify buyer
+    // Notify buyer — in-app + email
     if (selectedRequest.buyer_id) {
       await supabase.from('notifications').insert({
         user_id: selectedRequest.buyer_id,
@@ -210,6 +210,37 @@ export default function SupplierRequestsScreen({ navigation }) {
         ref_id: selectedRequest.id,
         is_read: false,
       });
+
+      try {
+        const shippingCost = form.shippingCost ? parseFloat(form.shippingCost) : 0;
+        const qty = parseFloat(selectedRequest.quantity) || 1;
+        const estimatedTotal = (price * qty) + (Number.isFinite(shippingCost) ? shippingCost : 0);
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', myId)
+          .maybeSingle();
+        await fetch(SEND_EMAIL_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({
+            type: 'new_offer',
+            data: {
+              recipientUserId: selectedRequest.buyer_id,
+              name: 'Trader',
+              requestTitle: selectedRequest.title_ar || selectedRequest.title_en || '',
+              supplierName: me?.company_name || 'Supplier',
+              price,
+              shippingCost,
+              shippingMethod: form.shippingMethod || '',
+              estimatedTotal,
+              deliveryDays: days,
+            },
+          }),
+        });
+      } catch (e) {
+        console.error('[SupplierRequests] new_offer email error:', e);
+      }
     }
 
     setSelectedRequest(null);
