@@ -17,6 +17,7 @@ import TermsScreen        from '../screens/shared/TermsScreen';
 import ContactScreen      from '../screens/shared/ContactScreen';
 import SupportScreen      from '../screens/shared/SupportScreen';
 import SupplierRequestsScreen from '../screens/supplier/SupplierRequestsScreen';
+import SupplierManagedMatchesScreen from '../screens/supplier/SupplierManagedMatchesScreen';
 import SupplierProductsScreen from '../screens/supplier/SupplierProductsScreen';
 import SupplierOffersScreen from '../screens/supplier/SupplierOffersScreen';
 import SupplierInboxScreen from '../screens/supplier/SupplierInboxScreen';
@@ -32,6 +33,7 @@ const TAB_LABELS = {
   ar: {
     SHome: 'الرئيسية',
     SRequests: 'الطلبات',
+    SManaged: 'الطلبات المطابقة',
     SProducts: 'منتجاتي',
     SOffers: 'عروضي',
     SInbox: 'رسائل',
@@ -40,6 +42,7 @@ const TAB_LABELS = {
   en: {
     SHome: 'Home',
     SRequests: 'Requests',
+    SManaged: 'Matched Requests',
     SProducts: 'Products',
     SOffers: 'My Offers',
     SInbox: 'Inbox',
@@ -48,6 +51,7 @@ const TAB_LABELS = {
   zh: {
     SHome: '首页',
     SRequests: '询盘',
+    SManaged: '匹配需求',
     SProducts: '产品',
     SOffers: '我的报价',
     SInbox: '消息',
@@ -176,6 +180,7 @@ export default function SupplierTabs() {
     >
       <Tab.Screen name="SHome" component={SupplierHomeStack} />
       <Tab.Screen name="SRequests" component={SupplierRequestsScreen} />
+      <Tab.Screen name="SManaged" component={SupplierManagedMatchesScreen} />
       <Tab.Screen name="SProducts" component={SupplierProductsScreen} />
       <Tab.Screen name="SOffers" component={SupplierOffersScreen} />
       <Tab.Screen name="SInbox" component={SupplierInboxStack} />
