@@ -285,12 +285,17 @@ export default function RequestsScreen({ navigation, route }) {
             }));
           }
           load();
-          const subtotal = (offer.price || 0) * (Number(r.quantity) || 1);
-          const shipping = parseFloat(offer.shipping_cost) || 0;
-          const total = subtotal + shipping;
-          const pct = r.payment_pct > 0 ? r.payment_pct : 30;
-          const firstAmt = total * pct / 100;
-          navigation.navigate('Payment', { amount: firstAmt * 3.75, type: 'checkout', requestId: r.id, requestData: r, supplierId: offer.supplier_id, offerPriceUsd: total, paymentPct: pct });
+          // Web-exact: do not navigate to Payment. Request is now `closed`; the
+          // card will render the waiting state until the supplier confirms and
+          // the request moves to `supplier_confirmed`.
+          Alert.alert(
+            tx('تم قبول العرض', 'Offer Accepted', '报价已接受'),
+            tx(
+              'في انتظار تأكيد المورد. سيفتح خيار الدفع بعد التأكيد.',
+              'Waiting for supplier confirmation. Payment will unlock once the supplier confirms.',
+              '等待供应商确认。供应商确认后将可付款。',
+            ),
+          );
         },
       }]);
   }
@@ -690,7 +695,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
       return { title: tx('الطلب الآن داخل المسار المُدار', 'This request is now inside the managed flow'), body: tx('معبر يجهّز الـ brief ويطابق الموردين المناسبين.', 'Maabar is preparing the brief and matching suitable suppliers.') };
     }
     if (accepted && r.status === 'supplier_confirmed') return { title: tx('المورد جاهز للشحن — ادفع الآن', 'Supplier confirmed ready — pay now'), body: tx('أكمل الدفعة الأولى لبدء التجهيز.', 'Complete the 1st installment to start production.') };
-    if (accepted && r.status === 'closed') return { title: tx('تم قبول العرض — أكمل الدفع', 'Offer accepted — complete payment'), body: tx('ادفع الدفعة الأولى لتأكيد الطلب مع المورد.', 'Pay the 1st installment to confirm the order with the supplier.') };
+    if (accepted && r.status === 'closed') return { title: tx('في انتظار تأكيد المورد', 'Waiting for supplier confirmation', '等待供应商确认'), body: tx('سيؤكد المورد جاهزية التجهيز ثم يفتح لك خيار الدفع.', 'The supplier will confirm readiness, then payment will unlock.', '供应商确认就绪后，即可开始付款。') };
     if (r.status === 'ready_to_ship' && r.payment_second > 0) return { title: tx('الخطوة التالية: ادفع الدفعة الثانية', 'Next step: pay the second installment'), body: tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed shipment readiness.'), onPress: () => navigation.navigate('Payment', { amount: Number(r.payment_second) * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: Number(r.payment_second) }) };
     if (r.status === 'shipping') return { title: tx('الخطوة التالية: تابع التتبع ثم أكد وصول الشحنة', 'Next step: follow tracking, then confirm arrival'), body: tx('بمجرد الوصول يمكنك تأكيد الاستلام.', 'Once arrived, confirm final delivery.') };
     if (r.status === 'arrived') return { title: tx('الخطوة التالية: أكد الاستلام لإغلاق الصفقة', 'Next step: confirm delivery to close the deal'), body: tx('إذا استلمت البضاعة كما هو متفق عليه، أكد الاستلام.', 'If goods arrived as agreed, confirm delivery.') };
@@ -902,7 +907,28 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
             </TouchableOpacity>
           );
         }
-        if ((r.status === 'closed' || r.status === 'supplier_confirmed') && accepted) {
+        if (r.status === 'closed' && accepted) {
+          // Web-exact: after accept the request is `closed`. Buyer waits for the
+          // supplier to move it to `supplier_confirmed`. No Pay button yet.
+          return (
+            <View style={{ gap: 8 }}>
+              <View style={s.waitingNote}>
+                <Text style={s.waitingNoteText}>{tx('في انتظار تأكيد المورد', 'Waiting for supplier confirmation', '等待供应商确认')}</Text>
+              </View>
+              <TouchableOpacity
+                style={s.chatBtn}
+                onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: accepted.supplier_id } })}
+                activeOpacity={0.85}
+              >
+                <Text style={s.chatBtnText}>{tx('تواصل مع المورد', 'Chat with Supplier', '联系供应商')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(r)} activeOpacity={0.85}>
+                <Text style={s.cancelBtnText}>{tx('إلغاء الطلب', 'Cancel Request', '取消订单')}</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        if (r.status === 'supplier_confirmed' && accepted) {
           const subtotal  = (accepted.price || 0) * (Number(r.quantity) || 1);
           const shipping  = parseFloat(accepted.shipping_cost) || 0;
           const total     = subtotal + shipping;
@@ -918,7 +944,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
                 <Text style={s.payBtnText}>{tx(`ادفع الدفعة الأولى — ${firstAmt.toFixed(0)} ${accepted.currency || 'USD'}`, `Pay 1st Installment — ${firstAmt.toFixed(0)} ${accepted.currency || 'USD'}`)}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.cancelBtn} onPress={() => onCancel(r)} activeOpacity={0.85}>
-                <Text style={s.cancelBtnText}>{tx('إلغاء الطلب', 'Cancel Request')}</Text>
+                <Text style={s.cancelBtnText}>{tx('إلغاء الطلب', 'Cancel Request', '取消订单')}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -1108,6 +1134,9 @@ const s = StyleSheet.create({
   reportBtnText: { color: C.textSecondary, fontFamily: F.ar, fontSize: 13 },
   chatBtn:     { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault, marginBottom: 8 },
   chatBtnText: { color: C.textPrimary, fontFamily: F.arSemi, fontSize: 13 },
+
+  waitingNote:     { backgroundColor: C.bgOverlay, borderRadius: 12, borderWidth: 1, borderColor: C.borderSubtle, paddingVertical: 10, paddingHorizontal: 12 },
+  waitingNoteText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 12, textAlign: 'center' },
 
   offersBtn: { backgroundColor: C.bgHover, borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: C.borderDefault, marginTop: 4 },
   offersBtnText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 13 },

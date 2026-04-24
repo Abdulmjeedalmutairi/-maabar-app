@@ -135,13 +135,18 @@ export default function OffersScreen({ route, navigation }) {
   }
 
   function handleAccept(offer) {
+    const tl = (ar, en, zh) => (lang === 'ar' ? ar : lang === 'zh' ? (zh || en) : en);
     Alert.alert(
-      isAr ? 'قبول العرض' : 'Accept Offer',
-      isAr ? 'هل أنت متأكد من قبول هذا العرض؟' : 'Are you sure you want to accept this offer?',
+      tl('قبول العرض', 'Accept Offer', '接受报价'),
+      tl(
+        'هل أنت متأكد من قبول هذا العرض؟',
+        'Are you sure you want to accept this offer?',
+        '您确定要接受该报价吗？',
+      ),
       [
-        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: tl('إلغاء', 'Cancel', '取消'), style: 'cancel' },
         {
-          text: isAr ? 'متابعة للدفع' : 'Continue to Payment',
+          text: tl('قبول', 'Accept', '接受'),
           onPress: async () => {
             try {
               const reqTitle = title || '';
@@ -216,21 +221,20 @@ export default function OffersScreen({ route, navigation }) {
               console.error('[OffersScreen] handleAccept cascade error:', e);
             }
 
-            // Navigate to payment — cascade already committed to DB above
-            const qty = Number(quantity) || 1;
-            const pct = routePaymentPct || 30;
-            const unitTotal = (parseFloat(offer.price) || 0) * qty;
-            const shippingTotal = parseFloat(offer.shipping_cost) || 0;
-            const total = unitTotal + shippingTotal;
-            const firstInstalment = total * pct / 100;
-            navigation.navigate('Payment', {
-              amount: firstInstalment * USD_TO_SAR,
-              type: 'checkout',
-              requestId,
-              supplierId: offer.supplier_id,
-              offerPriceUsd: total,
-              paymentPct: pct,
-            });
+            // Match the web flow: request is now `closed`, buyer waits for the
+            // supplier to confirm readiness. Payment is unlocked later by the
+            // request card, not from here.
+            Alert.alert(
+              tl('تم قبول العرض', 'Offer Accepted', '报价已接受'),
+              tl(
+                'في انتظار تأكيد المورد. سيفتح خيار الدفع بعد التأكيد.',
+                'Waiting for supplier confirmation. Payment will unlock once the supplier confirms.',
+                '等待供应商确认。供应商确认后将可付款。',
+              ),
+              [
+                { text: 'OK', onPress: () => navigation.goBack() },
+              ],
+            );
           },
         },
       ]
