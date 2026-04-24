@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { setupManagedRequest } from '../../lib/managedBrief';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
@@ -340,9 +341,29 @@ export default function RequestsScreen({ navigation, route }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSubmitting(false); return; }
     const isManaged = sourcingMode === 'managed';
-    const { data: inserted, error } = await supabase.from('requests').insert({ buyer_id: user.id, title_ar: title, title_en: title, title_zh: title, description: form.description.trim(), quantity: parseInt(qty, 10), category: form.category || 'other', budget_per_unit: form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null, payment_plan: parseInt(form.paymentPlan, 10), sample_requirement: form.sampleReq, status: 'open', sourcing_mode: isManaged ? 'managed' : 'direct', managed_status: isManaged ? 'submitted' : null }).select('id').single();
+    const payload = {
+      buyer_id: user.id,
+      title_ar: title, title_en: title, title_zh: title,
+      description: form.description.trim(),
+      quantity: parseInt(qty, 10),
+      category: form.category || 'other',
+      budget_per_unit: form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null,
+      payment_plan: parseInt(form.paymentPlan, 10),
+      sample_requirement: form.sampleReq,
+      status: 'open',
+      sourcing_mode: isManaged ? 'managed' : 'direct',
+      managed_status: isManaged ? 'submitted' : null,
+    };
+    const { data: inserted, error } = await supabase.from('requests').insert(payload).select('id').single();
+    if (error) { setSubmitting(false); setFormError(tx('حدث خطأ، حاول مرة أخرى.', 'An error occurred, please try again.')); return; }
+
+    // For managed requests: generate AI brief + advance to admin_review so the
+    // admin concierge queue surfaces an AI summary.
+    if (isManaged && inserted?.id) {
+      await setupManagedRequest({ requestId: inserted.id, buyerId: user.id, requestPayload: payload, lang: getLang() });
+    }
+
     setSubmitting(false);
-    if (error) { setFormError(tx('حدث خطأ، حاول مرة أخرى.', 'An error occurred, please try again.')); return; }
     closeNew(); load();
     if (isManaged && inserted?.id) navigation.navigate('ManagedRequest', { requestId: inserted.id, title });
   }

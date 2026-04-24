@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { getLang } from '../../lib/lang';
+import { setupManagedRequest } from '../../lib/managedBrief';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
@@ -87,7 +89,7 @@ export default function NewRequestScreen({ navigation, route }) {
   async function doInsert(userId) {
     setSubmitting(true);
     setFormError('');
-    const { error } = await supabase.from('requests').insert({
+    const payload = {
       buyer_id:           userId,
       title_ar:           form.titleAr.trim(),
       title_en:           form.titleAr.trim(),
@@ -101,9 +103,17 @@ export default function NewRequestScreen({ navigation, route }) {
       status:             'open',
       sourcing_mode:      isManaged ? 'managed' : 'direct',
       managed_status:     isManaged ? 'submitted' : null,
-    });
+    };
+    const { data: inserted, error } = await supabase.from('requests').insert(payload).select('id').single();
+    if (error) { setSubmitting(false); setFormError('حدث خطأ، حاول مرة أخرى.'); return; }
+
+    // For managed requests: generate the AI brief and advance to admin_review
+    // so the admin concierge queue has an AI summary to work with.
+    if (isManaged && inserted?.id) {
+      await setupManagedRequest({ requestId: inserted.id, buyerId: userId, requestPayload: payload, lang: getLang() });
+    }
+
     setSubmitting(false);
-    if (error) { setFormError('حدث خطأ، حاول مرة أخرى.'); return; }
     // RootNavigator will detect auth state and switch to BuyerTabs automatically.
     // If already in BuyerTabs (logged-in user reached this screen), navigate back.
     try { navigation.navigate('Requests'); } catch {}

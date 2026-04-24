@@ -39,7 +39,7 @@ const COPY = {
     errorGeneric: 'حدث خطأ، حاول مرة أخرى',
     privacy: 'يراه فريق معبر فقط — سعرك يبقى سرياً حتى إدراجك في القائمة القصيرة',
     urgent: 'عاجل',
-    statuses: { new: 'جديد', viewed: 'تمت المشاهدة', quoted: 'تم التقديم', under_review: 'قيد المراجعة', declined: 'مرفوض' },
+    statuses: { new: 'جديد', viewed: 'تمت المشاهدة', quoted: 'تم التقديم', under_review: 'قيد المراجعة', declined: 'مرفوض', shortlisted: 'في القائمة المختصرة', selected_by_buyer: 'اختاره التاجر', dismissed: 'تم استبعاده', closed: 'مُغلق' },
     details: 'تفاصيل',
     detailsTitle: 'تفاصيل الطلب',
     fullDescription: 'الوصف الكامل',
@@ -76,7 +76,7 @@ const COPY = {
     errorGeneric: 'Something went wrong, please try again',
     privacy: 'Only the Maabar team sees this — your price stays private until you are shortlisted',
     urgent: 'URGENT',
-    statuses: { new: 'New', viewed: 'Viewed', quoted: 'Submitted', under_review: 'Under review', declined: 'Declined' },
+    statuses: { new: 'New', viewed: 'Viewed', quoted: 'Submitted', under_review: 'Under review', declined: 'Declined', shortlisted: 'Shortlisted', selected_by_buyer: 'Buyer chose you', dismissed: 'Dismissed', closed: 'Closed' },
     details: 'Details',
     detailsTitle: 'Request Details',
     fullDescription: 'Full Description',
@@ -113,7 +113,7 @@ const COPY = {
     errorGeneric: '出现错误，请重试',
     privacy: '仅 Maabar 团队可见 — 在您被列入候选名单前，您的报价保密',
     urgent: '紧急',
-    statuses: { new: '新', viewed: '已查看', quoted: '已提交', under_review: '审核中', declined: '已拒绝' },
+    statuses: { new: '新', viewed: '已查看', quoted: '已提交', under_review: '审核中', declined: '已拒绝', shortlisted: '入围候选', selected_by_buyer: '买家已选择您', dismissed: '已排除', closed: '已关闭' },
     details: '详情',
     detailsTitle: '需求详情',
     fullDescription: '完整描述',
@@ -191,6 +191,19 @@ export default function SupplierManagedMatchesScreen() {
     })));
     setLoading(false);
     setRefreshing(false);
+
+    // Track "viewed" — mark any 'new' matches as seen so the admin gets signal.
+    // Fire-and-forget; we don't want a slow update blocking UI.
+    const unseenIds = (data || []).filter(m => m.status === 'new').map(m => m.id);
+    if (unseenIds.length > 0) {
+      supabase
+        .from('managed_supplier_matches')
+        .update({ status: 'viewed', viewed_at: new Date().toISOString() })
+        .in('id', unseenIds)
+        .then(({ error }) => {
+          if (error) console.error('[SupplierManagedMatches] mark-viewed error:', error);
+        });
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -298,6 +311,23 @@ export default function SupplierManagedMatchesScreen() {
       supplier_response: 'quoted',
       supplier_responded_at: new Date().toISOString(),
     }).eq('id', match.id);
+
+    // Notify every admin so someone can review the managed offer.
+    try {
+      const { data: admins } = await supabase
+        .from('profiles').select('id').in('role', ['admin', 'super_admin']);
+      if (admins?.length) {
+        await supabase.from('notifications').insert(admins.map((a) => ({
+          user_id: a.id,
+          type: 'managed_offer_received',
+          title_ar: 'وصل عرض مُدار جديد للمراجعة',
+          title_en: 'A new managed offer is ready for review',
+          title_zh: '收到新的托管报价待审核',
+          ref_id: match.request_id,
+          is_read: false,
+        })));
+      }
+    } catch (e) { console.error('[SupplierManagedMatches] notify-admin error:', e); }
 
     setSubmitting(false);
     setSelectedMatch(null);

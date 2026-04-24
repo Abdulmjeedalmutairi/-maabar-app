@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
+import { setupManagedRequest } from '../../lib/managedBrief';
 
 /* ─── AI ──────────────────────────────────── */
 const SUPABASE_URL = 'https://utzalmszfqfcofywfetv.supabase.co';
@@ -199,29 +200,40 @@ export default function IdeaToProductScreen({ navigation }) {
   const doInsert = async (userId) => {
     setSubmitting(true);
     setFormError('');
-    const { error } = await supabase.from('requests').insert({
-      buyer_id:           userId,
-      title_ar:           draft.titleAr,
-      title_en:           draft.titleAr,
-      title_zh:           draft.titleAr,
-      quantity:           String(draft.quantity),
-      description:        draft.description || '',
-      category:           draft.category || 'other',
-      status:             'open',
-      budget_per_unit:    draft.budgetPerUnit ? parseFloat(draft.budgetPerUnit) : null,
-      payment_plan:       draft.paymentPlan ? parseInt(draft.paymentPlan, 10) : null,
-      sample_requirement: draft.sampleReq || null,
-      sourcing_mode:      'idea',
-    });
+    // Idea flow is a managed flow in disguise: a buyer-authored brief that
+    // Maabar's admin team curates before any supplier sees it. Insert with
+    // sourcing_mode='managed' so the admin concierge queue picks it up, and
+    // tag the buyer's last-action so admin knows it came from the assistant.
+    const payload = {
+      buyer_id:                  userId,
+      title_ar:                  draft.titleAr,
+      title_en:                  draft.titleAr,
+      title_zh:                  draft.titleAr,
+      quantity:                  String(draft.quantity),
+      description:               draft.description || '',
+      category:                  draft.category || 'other',
+      status:                    'open',
+      budget_per_unit:           draft.budgetPerUnit ? parseFloat(draft.budgetPerUnit) : null,
+      payment_plan:              draft.paymentPlan ? parseInt(draft.paymentPlan, 10) : null,
+      sample_requirement:        draft.sampleReq || null,
+      sourcing_mode:             'managed',
+      managed_status:            'submitted',
+      managed_last_buyer_action: 'idea_to_product',
+    };
+    const { data: inserted, error } = await supabase.from('requests').insert(payload).select('id').single();
     if (error) {
       setSubmitting(false);
       setFormError('حدث خطأ، حاول مرة أخرى.');
       return;
     }
-    // Keep submitting=true so the button stays disabled until navigation fires
+
+    if (inserted?.id) {
+      await setupManagedRequest({ requestId: inserted.id, buyerId: userId, requestPayload: payload, lang: 'ar' });
+    }
+
     Alert.alert(
       'تم الإرسال بنجاح ✓',
-      'تم إرسال فكرتك للموردين المختصين. سيتواصلون معك قريباً.',
+      'فريق معبر استلم فكرتك ويحضّر لك أفضل الموردين. ستُبلَّغ فور جاهزية القائمة المختصرة.',
       [{ text: 'حسناً', onPress: () => navigation.goBack() }]
     );
   };

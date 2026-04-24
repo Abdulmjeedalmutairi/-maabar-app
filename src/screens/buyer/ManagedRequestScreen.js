@@ -205,7 +205,6 @@ export default function ManagedRequestScreen({ route, navigation }) {
         shipping_method:    shippingMethodText,
         moq:                shortlistOffer.moq,
         delivery_days:      shortlistOffer.production_time_days,
-        origin:             'China',
         note:               shortlistOffer.selection_reason || shortlistOffer.maabar_notes || null,
         status:             'accepted',
         managed_match_id:   matchRow?.id || null,
@@ -275,30 +274,43 @@ export default function ManagedRequestScreen({ route, navigation }) {
                 return;
               }
 
+              // Managed accept lands on `closed` so the supplier still
+              // confirms readiness before payment — same waiting state the
+              // direct-offer accept flow uses.
               await supabase
                 .from('requests')
                 .update({
                   managed_status: 'buyer_selected',
                   managed_last_buyer_action: 'choose_offer',
-                  status: 'supplier_confirmed',
+                  status: 'closed',
                 })
                 .eq('id', request.id);
 
-              const qty       = Number(request.quantity) || 1;
-              const price     = Number(realOffer.price) || 0;
-              const shipping  = parseFloat(realOffer.shipping_cost) || 0;
-              const totalUsd  = price * qty + shipping;
-              const pct       = request.payment_pct > 0 ? request.payment_pct : 30;
-              const firstAmt  = totalUsd * pct / 100;
+              // Notify the chosen supplier so they can confirm readiness.
+              if (realOffer.supplier_id) {
+                try {
+                  await supabase.from('notifications').insert({
+                    user_id: realOffer.supplier_id,
+                    type: 'managed_offer_accepted',
+                    title_ar: 'تم قبول عرضك المُدار — أكّد جاهزيتك',
+                    title_en: 'Your managed offer was accepted — confirm readiness',
+                    title_zh: '您的托管报价已被接受 — 请确认就绪',
+                    ref_id: request.id,
+                    is_read: false,
+                  });
+                } catch (e) { console.error('[ManagedRequest] notify supplier error:', e); }
+              }
 
-              navigation.navigate('Payment', {
-                amount: firstAmt * 3.75,
-                type: 'checkout',
-                requestId: request.id,
-                supplierId: realOffer.supplier_id,
-                offerPriceUsd: totalUsd,
-                paymentPct: pct,
-              });
+              await load();
+              Alert.alert(
+                tx('تم قبول العرض', 'Offer Accepted', '报价已接受'),
+                tx(
+                  'في انتظار تأكيد المورد. سيفتح خيار الدفع بعد التأكيد.',
+                  'Waiting for the supplier to confirm readiness. Payment will unlock once confirmed.',
+                  '等待供应商确认就绪。确认后将可付款。',
+                ),
+                [{ text: 'OK', onPress: () => navigation.goBack() }],
+              );
             } finally {
               setBusy(false);
             }
