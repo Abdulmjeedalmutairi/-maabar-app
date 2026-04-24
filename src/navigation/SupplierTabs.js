@@ -29,11 +29,14 @@ const Stack = createNativeStackNavigator();
 const STACK_OPTS = { headerShown: false };
 
 // ── Tab labels in all 3 languages ──────────────────────────────────────────
+// Tab-bar labels are intentionally terse so all 7 fit / scroll cleanly. The
+// per-screen headers in each screen carry the fuller copy (e.g. SupplierManaged
+// shows "الطلبات المطابقة" at the top of the screen itself).
 const TAB_LABELS = {
   ar: {
     SHome: 'الرئيسية',
     SRequests: 'الطلبات',
-    SManaged: 'الطلبات المطابقة',
+    SManaged: 'المطابقة',
     SProducts: 'منتجاتي',
     SOffers: 'عروضي',
     SInbox: 'رسائل',
@@ -42,7 +45,7 @@ const TAB_LABELS = {
   en: {
     SHome: 'Home',
     SRequests: 'Requests',
-    SManaged: 'Matched Requests',
+    SManaged: 'Matched',
     SProducts: 'Products',
     SOffers: 'My Offers',
     SInbox: 'Inbox',
@@ -51,7 +54,7 @@ const TAB_LABELS = {
   zh: {
     SHome: '首页',
     SRequests: '询盘',
-    SManaged: '匹配需求',
+    SManaged: '匹配',
     SProducts: '产品',
     SOffers: '我的报价',
     SInbox: '消息',
@@ -98,7 +101,7 @@ function SupplierTabBar({ state, descriptors, navigation }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={tb.scrollContent}
-        bounces={false}
+        bounces
       >
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
@@ -146,11 +149,11 @@ const tb = StyleSheet.create({
     alignItems: 'center',
   },
   tab: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     alignItems: 'center',
     position: 'relative',
-    minWidth: 60,
+    minWidth: 56,
   },
   label: {
     fontSize: 12,
