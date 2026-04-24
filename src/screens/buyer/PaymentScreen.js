@@ -222,6 +222,19 @@ export default function PaymentScreen({ navigation, route }) {
         resolvedSupplierId = ao?.supplier_id || null;
       }
 
+      // ── 2b. Notify the supplier when the buyer pays the 2nd installment ──
+      if (type === 'second_installment' && resolvedSupplierId && resolvedRequestId) {
+        await supabase.from('notifications').insert({
+          user_id: resolvedSupplierId,
+          type: 'second_payment_received',
+          title_ar: 'تمت الدفعة الثانية — قم بالشحن وأضف رقم التتبع',
+          title_en: 'Second installment paid — please ship and add the tracking number',
+          title_zh: '尾款已付款 — 请发货并添加追踪号',
+          ref_id: resolvedRequestId,
+          is_read: false,
+        });
+      }
+
       // ── 3. Insert payments row ──────────────────────────────────────
       if (user && moyasarId) {
         const totalUsd = offerPriceUsd != null ? offerPriceUsd : amount / 3.75;

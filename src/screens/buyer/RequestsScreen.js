@@ -696,7 +696,8 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
     }
     if (accepted && r.status === 'supplier_confirmed') return { title: tx('المورد جاهز للشحن — ادفع الآن', 'Supplier confirmed ready — pay now'), body: tx('أكمل الدفعة الأولى لبدء التجهيز.', 'Complete the 1st installment to start production.') };
     if (accepted && r.status === 'closed') return { title: tx('في انتظار تأكيد المورد', 'Waiting for supplier confirmation', '等待供应商确认'), body: tx('سيؤكد المورد جاهزية التجهيز ثم يفتح لك خيار الدفع.', 'The supplier will confirm readiness, then payment will unlock.', '供应商确认就绪后，即可开始付款。') };
-    if (r.status === 'ready_to_ship' && r.payment_second > 0) return { title: tx('الخطوة التالية: ادفع الدفعة الثانية', 'Next step: pay the second installment'), body: tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed shipment readiness.'), onPress: () => navigation.navigate('Payment', { amount: Number(r.payment_second) * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: Number(r.payment_second) }) };
+    if (accepted && r.status === 'paid') return { title: tx('في انتظار الإنتاج', 'Awaiting production', '等待生产'), body: tx('المورد يجهّز شحنتك — ستصلك إشعار عندما تكون جاهزة.', 'The supplier is preparing your shipment — you\'ll be notified when it\'s ready.', '供应商正在准备您的货物 — 准备就绪后将通知您。') };
+    if (r.status === 'ready_to_ship' && r.payment_second > 0) return { title: tx('شحنتك جاهزة — ادفع الدفعة الثانية', 'Your shipment is ready — pay the 2nd installment', '您的货物已准备就绪 — 请支付尾款'), body: tx('المورد أكد جاهزية الشحنة.', 'The supplier confirmed the shipment is ready.', '供应商已确认货物准备就绪。'), onPress: () => navigation.navigate('Payment', { amount: Number(r.payment_second) * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: Number(r.payment_second) }) };
     if (r.status === 'shipping') return { title: tx('الخطوة التالية: تابع التتبع ثم أكد وصول الشحنة', 'Next step: follow tracking, then confirm arrival'), body: tx('بمجرد الوصول يمكنك تأكيد الاستلام.', 'Once arrived, confirm final delivery.') };
     if (r.status === 'arrived') return { title: tx('الخطوة التالية: أكد الاستلام لإغلاق الصفقة', 'Next step: confirm delivery to close the deal'), body: tx('إذا استلمت البضاعة كما هو متفق عليه، أكد الاستلام.', 'If goods arrived as agreed, confirm delivery.') };
     if (pending.length > 0) { const n = pending.length; return { title: tx(`الخطوة التالية: قارن ${n} عرض${n > 1 ? 'اً' : ''} واختر الأنسب`, `Next step: compare ${n} offer${n > 1 ? 's' : ''} and pick the best fit`), body: tx('راجع الإجمالي ومدة التجهيز قبل قبول العرض.', 'Review total cost and lead time before accepting an offer.') }; }
@@ -949,16 +950,32 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
             </View>
           );
         }
+        if (r.status === 'paid' && accepted) {
+          // Supplier has been paid the first installment and is now producing.
+          // No action is available to the buyer until the supplier flips the
+          // request to ready_to_ship.
+          return (
+            <View style={s.waitingNote}>
+              <Text style={s.waitingNoteText}>{tx('في انتظار الإنتاج — المورد يجهّز شحنتك', 'Awaiting production — supplier is preparing your shipment', '等待生产 — 供应商正在准备您的货物')}</Text>
+            </View>
+          );
+        }
         if (r.status === 'ready_to_ship') {
           const secondAmt = r.payment_second > 0 ? r.payment_second : 0;
+          const currency = accepted?.currency || 'USD';
           return (
-            <TouchableOpacity
-              style={s.payBtn}
-              onPress={() => navigation.navigate('Payment', { amount: secondAmt * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: secondAmt })}
-              activeOpacity={0.85}
-            >
-              <Text style={s.payBtnText}>{tx(`ادفع الدفعة الثانية${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`, `Pay 2nd Installment${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)}` : ''}`)}</Text>
-            </TouchableOpacity>
+            <View style={{ gap: 8 }}>
+              <View style={s.waitingNote}>
+                <Text style={s.waitingNoteText}>{tx('شحنتك جاهزة — ادفع الدفعة الثانية', 'Your shipment is ready — pay the 2nd installment', '您的货物已准备就绪 — 请支付尾款')}</Text>
+              </View>
+              <TouchableOpacity
+                style={s.payBtn}
+                onPress={() => navigation.navigate('Payment', { amount: secondAmt * 3.75, type: 'second_installment', requestId: r.id, supplierId: accepted?.supplier_id, offerPriceUsd: secondAmt })}
+                activeOpacity={0.85}
+              >
+                <Text style={s.payBtnText}>{tx(`ادفع الدفعة الثانية${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)} ${currency}` : ''}`, `Pay 2nd Installment${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)} ${currency}` : ''}`, `支付尾款${secondAmt > 0 ? ` — ${secondAmt.toFixed(0)} ${currency}` : ''}`)}</Text>
+              </TouchableOpacity>
+            </View>
           );
         }
         if (r.status === 'shipping') {

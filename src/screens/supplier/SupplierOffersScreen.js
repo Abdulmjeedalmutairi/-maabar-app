@@ -37,6 +37,9 @@ const COPY = {
     notifiedReady: 'تم إبلاغ التاجر',
     awaitingPayment: 'في انتظار دفع التاجر',
     contactTrader: 'تواصل مع التاجر',
+    markReadyToShip: 'جاهز للشحن',
+    readyToShipSent: 'تم إبلاغ التاجر بجاهزية الشحنة',
+    awaitingSecondPayment: 'في انتظار دفعة التاجر الثانية',
   },
   en: {
     title: 'My Offers',
@@ -64,6 +67,9 @@ const COPY = {
     notifiedReady: 'Buyer notified',
     awaitingPayment: 'Awaiting buyer payment',
     contactTrader: 'Contact Trader',
+    markReadyToShip: 'Ready to ship',
+    readyToShipSent: 'Buyer notified that the shipment is ready',
+    awaitingSecondPayment: 'Awaiting buyer\'s second installment',
   },
   zh: {
     title: '我的报价',
@@ -91,6 +97,9 @@ const COPY = {
     notifiedReady: '已通知买家',
     awaitingPayment: '等待买家付款',
     contactTrader: '联系买家',
+    markReadyToShip: '准备好装运',
+    readyToShipSent: '已通知买家货物准备就绪',
+    awaitingSecondPayment: '等待买家支付尾款',
   },
 };
 
@@ -252,12 +261,17 @@ export default function SupplierOffersScreen({ navigation }) {
 
     const buyerId = trackingOffer?.requests?.buyer_id;
     const requestId = trackingOffer?.request_id;
+    const deliveryDays = parseInt(trackingOffer?.delivery_days, 10);
+    const estimatedDelivery = Number.isFinite(deliveryDays) && deliveryDays > 0
+      ? new Date(Date.now() + (deliveryDays * 24 * 60 * 60 * 1000)).toISOString()
+      : null;
 
-    // Exact web submitTracking() query
+    // The request is already in `shipping` (the buyer's 2nd-installment payment
+    // transitioned it there). Here we only attach the tracking number and the
+    // optional ETA — no status changes.
     await supabase.from('requests').update({
       tracking_number: num,
-      status: 'shipping',
-      shipping_status: 'shipping',
+      ...(estimatedDelivery ? { estimated_delivery: estimatedDelivery } : {}),
     }).eq('id', requestId);
 
     if (buyerId) {
@@ -313,6 +327,39 @@ export default function SupplierOffersScreen({ navigation }) {
     Alert.alert('✓', t.notifiedReady);
   }
 
+  // Stage paid → ready_to_ship. Supplier signals the shipment is produced and
+  // ready; buyer's card flips to the "pay second installment" state.
+  async function markReadyToShip(o) {
+    const buyerId = o.requests?.buyer_id;
+    const requestId = o.request_id;
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ status: 'ready_to_ship' })
+      .eq('id', requestId);
+
+    if (error) {
+      console.error('[SupplierOffers] markReadyToShip error:', error);
+      Alert.alert('', t.errorGeneric);
+      return;
+    }
+
+    if (buyerId) {
+      await supabase.from('notifications').insert({
+        user_id: buyerId,
+        type: 'ready_to_ship',
+        title_ar: 'شحنتك جاهزة — ادفع الدفعة الثانية',
+        title_en: 'Your shipment is ready — pay the 2nd installment',
+        title_zh: '您的货物已准备就绪 — 请支付尾款',
+        ref_id: requestId,
+        is_read: false,
+      });
+    }
+
+    load();
+    Alert.alert('✓', t.readyToShipSent);
+  }
+
   function openChat(buyerId) {
     if (!buyerId) return;
     navigation.navigate('SInbox', { screen: 'Chat', params: { partnerId: buyerId } });
@@ -337,15 +384,20 @@ export default function SupplierOffersScreen({ navigation }) {
   const canDelete = (o) => o.status === 'pending';
   const canCancel = (o) => ['pending', 'accepted'].includes(o.status) &&
     !['paid', 'ready_to_ship', 'shipping', 'arrived', 'delivered'].includes(o.requests?.status || '');
-  // Web-exact: tracking input only appears after the buyer pays the first
-  // installment. Before that (closed / supplier_confirmed) the supplier sees
-  // notify-ready / awaiting-payment instead.
-  const canAddTracking = (o) => o.status === 'accepted' &&
-    ['paid', 'ready_to_ship'].includes(o.requests?.status || '');
+  // Staged ladder — each UI only appears in its own request.status:
+  //   closed             → Ready — notify buyer
+  //   supplier_confirmed → Awaiting buyer payment (note)
+  //   paid               → Ready to ship
+  //   ready_to_ship      → Awaiting second payment (note)
+  //   shipping           → Add Tracking Number (only once, before tracking is set)
   const canNotifyReady = (o) => o.status === 'accepted' && o.requests?.status === 'closed';
   const isAwaitingPayment = (o) => o.status === 'accepted' && o.requests?.status === 'supplier_confirmed';
+  const canMarkReadyToShip = (o) => o.status === 'accepted' && o.requests?.status === 'paid';
+  const isAwaitingSecondPayment = (o) => o.status === 'accepted' && o.requests?.status === 'ready_to_ship';
+  const canAddTracking = (o) => o.status === 'accepted' &&
+    o.requests?.status === 'shipping' && !o.requests?.tracking_number;
   const canContactTrader = (o) => o.status === 'accepted' && !!o.requests?.buyer_id &&
-    ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship'].includes(o.requests?.status || '');
+    ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship', 'shipping'].includes(o.requests?.status || '');
 
   const fmtDate = (d) => {
     if (!d) return '';
@@ -436,6 +488,12 @@ export default function SupplierOffersScreen({ navigation }) {
                 </View>
               )}
 
+              {isAwaitingSecondPayment(o) && (
+                <View style={s.awaitingNote}>
+                  <Text style={[s.awaitingNoteText, isAr && s.rtl]}>{t.awaitingSecondPayment}</Text>
+                </View>
+              )}
+
               <View style={[s.actionsRow, isAr && s.rowRtl]}>
                 {canEdit(o) && (
                   <TouchableOpacity style={s.actionBtn} onPress={() => openEdit(o)} activeOpacity={0.85}>
@@ -449,6 +507,15 @@ export default function SupplierOffersScreen({ navigation }) {
                     activeOpacity={0.85}
                   >
                     <Text style={s.actionBtnPrimaryText}>{t.notifyReady}</Text>
+                  </TouchableOpacity>
+                )}
+                {canMarkReadyToShip(o) && (
+                  <TouchableOpacity
+                    style={[s.actionBtn, s.actionBtnPrimary]}
+                    onPress={() => markReadyToShip(o)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.actionBtnPrimaryText}>{t.markReadyToShip}</Text>
                   </TouchableOpacity>
                 )}
                 {canAddTracking(o) && (
