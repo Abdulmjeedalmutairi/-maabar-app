@@ -33,6 +33,10 @@ const COPY = {
     trackingSent: 'تم إرسال رقم التتبع',
     confirm: 'تأكيد', cancelBtn: 'إلغاء',
     rejectionReason: 'سبب الرفض',
+    notifyReady: 'جاهز — أبلغ التاجر',
+    notifiedReady: 'تم إبلاغ التاجر',
+    awaitingPayment: 'في انتظار دفع التاجر',
+    contactTrader: 'تواصل مع التاجر',
   },
   en: {
     title: 'My Offers',
@@ -56,6 +60,10 @@ const COPY = {
     trackingSent: 'Tracking number sent',
     confirm: 'Confirm', cancelBtn: 'Cancel',
     rejectionReason: 'Rejection reason',
+    notifyReady: 'Ready — notify buyer',
+    notifiedReady: 'Buyer notified',
+    awaitingPayment: 'Awaiting buyer payment',
+    contactTrader: 'Contact Trader',
   },
   zh: {
     title: '我的报价',
@@ -79,6 +87,10 @@ const COPY = {
     trackingSent: '物流单号已发送',
     confirm: '确认', cancelBtn: '取消',
     rejectionReason: '拒绝原因',
+    notifyReady: '准备好了，通知买家',
+    notifiedReady: '已通知买家',
+    awaitingPayment: '等待买家付款',
+    contactTrader: '联系买家',
   },
 };
 
@@ -267,6 +279,45 @@ export default function SupplierOffersScreen({ navigation }) {
     Alert.alert('✓', t.trackingSent);
   }
 
+  // Exact web DashboardSupplier flow: supplier confirms readiness → request
+  // transitions from 'closed' to 'supplier_confirmed' and the buyer gets an
+  // in-app notification that payment is now unlocked.
+  async function notifyReady(o) {
+    const buyerId = o.requests?.buyer_id;
+    const requestId = o.request_id;
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ status: 'supplier_confirmed' })
+      .eq('id', requestId);
+
+    if (error) {
+      console.error('[SupplierOffers] notifyReady error:', error);
+      Alert.alert('', t.errorGeneric);
+      return;
+    }
+
+    if (buyerId) {
+      await supabase.from('notifications').insert({
+        user_id: buyerId,
+        type: 'supplier_confirmed',
+        title_ar: 'المورد جاهز — يمكنك الآن إتمام الدفع',
+        title_en: 'Supplier is ready — you can now complete payment',
+        title_zh: '供应商已准备好 — 您现在可以付款',
+        ref_id: requestId,
+        is_read: false,
+      });
+    }
+
+    load();
+    Alert.alert('✓', t.notifiedReady);
+  }
+
+  function openChat(buyerId) {
+    if (!buyerId) return;
+    navigation.navigate('SInbox', { screen: 'Chat', params: { partnerId: buyerId } });
+  }
+
   const getTitle = (o) => {
     const r = o.requests;
     if (!r) return '—';
@@ -286,8 +337,15 @@ export default function SupplierOffersScreen({ navigation }) {
   const canDelete = (o) => o.status === 'pending';
   const canCancel = (o) => ['pending', 'accepted'].includes(o.status) &&
     !['paid', 'ready_to_ship', 'shipping', 'arrived', 'delivered'].includes(o.requests?.status || '');
+  // Web-exact: tracking input only appears after the buyer pays the first
+  // installment. Before that (closed / supplier_confirmed) the supplier sees
+  // notify-ready / awaiting-payment instead.
   const canAddTracking = (o) => o.status === 'accepted' &&
-    !['shipping', 'delivered', 'arrived'].includes(o.requests?.shipping_status || '');
+    ['paid', 'ready_to_ship'].includes(o.requests?.status || '');
+  const canNotifyReady = (o) => o.status === 'accepted' && o.requests?.status === 'closed';
+  const isAwaitingPayment = (o) => o.status === 'accepted' && o.requests?.status === 'supplier_confirmed';
+  const canContactTrader = (o) => o.status === 'accepted' && !!o.requests?.buyer_id &&
+    ['closed', 'supplier_confirmed', 'paid', 'ready_to_ship'].includes(o.requests?.status || '');
 
   const fmtDate = (d) => {
     if (!d) return '';
@@ -372,10 +430,25 @@ export default function SupplierOffersScreen({ navigation }) {
                 </View>
               )}
 
+              {isAwaitingPayment(o) && (
+                <View style={s.awaitingNote}>
+                  <Text style={[s.awaitingNoteText, isAr && s.rtl]}>{t.awaitingPayment}</Text>
+                </View>
+              )}
+
               <View style={[s.actionsRow, isAr && s.rowRtl]}>
                 {canEdit(o) && (
                   <TouchableOpacity style={s.actionBtn} onPress={() => openEdit(o)} activeOpacity={0.85}>
                     <Text style={s.actionBtnText}>{t.edit}</Text>
+                  </TouchableOpacity>
+                )}
+                {canNotifyReady(o) && (
+                  <TouchableOpacity
+                    style={[s.actionBtn, s.actionBtnPrimary]}
+                    onPress={() => notifyReady(o)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.actionBtnPrimaryText}>{t.notifyReady}</Text>
                   </TouchableOpacity>
                 )}
                 {canAddTracking(o) && (
@@ -385,6 +458,15 @@ export default function SupplierOffersScreen({ navigation }) {
                     activeOpacity={0.85}
                   >
                     <Text style={s.actionBtnPrimaryText}>{t.addTracking}</Text>
+                  </TouchableOpacity>
+                )}
+                {canContactTrader(o) && (
+                  <TouchableOpacity
+                    style={s.actionBtn}
+                    onPress={() => openChat(o.requests.buyer_id)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.actionBtnText}>{t.contactTrader}</Text>
                   </TouchableOpacity>
                 )}
                 {canCancel(o) && (
@@ -530,6 +612,13 @@ const s = StyleSheet.create({
   },
   rejectionLabel: { color: C.red, fontSize: 10, fontFamily: F.arSemi, marginBottom: 4, letterSpacing: 0.5 },
   rejectionText: { color: C.red, fontSize: 13, fontFamily: F.ar, lineHeight: 18 },
+  awaitingNote: {
+    backgroundColor: C.bgOverlay, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderSubtle,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8,
+  },
+  awaitingNoteText: { color: C.textSecondary, fontFamily: F.arSemi, fontSize: 12, textAlign: 'center' },
+
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,
