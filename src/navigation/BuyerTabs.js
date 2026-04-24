@@ -12,6 +12,7 @@ import DashboardScreen      from '../screens/buyer/DashboardScreen';
 import RequestsScreen       from '../screens/buyer/RequestsScreen';
 import NewRequestScreen     from '../screens/buyer/NewRequestScreen';
 import OffersScreen         from '../screens/buyer/OffersScreen';
+import AllOffersScreen      from '../screens/buyer/AllOffersScreen';
 import InboxScreen          from '../screens/buyer/InboxScreen';
 import ChatScreen           from '../screens/buyer/ChatScreen';
 import AccountScreen        from '../screens/buyer/AccountScreen';
@@ -74,6 +75,7 @@ function RequestsStack() {
       <Stack.Screen name="RequestsList"    component={RequestsScreen} />
       <Stack.Screen name="NewRequestStack" component={NewRequestScreen} />
       <Stack.Screen name="IdeaToProduct"   component={IdeaToProductScreen} />
+      <Stack.Screen name="AllOffers"       component={AllOffersScreen} />
       <Stack.Screen name="Offers"          component={OffersScreen} />
       <Stack.Screen name="Payment"         component={PaymentScreen} />
       <Stack.Screen name="ManagedRequest"  component={ManagedRequestScreen} />
