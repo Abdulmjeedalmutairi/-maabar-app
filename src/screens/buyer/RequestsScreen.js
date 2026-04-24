@@ -137,7 +137,7 @@ export default function RequestsScreen({ navigation, route }) {
       const requestIds = rows.map(r => r.id);
       const { data: offerRows } = await supabase
         .from('offers')
-        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, origin, note, currency, notes, delivery_time, supplier_id')
+        .select('id, status, request_id, price, shipping_cost, shipping_method, moq, note, currency, notes, delivery_time, supplier_id')
         .in('request_id', requestIds);
 
       const rawOffers = offerRows || [];
