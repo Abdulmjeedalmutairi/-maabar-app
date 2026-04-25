@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { supabase, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { supabase, SUPABASE_ANON_KEY, SEND_EMAIL_URL } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
@@ -57,9 +57,11 @@ export default function PaymentScreen({ navigation, route }) {
     requestId,
     offerId,
     sampleId,
-    supplierId,    // offer's supplier_id
+    supplierId,    // offer's supplier_id (or product.supplier_id for direct purchase)
     offerPriceUsd, // total (price+shipping) in USD; absent → amount/3.75
-    paymentPct,    // e.g. 30 for 30/70 split
+    paymentPct,    // e.g. 30 for 30/70 split, 100 for direct purchase
+    isDirect,      // direct purchase flow — passed from BuyerDirectOrdersScreen.payDirectOrder
+    productRef,    // direct purchase — the product UUID, mirrors requests.product_ref
   } = route.params || {};
 
   const [name, setName]       = useState('');
@@ -298,6 +300,89 @@ export default function PaymentScreen({ navigation, route }) {
         if (pd?.id && resolvedRequestId && type !== 'sample') {
           await supabase.from('requests').update({ payment_id: pd.id }).eq('id', resolvedRequestId);
           console.log('[PaymentScreen] requests.payment_id updated:', pd.id);
+        }
+
+        // ── 4. Direct Purchase: full-payment notification + emails ────
+        // Mirrors web src/pages/PaymentSuccess.jsx isDirect branch. Detects
+        // direct purchase via the isDirect route param (passed from
+        // BuyerDirectOrdersScreen.payDirectOrder). RFQ paths are unaffected.
+        if (isDirect && resolvedRequestId && resolvedSupplierId) {
+          // Fetch the request title fields for email context.
+          const titleRes = await supabase
+            .from('requests')
+            .select('title_ar, title_en, title_zh')
+            .eq('id', resolvedRequestId)
+            .maybeSingle();
+          console.log('[PaymentScreen] direct title lookup response:', titleRes);
+          const reqTitle = titleRes.data?.title_ar
+            || titleRes.data?.title_en
+            || titleRes.data?.title_zh
+            || '';
+
+          const lang = getLang();
+          const sarLabel = lang === 'ar' ? 'ر.س' : 'SAR';
+          const amountStr = fmtSAR(amount);
+
+          // Supplier in-app notification — full-payment wording (web Q4 string).
+          const notifRes = await supabase.from('notifications').insert({
+            user_id: resolvedSupplierId,
+            type: 'payment_received',
+            title_ar: `تم استلام الدفع كاملاً — ${amountStr} ر.س. ابدأ التجهيز الآن`,
+            title_en: `Full payment received — ${amountStr} SAR. Start preparation now`,
+            title_zh: `已收到全额付款 — ${amountStr} SAR. 立即开始备货`,
+            ref_id: resolvedRequestId,
+            is_read: false,
+          }).select().single();
+          console.log('[PaymentScreen] direct payment_received notification response:', notifRes);
+
+          // Supplier email — direct_order_paid_supplier (already deployed).
+          // The template hardcodes USD in its body, mirroring the web
+          // payment_received_supplier template — so we pass totalUsd here.
+          try {
+            const r = await fetch(SEND_EMAIL_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+              body: JSON.stringify({
+                type: 'direct_order_paid_supplier',
+                data: {
+                  recipientUserId: resolvedSupplierId,
+                  requestTitle: reqTitle,
+                  amount: totalUsd,
+                  paidAt: new Date().toISOString(),
+                },
+              }),
+            });
+            const body = await r.json().catch(() => null);
+            console.log('[PaymentScreen] direct_order_paid_supplier email response:', { status: r.status, body });
+          } catch (emailError) {
+            console.error('[PaymentScreen] direct_order_paid_supplier email error:', emailError);
+          }
+
+          // Buyer email — direct_order_paid_buyer (already deployed).
+          // The template hardcodes SAR in its body — pass the SAR amount.
+          if (user.email) {
+            try {
+              const r = await fetch(SEND_EMAIL_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+                body: JSON.stringify({
+                  type: 'direct_order_paid_buyer',
+                  to: user.email,
+                  data: {
+                    requestTitle: reqTitle,
+                    amount,
+                    paidAt: new Date().toISOString(),
+                  },
+                }),
+              });
+              const body = await r.json().catch(() => null);
+              console.log('[PaymentScreen] direct_order_paid_buyer email response:', { status: r.status, body });
+            } catch (emailError) {
+              console.error('[PaymentScreen] direct_order_paid_buyer email error:', emailError);
+            }
+          }
+        } else if (isDirect && (!resolvedRequestId || !resolvedSupplierId)) {
+          console.warn('[PaymentScreen] direct purchase post-payment skipped — missing requestId or supplierId', { resolvedRequestId, resolvedSupplierId });
         }
       }
     } catch (e) {
