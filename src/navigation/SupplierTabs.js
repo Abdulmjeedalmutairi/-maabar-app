@@ -20,6 +20,7 @@ import SupplierRequestsScreen from '../screens/supplier/SupplierRequestsScreen';
 import SupplierManagedMatchesScreen from '../screens/supplier/SupplierManagedMatchesScreen';
 import SupplierProductsScreen from '../screens/supplier/SupplierProductsScreen';
 import SupplierOffersScreen from '../screens/supplier/SupplierOffersScreen';
+import SupplierDirectOrdersScreen from '../screens/supplier/SupplierDirectOrdersScreen';
 import SupplierInboxScreen from '../screens/supplier/SupplierInboxScreen';
 import SupplierAccountScreen from '../screens/supplier/SupplierAccountScreen';
 import ChatScreen from '../screens/buyer/ChatScreen';
@@ -37,6 +38,7 @@ const TAB_LABELS = {
     SHome: 'الرئيسية',
     SRequests: 'الطلبات',
     SManaged: 'المطابقة',
+    SDirectOrders: 'مباشر',
     SProducts: 'منتجاتي',
     SOffers: 'عروضي',
     SInbox: 'رسائل',
@@ -46,6 +48,7 @@ const TAB_LABELS = {
     SHome: 'Home',
     SRequests: 'Requests',
     SManaged: 'Matched',
+    SDirectOrders: 'Direct',
     SProducts: 'Products',
     SOffers: 'My Offers',
     SInbox: 'Inbox',
@@ -55,6 +58,7 @@ const TAB_LABELS = {
     SHome: '首页',
     SRequests: '询盘',
     SManaged: '匹配',
+    SDirectOrders: '直接采购',
     SProducts: '产品',
     SOffers: '我的报价',
     SInbox: '消息',
@@ -184,6 +188,7 @@ export default function SupplierTabs() {
       <Tab.Screen name="SHome" component={SupplierHomeStack} />
       <Tab.Screen name="SRequests" component={SupplierRequestsScreen} />
       <Tab.Screen name="SManaged" component={SupplierManagedMatchesScreen} />
+      <Tab.Screen name="SDirectOrders" component={SupplierDirectOrdersScreen} />
       <Tab.Screen name="SProducts" component={SupplierProductsScreen} />
       <Tab.Screen name="SOffers" component={SupplierOffersScreen} />
       <Tab.Screen name="SInbox" component={SupplierInboxStack} />
