@@ -35,6 +35,7 @@ import SupportScreen        from '../screens/shared/SupportScreen';
 import WebViewScreen        from '../screens/shared/WebViewScreen';
 import CalcToolScreen       from '../screens/buyer/CalcToolScreen';
 import OrderDetailScreen    from '../screens/buyer/OrderDetailScreen';
+import BuyerDirectOrdersScreen from '../screens/buyer/BuyerDirectOrdersScreen';
 import AIHub                from '../components/AIHub';
 
 const Tab   = createBottomTabNavigator();
@@ -136,7 +137,7 @@ export default function BuyerTabs() {
                 </View>
               );
             }
-            const icons = { Home: '⌂', Requests: '≡', Inbox: '◎', Account: '○' };
+            const icons = { Home: '⌂', Requests: '≡', BDirectOrders: '◐', Inbox: '◎', Account: '○' };
             return (
               <Text style={[
                 ms.tabIcon,
@@ -150,10 +151,11 @@ export default function BuyerTabs() {
           tabBarLabel: ({ focused }) => {
             if (route.name === 'NewRequest') return null;
             const labels = {
-              Home:     'الرئيسية',
-              Requests: 'طلباتي',
-              Inbox:    'رسائل',
-              Account:  'حسابي',
+              Home:          'الرئيسية',
+              Requests:      'طلباتي',
+              BDirectOrders: 'مباشر',
+              Inbox:         'رسائل',
+              Account:       'حسابي',
             };
             return (
               <Text style={{
@@ -205,6 +207,7 @@ export default function BuyerTabs() {
             },
           })}
         />
+        <Tab.Screen name="BDirectOrders" component={BuyerDirectOrdersScreen} />
         <Tab.Screen name="Inbox"      component={InboxStack} />
         <Tab.Screen name="Account"    component={AccountScreen} />
       </Tab.Navigator>
