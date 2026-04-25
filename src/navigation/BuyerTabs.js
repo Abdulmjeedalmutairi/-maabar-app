@@ -77,6 +77,7 @@ function RequestsStack() {
       <Stack.Screen name="IdeaToProduct"   component={IdeaToProductScreen} />
       <Stack.Screen name="AllOffers"       component={AllOffersScreen} />
       <Stack.Screen name="Offers"          component={OffersScreen} />
+      <Stack.Screen name="SupplierProfile" component={SupplierProfileScreen} />
       <Stack.Screen name="Payment"         component={PaymentScreen} />
       <Stack.Screen name="ManagedRequest"  component={ManagedRequestScreen} />
       <Stack.Screen name="OrderDetail"     component={OrderDetailScreen} />
@@ -194,7 +195,16 @@ export default function BuyerTabs() {
             },
           })}
         />
-        <Tab.Screen name="Requests"   component={RequestsStack} />
+        <Tab.Screen
+          name="Requests"
+          component={RequestsStack}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('Requests', { screen: 'RequestsList' });
+            },
+          })}
+        />
         <Tab.Screen name="Inbox"      component={InboxStack} />
         <Tab.Screen name="Account"    component={AccountScreen} />
       </Tab.Navigator>
