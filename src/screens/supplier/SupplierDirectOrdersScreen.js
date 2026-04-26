@@ -18,6 +18,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase, SUPABASE_ANON_KEY, SEND_EMAIL_URL } from '../../lib/supabase';
+import {
+  formatPriceWithConversion,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 import { getLang } from '../../lib/lang';
 import { getTrackingUrl, CARRIERS } from '../../lib/tracking';
 import { C } from '../../lib/colors';
@@ -229,6 +233,7 @@ export default function SupplierDirectOrdersScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const [pendingOrders, setPendingOrders]     = useState([]);
   const [paidOrders, setPaidOrders]           = useState([]);
@@ -614,7 +619,16 @@ export default function SupplierDirectOrdersScreen({ navigation }) {
           <Text style={s.metaText}>{t.buyer}: {buyerName}</Text>
           <Text style={s.metaText}>{t.qty}: {r.quantity || '—'}</Text>
           {r.product?.price_from ? (
-            <Text style={[s.metaText, { direction: 'ltr' }]}>{Number(r.product.price_from).toFixed(2)} {r.product.currency || 'USD'} / unit</Text>
+            <Text style={[s.metaText, { direction: 'ltr' }]}>
+              {formatPriceWithConversion({
+                amount: Number(r.product.price_from),
+                sourceCurrency: r.product.currency || 'USD',
+                displayCurrency: viewerCurrency,
+                rates: exchangeRates,
+                lang,
+                options: { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+              })} / unit
+            </Text>
           ) : null}
         </View>
         {!!r.description && <Text style={s.descBody}>{r.description}</Text>}

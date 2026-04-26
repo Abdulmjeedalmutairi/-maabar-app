@@ -9,6 +9,10 @@ import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
 import { getPrimaryProductImage, buildProductSpecs } from '../../lib/productMedia';
+import {
+  formatPriceWithConversion,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 // ─── Inlined from web/src/lib/supplierOnboarding.js ──────────────────────────
 const _STATUS_MAP = {
@@ -136,6 +140,7 @@ function ProductRow({ product, lang, navigation, supplierId }) {
   const isAr = lang === 'ar';
   const rowDir = isAr ? 'row-reverse' : 'row';
   const img  = getPrimaryProductImage(product);
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
   const name = isAr
     ? (product.name_ar || product.name_en)
     : lang === 'zh'
@@ -168,7 +173,16 @@ function ProductRow({ product, lang, navigation, supplierId }) {
           )}
         </View>
         {product.price_from > 0 && (
-          <Text style={s.productPrice}>{product.price_from} {product.currency || 'USD'}</Text>
+          <Text style={s.productPrice}>
+            {formatPriceWithConversion({
+              amount: Number(product.price_from),
+              sourceCurrency: product.currency || 'USD',
+              displayCurrency: viewerCurrency,
+              rates: exchangeRates,
+              lang,
+              options: { minimumFractionDigits: Number(product.price_from) % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 },
+            })}
+          </Text>
         )}
         {!!product.moq && (
           <Text style={s.productMeta}>{t('moqLabel', lang)}: {product.moq}</Text>

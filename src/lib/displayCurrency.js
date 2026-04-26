@@ -121,6 +121,17 @@ export function buildDisplayPrice({ amount, sourceCurrency, displayCurrency, rat
   };
 }
 
+// Renders an amount in its source currency, optionally followed by an
+// "≈ converted" tail when the viewer's display currency differs.
+// Single row when source === display, both rows otherwise.
+export function formatPriceWithConversion({ amount, sourceCurrency, displayCurrency, rates, lang = 'en', separator = ' ≈ ', options }) {
+  const built = buildDisplayPrice({ amount, sourceCurrency, displayCurrency, rates, lang });
+  const primary = formatCurrencyAmount(built.sourceAmount, built.sourceCurrency, lang, options);
+  if (!built.isConverted) return primary;
+  const secondary = formatCurrencyAmount(built.displayAmount, built.displayCurrency, lang, options);
+  return `${primary}${separator}${secondary}`;
+}
+
 // Resolves which currency to display for a given user, in priority order:
 //   1. profile.preferred_display_currency (explicit user choice on server)
 //   2. locally stored preference (AsyncStorage)

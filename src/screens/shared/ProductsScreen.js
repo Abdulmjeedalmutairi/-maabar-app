@@ -21,6 +21,10 @@ import { getLang } from '../../lib/lang';
 import { getPrimaryProductImage } from '../../lib/productMedia';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import {
+  formatPriceWithConversion,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 /* ── Category constants (mirrors web CATEGORIES) ─────── */
 const CATEGORIES = {
@@ -417,6 +421,7 @@ function ProductRow({ product: p, lang, isSupplier, onPress }) {
   const [imgErr, setImgErr] = useState(false);
   const imgSrc = getPrimaryProductImage(p);
   const isAr   = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const displayName   = getProductDisplayName(p, lang);
   const secondaryName = getProductSecondaryName(p, lang);
@@ -433,7 +438,14 @@ function ProductRow({ product: p, lang, isSupplier, onPress }) {
   ].filter(Boolean).join(' · ');
 
   const priceText = p.price_from != null
-    ? `${Number(p.price_from) % 1 === 0 ? Number(p.price_from) : Number(p.price_from).toFixed(2)} ${p.currency || 'USD'}`
+    ? formatPriceWithConversion({
+        amount: Number(p.price_from),
+        sourceCurrency: p.currency || 'USD',
+        displayCurrency: viewerCurrency,
+        rates: exchangeRates,
+        lang,
+        options: { minimumFractionDigits: Number(p.price_from) % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 },
+      })
     : null;
 
   const moqLabel = isAr

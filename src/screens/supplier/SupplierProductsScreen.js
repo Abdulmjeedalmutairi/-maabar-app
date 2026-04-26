@@ -9,6 +9,10 @@ import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import {
+  formatPriceWithConversion,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 // Category keys stored in DB match the web (English vals)
 const CATEGORIES = {
@@ -130,6 +134,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
   const cats = CATEGORIES[lang] || CATEGORIES.en;
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -269,7 +274,18 @@ export default function SupplierProductsScreen({ navigation, route }) {
                 </Text>
               </View>
               <View style={[s.cardMeta, isAr && s.rowRtl]}>
-                {!!p.price_from && <Text style={s.metaItem}>{p.price_from} {p.currency}</Text>}
+                {!!p.price_from && (
+                  <Text style={s.metaItem}>
+                    {formatPriceWithConversion({
+                      amount: Number(p.price_from),
+                      sourceCurrency: p.currency || 'USD',
+                      displayCurrency: viewerCurrency,
+                      rates: exchangeRates,
+                      lang,
+                      options: { minimumFractionDigits: Number(p.price_from) % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 },
+                    })}
+                  </Text>
+                )}
                 {!!p.moq && <Text style={s.metaItem}>MOQ: {p.moq}</Text>}
                 {!!p.category && <Text style={s.metaItem}>{getCatLabel(p.category)}</Text>}
               </View>
