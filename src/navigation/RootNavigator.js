@@ -3,6 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
+import { hydrateDisplayCurrencyState } from '../lib/displayCurrency';
+import { getLang } from '../lib/lang';
 import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import BuyerTabs from './BuyerTabs';
@@ -26,6 +28,7 @@ export default function RootNavigator() {
       setHasLaunched(!!launched);
       setSession(s);
       if (s) loadProfile(s.user.id);
+      else hydrateDisplayCurrencyState({ profile: null, lang: getLang() });
     });
 
     // Keep session in sync while the app is open
@@ -33,7 +36,10 @@ export default function RootNavigator() {
       (_event, s) => {
         setSession(s);
         if (s) loadProfile(s.user.id);
-        else setProfile(null);
+        else {
+          setProfile(null);
+          hydrateDisplayCurrencyState({ profile: null, lang: getLang() });
+        }
       }
     );
     return () => subscription.unsubscribe();
@@ -42,10 +48,11 @@ export default function RootNavigator() {
   async function loadProfile(userId) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, role, full_name, status, company_name')
+      .select('id, role, full_name, status, company_name, preferred_display_currency')
       .eq('id', userId)
       .single();
     setProfile(data);
+    hydrateDisplayCurrencyState({ profile: data, lang: getLang() });
   }
 
   async function handleSplashDone() {
