@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -127,9 +127,35 @@ export default function NewRequestScreen({ navigation, route }) {
     }
 
     setSubmitting(false);
+
+    const lang = getLang();
+    const successTitle =
+      lang === 'ar' ? 'تم رفع طلبك'
+      : lang === 'zh' ? '需求已发布'
+      : 'Request posted';
+    const successBody = isManaged
+      ? (lang === 'ar' ? 'سيقوم فريق معبر بمراجعة الطلب وعرض أفضل 3 خيارات.'
+        : lang === 'zh' ? 'Maabar 团队会审核您的需求，并展示最佳 3 个方案。'
+        : 'The Maabar team will review your request and present the top 3 options.')
+      : (lang === 'ar' ? 'سيتواصل معك الموردون قريباً.'
+        : lang === 'zh' ? '供应商会尽快联系您。'
+        : 'Suppliers will contact you soon.');
+    const okLabel = lang === 'ar' ? 'حسناً' : lang === 'zh' ? '好的' : 'OK';
+
     // RootNavigator will detect auth state and switch to BuyerTabs automatically.
     // If already in BuyerTabs (logged-in user reached this screen), navigate back.
-    try { navigation.navigate('Requests'); } catch {}
+    Alert.alert(successTitle, successBody, [{
+      text: okLabel,
+      onPress: () => {
+        try {
+          if (isManaged && inserted?.id) {
+            navigation.navigate('ManagedRequest', { requestId: inserted.id, title: payload.title_ar });
+          } else {
+            navigation.navigate('Requests');
+          }
+        } catch {}
+      },
+    }]);
   }
 
   // Called after guest successfully signs up
