@@ -9,6 +9,11 @@ import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
 import { setupManagedRequest } from '../../lib/managedBrief';
+import {
+  DISPLAY_CURRENCIES,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 /* ─── AI ──────────────────────────────────── */
 const SUPABASE_URL = 'https://utzalmszfqfcofywfetv.supabase.co';
@@ -80,13 +85,14 @@ const SAMPLE_REQS = [
   { val: 'required',  label: 'إلزامية' },
 ];
 
-function buildDraft(report = {}) {
+function buildDraft(report = {}, defaults = {}) {
   return {
     titleAr: report.product_name_ar || report.product_name_en || '',
     quantity: report.moq || '',
     description: report.request_description || report.specs || '',
     category: report.category || 'other',
     budgetPerUnit: '',
+    budgetCurrency: defaults.budgetCurrency || 'SAR',
     paymentPlan: '30',
     sampleReq: 'preferred',
   };
@@ -96,6 +102,11 @@ function buildDraft(report = {}) {
 export default function IdeaToProductScreen({ navigation }) {
   const repName = useRef(SAUDI_NAMES[Math.floor(Math.random() * SAUDI_NAMES.length)]).current;
   const scrollRef = useRef(null);
+  // Saudi trader is the primary user — default to SAR; viewer's stored
+  // preference (e.g. CNY for testing) overrides. Stored AS-ENTERED, never
+  // converted on save.
+  const { displayCurrency: viewerCurrency } = useDisplayCurrency();
+  const defaultCurrency = normalizeDisplayCurrency(viewerCurrency || 'SAR');
 
   const initialMessages = [
     { id: 1, role: 'assistant', content: `مرحبا، معك ${repName} من معبر.` },
@@ -107,7 +118,7 @@ export default function IdeaToProductScreen({ navigation }) {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [report, setReport] = useState(null);
-  const [draft, setDraft] = useState(buildDraft());
+  const [draft, setDraft] = useState(() => buildDraft({}, { budgetCurrency: defaultCurrency }));
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -153,7 +164,7 @@ export default function IdeaToProductScreen({ navigation }) {
         setPhase('generating');
         try {
           const result = await generateBrief({ conversation: withReply });
-          const newDraft = buildDraft(result);
+          const newDraft = buildDraft(result, { budgetCurrency: defaultCurrency });
           setReport(result);
           setDraft(newDraft);
           setMessages(prev => [
@@ -214,6 +225,7 @@ export default function IdeaToProductScreen({ navigation }) {
       category:                  draft.category || 'other',
       status:                    'open',
       budget_per_unit:           draft.budgetPerUnit ? parseFloat(draft.budgetPerUnit) : null,
+      budget_currency:           draft.budgetPerUnit ? normalizeDisplayCurrency(draft.budgetCurrency || defaultCurrency) : null,
       payment_plan:              draft.paymentPlan ? parseInt(draft.paymentPlan, 10) : null,
       sample_requirement:        draft.sampleReq || null,
       sourcing_mode:             'managed',
@@ -378,8 +390,33 @@ function ReviewForm({ report, draft, set, error, submitting, onSubmit }) {
         onChangeText={v => set('titleAr', v)} />
       <FormField label="الكمية المطلوبة *" value={draft.quantity}
         onChangeText={v => set('quantity', v)} keyboardType="numeric" />
-      <FormField label="الميزانية للوحدة (اختياري)" value={draft.budgetPerUnit}
-        onChangeText={v => set('budgetPerUnit', v)} keyboardType="numeric" />
+      <View style={s.fieldWrap}>
+        <Text style={s.fieldLabel}>الميزانية للوحدة (اختياري)</Text>
+        <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
+          <TextInput
+            style={[s.fieldInput, { flex: 1 }]}
+            placeholderTextColor={C.textDisabled}
+            keyboardType="numeric"
+            textAlign="right"
+            value={draft.budgetPerUnit}
+            onChangeText={v => set('budgetPerUnit', v)}
+          />
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {DISPLAY_CURRENCIES.map(cur => {
+              const active = (draft.budgetCurrency || 'SAR') === cur;
+              return (
+                <TouchableOpacity key={cur}
+                  style={[s.curChip, active && s.curChipActive]}
+                  onPress={() => set('budgetCurrency', cur)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.curChipText, active && s.curChipTextActive]}>{cur}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
       <FormField label="تفاصيل الطلب" value={draft.description}
         onChangeText={v => set('description', v)} multiline numberOfLines={4}
         style={{ minHeight: 90 }} />
@@ -634,6 +671,14 @@ const s = StyleSheet.create({
     color: C.textPrimary,
     textAlign: 'right',
   },
+  curChip: {
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderRadius: 12, borderWidth: 1, borderColor: C.borderMuted,
+    backgroundColor: C.bgBase, justifyContent: 'center',
+  },
+  curChipActive: { borderColor: C.btnPrimary, backgroundColor: C.btnPrimary },
+  curChipText:   { color: C.textSecondary, fontFamily: F.num, fontSize: 12 },
+  curChipTextActive: { color: C.btnPrimaryText, fontFamily: F.numSemi },
 
   chipSection: { marginBottom: 14 },
   chipLabel: {

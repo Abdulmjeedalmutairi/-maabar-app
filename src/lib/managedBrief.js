@@ -64,6 +64,7 @@ export async function generateManagedBriefWithAI({ request, lang = 'ar' }) {
     category: request?.category || 'other',
     quantity: request?.quantity ?? null,
     budget: request?.budget_per_unit ?? null,
+    budget_currency: request?.budget_currency || null,
     response_deadline: request?.response_deadline || null,
   };
 
