@@ -98,7 +98,8 @@ export function formatCurrencyAmount(amount, currency, lang = 'en', options = {}
   const value = Number(amount || 0);
   if (!Number.isFinite(value)) return '—';
 
-  const locale = lang === 'ar' ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-US';
+  // ar-SA-u-nu-latn: Arabic locale grouping/decimal punctuation, Latin digits.
+  const locale = lang === 'ar' ? 'ar-SA-u-nu-latn' : lang === 'zh' ? 'zh-CN' : 'en-US';
   return `${value.toLocaleString(locale, {
     minimumFractionDigits: options.minimumFractionDigits ?? 0,
     maximumFractionDigits: options.maximumFractionDigits ?? 2,

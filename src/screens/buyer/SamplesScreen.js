@@ -131,7 +131,7 @@ export default function SamplesScreen({ navigation }) {
                   )}
 
                   <View style={s.cardFooter}>
-                    <Text style={s.date}>{new Date(sample.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}</Text>
+                    <Text style={s.date}>{new Date(sample.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US')}</Text>
                     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                       {!!sample.supplier_id && (
                         <TouchableOpacity

@@ -138,7 +138,7 @@ export default function ProductInquiriesScreen({ navigation }) {
                         return (
                           <View key={reply.id} style={[s.replyBubble, isSupplier ? s.replyBubbleSupplier : s.replyBubbleBuyer]}>
                             <Text style={[s.replyText, isSupplier ? s.replyTextSupplier : s.replyTextBuyer]}>{reply.content || reply.message}</Text>
-                            <Text style={s.replyTime}>{new Date(reply.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}</Text>
+                            <Text style={s.replyTime}>{new Date(reply.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US')}</Text>
                           </View>
                         );
                       })}
@@ -146,7 +146,7 @@ export default function ProductInquiriesScreen({ navigation }) {
                   )}
 
                   <View style={s.footer}>
-                    <Text style={s.date}>{new Date(inq.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US')}</Text>
+                    <Text style={s.date}>{new Date(inq.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US')}</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {/* Open Product button */}
                       {!!inq.product_id && (

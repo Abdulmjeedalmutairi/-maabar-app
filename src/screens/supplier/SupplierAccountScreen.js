@@ -408,7 +408,7 @@ export default function SupplierAccountScreen({ navigation }) {
           <InfoRow
             label={t.joinDate}
             value={profile?.created_at
-              ? new Date(profile.created_at).toLocaleDateString(lang === 'ar' ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-GB')
+              ? new Date(profile.created_at).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-nu-latn' : lang === 'zh' ? 'zh-CN' : 'en-GB')
               : '—'}
             isAr={isAr}
           />

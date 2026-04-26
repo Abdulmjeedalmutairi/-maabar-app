@@ -77,7 +77,7 @@ function relativeTime(dateStr) {
     if (mins < 60) return `منذ ${mins} د`;
     if (hrs < 24)  return `منذ ${hrs} س`;
     if (days < 30) return `منذ ${days} يوم`;
-    return new Date(dateStr).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString('ar-SA-u-nu-latn', { month: 'short', day: 'numeric' });
   }
   if (mins < 1)  return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -915,7 +915,7 @@ function RequestCard({ r, navigation, onEdit, onDelete, onCancel, onMarkArrived,
             </Text>
           </View>
           {!!r.estimated_delivery && (
-            <Text style={s.trackETA}>{tx('التسليم المتوقع: ', 'Expected delivery: ')}{new Date(r.estimated_delivery).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US')}</Text>
+            <Text style={s.trackETA}>{tx('التسليم المتوقع: ', 'Expected delivery: ')}{new Date(r.estimated_delivery).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US')}</Text>
           )}
         </View>
       )}

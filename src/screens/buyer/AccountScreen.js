@@ -184,7 +184,7 @@ export default function AccountScreen({ navigation }) {
             {profile?.company_name ? <InfoRow label={tx('الشركة', 'Company')} value={profile.company_name} /> : null}
             <InfoRow label={tx('الجوال', 'Phone')}                 value={profile?.phone || '—'} />
             <InfoRow label={tx('المدينة', 'City')}                  value={profile?.city || '—'} />
-            <InfoRow label={tx('تاريخ الانضمام', 'Joined')}         value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA' : 'en-US') : '—'} />
+            <InfoRow label={tx('تاريخ الانضمام', 'Joined')}         value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString(getLang() === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US') : '—'} />
             <InfoRow label={tx('اللغة', 'Language')}                value={profile?.lang === 'en' ? 'English' : 'العربية'} />
             <InfoRow label={tx('عملة العرض', 'Display Currency')}   value={profile?.preferred_display_currency || 'USD'} />
           </View>

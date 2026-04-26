@@ -245,7 +245,7 @@ export default function SupplierManagedMatchesScreen() {
   function fmtDate(d) {
     if (!d) return '—';
     try {
-      const locale = lang === 'ar' ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-GB';
+      const locale = lang === 'ar' ? 'ar-SA-u-nu-latn' : lang === 'zh' ? 'zh-CN' : 'en-GB';
       return new Date(d).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
     } catch {
       return String(d);

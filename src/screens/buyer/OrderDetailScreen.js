@@ -315,7 +315,7 @@ export default function OrderDetailScreen({ navigation, route }) {
         {/* Quantity + date chips */}
         <View style={s.chipsRow}>
           <View style={s.chip}><Text style={s.chipText}>{tx('الكمية', 'Qty')}: {request.quantity || '—'}</Text></View>
-          <View style={s.chip}><Text style={[s.chipText, { fontFamily: F.en }]}>{new Date(request.created_at).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}</Text></View>
+          <View style={s.chip}><Text style={[s.chipText, { fontFamily: F.en }]}>{new Date(request.created_at).toLocaleDateString(isAr ? 'ar-SA-u-nu-latn' : 'en-US', { month: 'short', day: 'numeric' })}</Text></View>
         </View>
 
         {/* Timeline */}
@@ -366,7 +366,7 @@ export default function OrderDetailScreen({ navigation, route }) {
               </Text>
             </View>
             {!!request.estimated_delivery && (
-              <Text style={s.trackETA}>{tx('التسليم المتوقع: ', 'Expected delivery: ')}{new Date(request.estimated_delivery).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}</Text>
+              <Text style={s.trackETA}>{tx('التسليم المتوقع: ', 'Expected delivery: ')}{new Date(request.estimated_delivery).toLocaleDateString(isAr ? 'ar-SA-u-nu-latn' : 'en-US')}</Text>
             )}
           </View>
         )}

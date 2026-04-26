@@ -53,7 +53,7 @@ const COPY = {
     alreadyOfferred: 'قدمت عرضاً على هذا الطلب مسبقاً',
     descLabel: 'الوصف', categoryLabel: 'التصنيف',
     paymentLabel: 'خطة الدفع', sampleLabel: 'العينات',
-    paymentPlan: { '100': 'دفعة واحدة', '50': '٥٠٪ مقدماً', '30': '٣٠٪ مقدماً' },
+    paymentPlan: { '100': 'دفعة واحدة', '50': '50٪ مقدماً', '30': '30٪ مقدماً' },
     sampleReq: { none: 'لا عينات', preferred: 'مفضّل', required: 'مطلوب' },
   },
   en: {

@@ -28,7 +28,7 @@ export default function RequestCard({
   // تنسيق التاريخ
   const date = new Date(request.created_at);
   const formattedDate = isArabic
-    ? date.toLocaleDateString('ar-SA')
+    ? date.toLocaleDateString('ar-SA-u-nu-latn')
     : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (

@@ -11,9 +11,13 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import { translateText } from '../../lib/grokTranslate';
 
 const SEND_EMAILS_URL = `${SUPABASE_URL}/functions/v1/send-email`;
-const GROK_API_KEY = process.env.EXPO_PUBLIC_GROK_API_KEY;
+// Rollback note: in-chat translation previously read
+//   process.env.EXPO_PUBLIC_GROK_API_KEY
+// and called xAI directly. It now goes through the shared translateText
+// helper, which routes to the maabar-ai edge function.
 
 // ── Translation modes ─────────────────────────────────────────────────────────
 const TRANS_MODES = [
@@ -98,34 +102,18 @@ const COPY = {
   },
 };
 
-// ── Grok translation ──────────────────────────────────────────────────────────
-async function callGrok(text, mode) {
-  if (!text || mode === 'none' || !GROK_API_KEY) return null;
-  const systemPrompt =
-    mode === 'zh-to-ar'
-      ? 'Translate the following Chinese text to Arabic. Return only the translation, nothing else.'
-      : 'Translate the following Arabic text to Chinese. Return only the translation, nothing else.';
-  try {
-    const res = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-3-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user',   content: text },
-        ],
-      }),
-    });
-    const json = await res.json();
-    return json.choices?.[0]?.message?.content?.trim() || null;
-  } catch (e) {
-    console.error('[ChatScreen] grok error:', e);
-    return null;
-  }
+// ── Chat translation (delegates to shared maabar-ai wrapper) ─────────────────
+function translateModeToLangs(mode) {
+  if (mode === 'zh-to-ar') return { sourceLang: 'zh', targetLang: 'ar' };
+  if (mode === 'ar-to-zh') return { sourceLang: 'ar', targetLang: 'zh' };
+  return null;
+}
+
+async function translateChatLine(text, mode) {
+  if (!text || mode === 'none') return null;
+  const langs = translateModeToLangs(mode);
+  if (!langs) return null;
+  return translateText({ text, ...langs });
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -251,7 +239,7 @@ export default function ChatScreen({ route, navigation }) {
       const cacheKey = `${transMode}:${msg.content}`;
       if (translations[cacheKey] || pendingTrans[cacheKey]) return;
       setPendingTrans(prev => ({ ...prev, [cacheKey]: true }));
-      callGrok(msg.content, transMode).then(result => {
+      translateChatLine(msg.content, transMode).then(result => {
         setPendingTrans(prev => { const n = { ...prev }; delete n[cacheKey]; return n; });
         if (result) setTranslations(prev => ({ ...prev, [cacheKey]: result }));
       });
@@ -423,12 +411,12 @@ export default function ChatScreen({ route, navigation }) {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const fmtTime = (date) => new Date(date).toLocaleTimeString(
-    isAr ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-US',
+    isAr ? 'ar-SA-u-nu-latn' : lang === 'zh' ? 'zh-CN' : 'en-US',
     { hour: '2-digit', minute: '2-digit' }
   );
 
   const fmtDate = (date) => new Date(date).toLocaleDateString(
-    isAr ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-US',
+    isAr ? 'ar-SA-u-nu-latn' : lang === 'zh' ? 'zh-CN' : 'en-US',
     { weekday: 'long', month: 'short', day: 'numeric' }
   );
 
