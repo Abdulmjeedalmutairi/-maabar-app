@@ -20,6 +20,12 @@ import { supabase, SEND_EMAIL_URL, SUPABASE_ANON_KEY } from '../../lib/supabase'
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import {
+  DISPLAY_CURRENCIES,
+  formatPriceWithConversion,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 const COPY = {
   ar: {
@@ -32,8 +38,9 @@ const COPY = {
     offerTitle: 'إرسال عرض',
     detailTitle: 'تفاصيل الطلب',
     close: 'إغلاق',
-    unitPrice: 'سعر الوحدة (USD) *',
-    shipping: 'تكلفة الشحن (USD)',
+    unitPrice: 'سعر الوحدة *',
+    currencyLabel: 'العملة',
+    shipping: 'تكلفة الشحن',
     shippingMethod: 'طريقة الشحن',
     moq: 'الحد الأدنى للكمية (MOQ)',
     deliveryDays: 'مدة التسليم (أيام) *',
@@ -59,8 +66,9 @@ const COPY = {
     offerTitle: 'Send Offer',
     detailTitle: 'Request Details',
     close: 'Close',
-    unitPrice: 'Unit Price (USD) *',
-    shipping: 'Shipping Cost (USD)',
+    unitPrice: 'Unit Price *',
+    currencyLabel: 'Currency',
+    shipping: 'Shipping Cost',
     shippingMethod: 'Shipping Method',
     moq: 'MOQ',
     deliveryDays: 'Delivery Days *',
@@ -86,8 +94,9 @@ const COPY = {
     offerTitle: '发送报价',
     detailTitle: '询盘详情',
     close: '关闭',
-    unitPrice: '单价 (USD) *',
-    shipping: '运费 (USD)',
+    unitPrice: '单价 *',
+    currencyLabel: '币种',
+    shipping: '运费',
     shippingMethod: '运输方式',
     moq: '最小起订量',
     deliveryDays: '交期（天）*',
@@ -109,6 +118,7 @@ export default function SupplierRequestsScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +128,7 @@ export default function SupplierRequestsScreen({ navigation }) {
   const [viewedRequest, setViewedRequest] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [form, setForm] = useState({
-    price: '', shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '',
+    price: '', currency: viewerCurrency, shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -147,7 +157,7 @@ export default function SupplierRequestsScreen({ navigation }) {
 
   function openOffer(r) {
     setSelectedRequest(r);
-    setForm({ price: '', shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '' });
+    setForm({ price: '', currency: viewerCurrency, shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '' });
   }
 
   async function submitOffer() {
@@ -177,10 +187,12 @@ export default function SupplierRequestsScreen({ navigation }) {
       return;
     }
 
+    const offerCurrency = normalizeDisplayCurrency(form.currency || viewerCurrency);
     const { error } = await supabase.from('offers').insert({
       request_id: selectedRequest.id,
       supplier_id: myId,
       price,
+      currency: offerCurrency,
       shipping_cost: form.shippingCost ? parseFloat(form.shippingCost) : null,
       shipping_method: form.shippingMethod || null,
       moq: form.moq || null,
@@ -291,7 +303,15 @@ export default function SupplierRequestsScreen({ navigation }) {
 
                 <View style={[s.cardMeta, isAr && s.rowRtl]}>
                   {!!r.budget_per_unit && (
-                    <Text style={s.metaItem}>{t.budget}: ${r.budget_per_unit}</Text>
+                    <Text style={s.metaItem}>
+                      {t.budget}: {formatPriceWithConversion({
+                        amount: parseFloat(r.budget_per_unit),
+                        sourceCurrency: r.budget_currency || 'SAR',
+                        displayCurrency: viewerCurrency,
+                        rates: exchangeRates,
+                        lang,
+                      })}
+                    </Text>
                   )}
                   {!!r.quantity && (
                     <Text style={s.metaItem}>{t.qty}: {r.quantity}</Text>
@@ -345,7 +365,15 @@ export default function SupplierRequestsScreen({ navigation }) {
                   )}
                   <View style={s.detailGrid}>
                     {!!viewedRequest.quantity && <DetailRow label={t.qty} value={String(viewedRequest.quantity)} isAr={isAr} />}
-                    {!!viewedRequest.budget_per_unit && <DetailRow label={t.budget} value={`$${viewedRequest.budget_per_unit}`} isAr={isAr} />}
+                    {!!viewedRequest.budget_per_unit && (
+                      <DetailRow label={t.budget} value={formatPriceWithConversion({
+                        amount: parseFloat(viewedRequest.budget_per_unit),
+                        sourceCurrency: viewedRequest.budget_currency || 'SAR',
+                        displayCurrency: viewerCurrency,
+                        rates: exchangeRates,
+                        lang,
+                      })} isAr={isAr} />
+                    )}
                     {!!viewedRequest.category && <DetailRow label={t.categoryLabel} value={viewedRequest.category} isAr={isAr} />}
                     {!!viewedRequest.payment_plan && <DetailRow label={t.paymentLabel} value={payLabel} isAr={isAr} />}
                     {!!viewedRequest.sample_requirement && viewedRequest.sample_requirement !== 'none' && (
@@ -387,7 +415,43 @@ export default function SupplierRequestsScreen({ navigation }) {
                 </View>
               )}
 
-              <RField label={t.unitPrice} value={form.price} onChangeText={v => setF('price', v)} keyboardType="numeric" isAr={isAr} />
+              <View style={s.fieldWrap}>
+                <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.unitPrice}</Text>
+                <View style={{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 6 }}>
+                  <TextInput
+                    style={[s.input, isAr && s.rtl, { flex: 1 }]}
+                    placeholderTextColor={C.textDisabled}
+                    keyboardType="numeric"
+                    value={form.price}
+                    onChangeText={v => setF('price', v)}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {DISPLAY_CURRENCIES.map(cur => {
+                      const active = (form.currency || viewerCurrency) === cur;
+                      return (
+                        <TouchableOpacity key={cur}
+                          style={[s.curChip, active && s.curChipActive]}
+                          onPress={() => setF('currency', cur)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.curChipText, active && s.curChipTextActive]}>{cur}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+                {!!form.price && selectedRequest?.budget_currency && selectedRequest.budget_currency !== (form.currency || viewerCurrency) && (
+                  <Text style={[s.fieldHint, isAr && s.rtl]}>
+                    ≈ {formatPriceWithConversion({
+                      amount: parseFloat(form.price || 0),
+                      sourceCurrency: form.currency || viewerCurrency,
+                      displayCurrency: selectedRequest.budget_currency,
+                      rates: exchangeRates,
+                      lang,
+                    })}
+                  </Text>
+                )}
+              </View>
               <RField label={t.shipping} value={form.shippingCost} onChangeText={v => setF('shippingCost', v)} keyboardType="numeric" isAr={isAr} />
               <RField label={t.shippingMethod} value={form.shippingMethod} onChangeText={v => setF('shippingMethod', v)} isAr={isAr} />
               <RField label={t.moq} value={form.moq} onChangeText={v => setF('moq', v)} isAr={isAr} />
@@ -524,12 +588,21 @@ const s = StyleSheet.create({
 
   fieldWrap: { marginBottom: 16 },
   fieldLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 6 },
+  fieldHint:  { color: C.textDisabled, fontSize: 11, fontFamily: F.ar, marginTop: 6 },
   input: {
     backgroundColor: C.bgRaised, borderRadius: 12,
     borderWidth: 1, borderColor: C.borderMuted,
     paddingHorizontal: 16, paddingVertical: 12,
     color: C.textPrimary, fontSize: 15, fontFamily: F.ar,
   },
+  curChip: {
+    paddingHorizontal: 10, paddingVertical: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: C.borderMuted,
+    backgroundColor: C.bgRaised, justifyContent: 'center',
+  },
+  curChipActive: { borderColor: C.btnPrimary, backgroundColor: C.btnPrimary },
+  curChipText:   { color: C.textSecondary, fontFamily: F.ar, fontSize: 12 },
+  curChipTextActive: { color: C.btnPrimaryText, fontFamily: F.arSemi },
   submitBtn: {
     backgroundColor: C.btnPrimary, borderRadius: 14,
     paddingVertical: 14, alignItems: 'center', marginTop: 8,

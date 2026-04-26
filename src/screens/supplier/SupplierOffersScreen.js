@@ -9,6 +9,11 @@ import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import {
+  DISPLAY_CURRENCIES,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 const COPY = {
   ar: {
@@ -107,6 +112,7 @@ export default function SupplierOffersScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
+  const { displayCurrency: viewerCurrency } = useDisplayCurrency();
 
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +120,7 @@ export default function SupplierOffersScreen({ navigation }) {
 
   const [editOffer, setEditOffer] = useState(null);
   const [editForm, setEditForm] = useState({
-    price: '', shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '',
+    price: '', currency: viewerCurrency, shippingCost: '', shippingMethod: '', moq: '', days: '', origin: 'China', note: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -148,6 +154,7 @@ export default function SupplierOffersScreen({ navigation }) {
     setEditOffer(offer);
     setEditForm({
       price: String(offer.price ?? ''),
+      currency: normalizeDisplayCurrency(offer.currency || viewerCurrency),
       shippingCost: String(offer.shipping_cost ?? ''),
       shippingMethod: offer.shipping_method || '',
       moq: String(offer.moq ?? ''),
@@ -171,9 +178,10 @@ export default function SupplierOffersScreen({ navigation }) {
     }
 
     setSaving(true);
-    // Exact web saveEditOffer() payload
+    const editCurrency = normalizeDisplayCurrency(editForm.currency || editOffer?.currency || viewerCurrency);
     const { error } = await supabase.from('offers').update({
       price,
+      currency: editCurrency,
       shipping_cost: shippingCost,
       shipping_method: editForm.shippingMethod || null,
       moq,
@@ -463,7 +471,7 @@ export default function SupplierOffersScreen({ navigation }) {
               </View>
 
               <View style={[s.metaRow, isAr && s.rowRtl]}>
-                {!!o.price && <Text style={s.meta}>{o.price} USD</Text>}
+                {!!o.price && <Text style={s.meta}>{o.price} {normalizeDisplayCurrency(o.currency || viewerCurrency)}</Text>}
                 {!!o.shipping_cost && <Text style={s.meta}>{t.shipping}: {o.shipping_cost}</Text>}
                 {!!o.moq && <Text style={s.meta}>MOQ: {o.moq}</Text>}
                 {!!o.delivery_days && (
@@ -569,8 +577,33 @@ export default function SupplierOffersScreen({ navigation }) {
                 <Text style={[s.modalTitle, isAr && s.rtl]}>{t.editOffer}</Text>
               </View>
 
-              <OField label={`${t.price} (USD) *`} value={editForm.price} onChangeText={v => setEF('price', v)} keyboardType="numeric" isAr={isAr} />
-              <OField label={`${t.shipping} (USD) *`} value={editForm.shippingCost} onChangeText={v => setEF('shippingCost', v)} keyboardType="numeric" isAr={isAr} />
+              <View style={s.fieldWrap}>
+                <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.price} *</Text>
+                <View style={{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 6 }}>
+                  <TextInput
+                    style={[s.input, isAr && s.rtl, { flex: 1 }]}
+                    placeholderTextColor={C.textDisabled}
+                    keyboardType="numeric"
+                    value={editForm.price}
+                    onChangeText={v => setEF('price', v)}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {DISPLAY_CURRENCIES.map(cur => {
+                      const active = (editForm.currency || viewerCurrency) === cur;
+                      return (
+                        <TouchableOpacity key={cur}
+                          style={[s.curChip, active && s.curChipActive]}
+                          onPress={() => setEF('currency', cur)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.curChipText, active && s.curChipTextActive]}>{cur}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+              <OField label={`${t.shipping} *`} value={editForm.shippingCost} onChangeText={v => setEF('shippingCost', v)} keyboardType="numeric" isAr={isAr} />
               <OField label={t.shippingMethod} value={editForm.shippingMethod} onChangeText={v => setEF('shippingMethod', v)} isAr={isAr} />
               <OField label={`${t.moq} *`} value={editForm.moq} onChangeText={v => setEF('moq', v)} isAr={isAr} />
               <OField label={`${t.days} *`} value={editForm.days} onChangeText={v => setEF('days', v)} keyboardType="numeric" isAr={isAr} />
@@ -725,6 +758,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     color: C.textPrimary, fontSize: 15, fontFamily: F.ar,
   },
+  curChip: {
+    paddingHorizontal: 10, paddingVertical: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: C.borderMuted,
+    backgroundColor: C.bgRaised, justifyContent: 'center',
+  },
+  curChipActive: { borderColor: C.btnPrimary, backgroundColor: C.btnPrimary },
+  curChipText:   { color: C.textSecondary, fontFamily: F.ar, fontSize: 12 },
+  curChipTextActive: { color: C.btnPrimaryText, fontFamily: F.arSemi },
   submitBtn: {
     backgroundColor: C.btnPrimary, borderRadius: 14,
     paddingVertical: 14, alignItems: 'center', marginTop: 8,

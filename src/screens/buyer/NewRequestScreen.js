@@ -16,6 +16,11 @@ import { setupManagedRequest } from '../../lib/managedBrief';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
+import {
+  DISPLAY_CURRENCIES,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 const CATEGORIES = [
   { val: 'electronics', label: 'إلكترونيات' },
@@ -44,6 +49,7 @@ const EMPTY_FORM = {
   quantity: '',
   category: 'other',
   budgetPerUnit: '',
+  budgetCurrency: 'SAR',
   paymentPlan: '30',
   sampleReq: 'preferred',
 };
@@ -52,8 +58,14 @@ export default function NewRequestScreen({ navigation, route }) {
   const mode         = route.params?.mode || 'direct';
   const prefillTitle = route.params?.prefillTitle || '';
   const isManaged    = mode === 'managed';
+  const { displayCurrency: viewerCurrency } = useDisplayCurrency();
 
-  const [form, setForm]           = useState({ ...EMPTY_FORM, titleAr: prefillTitle });
+  const [form, setForm]           = useState({ ...EMPTY_FORM, titleAr: prefillTitle, budgetCurrency: viewerCurrency });
+
+  // Track viewer currency until the buyer hasn't typed an amount yet.
+  useEffect(() => {
+    setForm(prev => prev.budgetPerUnit ? prev : { ...prev, budgetCurrency: viewerCurrency });
+  }, [viewerCurrency]);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError]  = useState('');
   const [showSignup, setShowSignup] = useState(false);
@@ -98,6 +110,7 @@ export default function NewRequestScreen({ navigation, route }) {
       quantity:           parseInt(form.quantity, 10),
       category:           form.category || 'other',
       budget_per_unit:    form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null,
+      budget_currency:    form.budgetPerUnit ? normalizeDisplayCurrency(form.budgetCurrency || viewerCurrency) : null,
       payment_plan:       parseInt(form.paymentPlan, 10),
       sample_requirement: form.sampleReq,
       status:             'open',
@@ -160,8 +173,33 @@ export default function NewRequestScreen({ navigation, route }) {
             multiline numberOfLines={4} style={{ minHeight: 100 }} />
           <Field label="الكمية المطلوبة *" value={form.quantity}
             onChangeText={v => setField('quantity', v)} />
-          <Field label="الميزانية للوحدة (اختياري)" value={form.budgetPerUnit}
-            onChangeText={v => setField('budgetPerUnit', v)} keyboardType="numeric" />
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>الميزانية للوحدة (اختياري)</Text>
+            <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
+              <TextInput
+                style={[s.input, { flex: 1 }]}
+                placeholderTextColor={C.textDisabled}
+                textAlign="right"
+                keyboardType="numeric"
+                value={form.budgetPerUnit}
+                onChangeText={v => setField('budgetPerUnit', v)}
+              />
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                {DISPLAY_CURRENCIES.map(cur => {
+                  const active = form.budgetCurrency === cur;
+                  return (
+                    <TouchableOpacity key={cur}
+                      style={[s.chip, active && s.chipActive, { paddingHorizontal: 10 }]}
+                      onPress={() => setField('budgetCurrency', cur)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.chipText, active && s.chipTextActive]}>{cur}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
 
           <ChipRow
             label="الفئة"

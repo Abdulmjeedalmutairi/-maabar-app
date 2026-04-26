@@ -10,8 +10,11 @@ import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
 import { buildOfferDetailRows } from '../../lib/offerFields';
 import { resolveOfferNote, readCachedNote } from '../../lib/offerNoteCache';
-
-const USD_TO_SAR = 3.75;
+import {
+  formatPriceWithConversion,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 const STATUS_MAP = {
   verified: 'verified', active: 'verified', approved: 'verified',
@@ -43,13 +46,21 @@ export default function OffersScreen({ route, navigation }) {
 
   const lang = getLang();
   const isAr = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
-  function fmtPrice(usd) {
-    if (usd == null) return '—';
-    const num = parseFloat(usd);
-    if (isNaN(num)) return String(usd);
-    if (isAr) return `${(num * USD_TO_SAR).toFixed(2)} ر.س`;
-    return `$${num.toFixed(2)}`;
+  // amount is in `currency`; renders "X CCY [≈ Y viewerCurrency]" when they differ.
+  function fmtPrice(amount, currency) {
+    if (amount == null || amount === '') return '—';
+    const num = parseFloat(amount);
+    if (!Number.isFinite(num)) return String(amount);
+    return formatPriceWithConversion({
+      amount: num,
+      sourceCurrency: normalizeDisplayCurrency(currency || 'USD'),
+      displayCurrency: viewerCurrency,
+      rates: exchangeRates,
+      lang,
+      options: { minimumFractionDigits: 2 },
+    });
   }
 
   function toggleExpanded(offerId) {
@@ -403,11 +414,11 @@ export default function OffersScreen({ route, navigation }) {
                 <View style={s.priceRow}>
                   <View style={s.priceItem}>
                     <Text style={s.priceLabel}>{isAr ? 'سعر الوحدة' : 'Unit Price'}</Text>
-                    <Text style={s.priceValue}>{fmtPrice(offer.price)}</Text>
+                    <Text style={s.priceValue}>{fmtPrice(offer.price, offer.currency)}</Text>
                   </View>
                   <View style={s.priceItem}>
                     <Text style={s.priceLabel}>{isAr ? 'الشحن' : 'Shipping'}</Text>
-                    <Text style={s.priceValue}>{fmtPrice(offer.shipping_cost)}</Text>
+                    <Text style={s.priceValue}>{fmtPrice(offer.shipping_cost, offer.currency)}</Text>
                   </View>
                 </View>
 

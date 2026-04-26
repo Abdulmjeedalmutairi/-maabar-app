@@ -70,7 +70,7 @@ export function getOfferFieldValue(offer, key, lang, { fmtPrice }) {
     case 'price':
     case 'shipping_cost': {
       if (isEmpty(offer[key])) return null;
-      return fmtPrice(offer[key]);
+      return fmtPrice(offer[key], offer.currency);
     }
     case 'sample_available': {
       if (offer[key] == null) return null;

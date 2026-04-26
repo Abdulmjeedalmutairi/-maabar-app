@@ -9,8 +9,11 @@ import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
-
-const USD_TO_SAR = 3.75;
+import {
+  formatPriceWithConversion,
+  normalizeDisplayCurrency,
+  useDisplayCurrency,
+} from '../../lib/displayCurrency';
 
 const COPY = {
   ar: {
@@ -55,6 +58,7 @@ export default function AllOffersScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
   const isAr = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,11 +133,17 @@ export default function AllOffersScreen({ navigation }) {
     return r.title_en || r.title_ar || r.title_zh || '—';
   }
 
-  function fmtPrice(usd) {
-    const num = parseFloat(usd);
+  function fmtPrice(amount, currency) {
+    const num = parseFloat(amount);
     if (!Number.isFinite(num)) return '—';
-    if (isAr) return `${(num * USD_TO_SAR).toFixed(2)} ر.س`;
-    return `$${num.toFixed(2)}`;
+    return formatPriceWithConversion({
+      amount: num,
+      sourceCurrency: normalizeDisplayCurrency(currency || 'USD'),
+      displayCurrency: viewerCurrency,
+      rates: exchangeRates,
+      lang,
+      options: { minimumFractionDigits: 2 },
+    });
   }
 
   function openGroup(group) {
@@ -214,7 +224,7 @@ export default function AllOffersScreen({ navigation }) {
 
                     <View style={[s.priceRow, isAr && s.rowRtl]}>
                       <Text style={s.priceLabel}>{t.unitPrice}</Text>
-                      <Text style={s.priceValue}>{fmtPrice(offer.price)}</Text>
+                      <Text style={s.priceValue}>{fmtPrice(offer.price, offer.currency)}</Text>
                     </View>
                   </TouchableOpacity>
                 );
