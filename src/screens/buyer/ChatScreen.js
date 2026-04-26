@@ -939,7 +939,7 @@ const s = StyleSheet.create({
   timeRow:      { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   timeRowEnd:   { justifyContent: 'flex-end' },
   timeRowStart: { justifyContent: 'flex-start' },
-  msgTime:      { color: 'rgba(0,0,0,0.25)', fontSize: 10, fontFamily: F.en },
+  msgTime:      { color: 'rgba(0,0,0,0.25)', fontSize: 10, fontFamily: F.num },
   tick:         { fontSize: 10, letterSpacing: -0.5 },
   tickSent:     { color: 'rgba(0,0,0,0.25)' },
   tickRead:     { color: '#2D6A4F' },

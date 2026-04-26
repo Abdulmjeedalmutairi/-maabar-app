@@ -14,6 +14,10 @@ import {
   CormorantGaramond_600SemiBold,
   CormorantGaramond_700Bold,
 } from '@expo-google-fonts/cormorant-garamond';
+import {
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from '@expo-google-fonts/inter';
 import RootNavigator from './src/navigation/RootNavigator';
 import { C } from './src/lib/colors';
 
@@ -30,6 +34,8 @@ export default function App() {
     CormorantGaramond_400Regular,
     CormorantGaramond_600SemiBold,
     CormorantGaramond_700Bold,
+    Inter_500Medium,
+    Inter_600SemiBold,
   });
 
   if (!fontsLoaded) {

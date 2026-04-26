@@ -306,7 +306,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   priceLabel: { color: C.textTertiary, fontFamily: F.ar, fontSize: 12 },
-  priceValue: { color: C.textPrimary, fontFamily: F.enLight, fontSize: 18, letterSpacing: -0.5 },
+  priceValue: { color: C.textPrimary, fontFamily: F.num, fontSize: 18, letterSpacing: -0.5 },
 
   emptyCard: {
     margin: 20,

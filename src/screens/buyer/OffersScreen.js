@@ -552,7 +552,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   priceLabel: { color: C.textTertiary, fontFamily: F.ar,      fontSize: 11, marginBottom: 4 },
-  priceValue: { color: C.textPrimary,  fontFamily: F.enLight, fontSize: 20, letterSpacing: -0.5 },
+  priceValue: { color: C.textPrimary,  fontFamily: F.num, fontSize: 20, letterSpacing: -0.5 },
 
   totalRow: {
     flexDirection: 'row',

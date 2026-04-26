@@ -817,7 +817,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   priceLabel: { color: C.textTertiary, fontFamily: F.ar, fontSize: 10, marginBottom: 3 },
-  priceValue: { color: C.textPrimary, fontFamily: F.enSemi, fontSize: 13 },
+  priceValue: { color: C.textPrimary, fontFamily: F.numSemi, fontSize: 13 },
 
   reasonBox: {
     backgroundColor: C.bgOverlay,

@@ -407,7 +407,7 @@ const s = StyleSheet.create({
   toggleBtn: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 8 },
   toggleText: { fontSize: 11, fontFamily: F.arSemi },
   cardMeta: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  metaItem: { color: C.textTertiary, fontSize: 12, fontFamily: F.en },
+  metaItem: { color: C.textTertiary, fontSize: 12, fontFamily: F.num },
 
   emptyCard: {
     backgroundColor: C.bgRaised, borderRadius: 16,

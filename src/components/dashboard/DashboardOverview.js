@@ -52,7 +52,7 @@ function PaymentBadge({ label, amount, currency, badgeState }) {
   return (
     <View style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
       <Text style={{ fontSize: 8, color: c.text, fontFamily: F.arSemi, marginBottom: 2 }}>{label}</Text>
-      <Text style={{ fontSize: 13, color: c.text, fontFamily: F.en }}>{amount > 0 ? Number(amount).toFixed(0) : '—'}<Text style={{ fontSize: 8, color: C.textDisabled }}> {currency}</Text></Text>
+      <Text style={{ fontSize: 13, color: c.text, fontFamily: F.num }}>{amount > 0 ? Number(amount).toFixed(0) : '—'}<Text style={{ fontSize: 8, color: C.textDisabled }}> {currency}</Text></Text>
     </View>
   );
 }

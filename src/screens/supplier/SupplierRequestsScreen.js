@@ -527,7 +527,7 @@ const s = StyleSheet.create({
   cardTitle: { color: C.textPrimary, fontSize: 15, fontFamily: F.arSemi, flex: 1, lineHeight: 22 },
   cardDesc: { color: C.textSecondary, fontSize: 13, fontFamily: F.ar, marginBottom: 10, lineHeight: 20 },
   cardMeta: { flexDirection: 'row', gap: 16, marginBottom: 14, flexWrap: 'wrap' },
-  metaItem: { color: C.textTertiary, fontSize: 12, fontFamily: F.en },
+  metaItem: { color: C.textTertiary, fontSize: 12, fontFamily: F.num },
   catBadge: {
     backgroundColor: C.bgOverlay, borderRadius: 20,
     paddingHorizontal: 10, paddingVertical: 4,

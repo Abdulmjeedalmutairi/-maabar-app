@@ -584,7 +584,7 @@ export default function BuyerDirectOrdersScreen({ navigation }) {
               </View>
               <View style={s.trackRow}>
                 <Text style={s.trackLabel}>{t.trackingNum}:</Text>
-                <Text style={[s.trackVal, { fontFamily: F.enSemi }]}>{r.tracking_number}</Text>
+                <Text style={[s.trackVal, { fontFamily: F.numSemi }]}>{r.tracking_number}</Text>
               </View>
               <TouchableOpacity onPress={() => Linking.openURL(trackUrl)} activeOpacity={0.7}>
                 <Text style={s.trackBtnText}>{t.trackBtn}</Text>
