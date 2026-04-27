@@ -424,7 +424,7 @@ export default function OffersScreen({ route, navigation }) {
 
                 <View style={s.totalRow}>
                   <Text style={s.totalLabel}>{isAr ? 'الإجمالي التقديري' : 'Est. Total'}</Text>
-                  <Text style={s.totalValue}>{fmtPrice(total)}</Text>
+                  <Text style={s.totalValue}>{fmtPrice(total, offer.currency)}</Text>
                 </View>
 
                 {/* ── تفاصيل toggle ── */}
