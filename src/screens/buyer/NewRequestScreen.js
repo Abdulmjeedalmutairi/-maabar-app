@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { setupManagedRequest } from '../../lib/managedBrief';
+import { buildTranslatedRequestFields } from '../../lib/requestTranslation';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
@@ -101,12 +102,40 @@ export default function NewRequestScreen({ navigation, route }) {
   async function doInsert(userId) {
     setSubmitting(true);
     setFormError('');
+
+    const titleInput = form.titleAr.trim();
+    const description = form.description.trim();
+    const lang = getLang();
+
+    // Translate title and description to all 3 languages at write time so
+    // suppliers viewing in their own language see translated content.
+    // form.titleAr holds whatever the buyer typed — its actual language is
+    // `lang`. Per platform policy, traders use ar or en; route to the right slot.
+    let translated = {};
+    try {
+      translated = await buildTranslatedRequestFields({
+        titleAr: lang === 'ar' ? titleInput : '',
+        titleEn: lang === 'en' ? titleInput : '',
+        description,
+        lang,
+      });
+    } catch (translationErr) {
+      console.error('[NewRequestScreen] buildTranslatedRequestFields threw:', translationErr?.message || translationErr);
+      translated = {
+        title_ar: titleInput, title_en: titleInput, title_zh: titleInput,
+        description_ar: description, description_en: description, description_zh: description,
+      };
+    }
+
     const payload = {
       buyer_id:           userId,
-      title_ar:           form.titleAr.trim(),
-      title_en:           form.titleAr.trim(),
-      title_zh:           form.titleAr.trim(),
-      description:        form.description.trim(),
+      title_ar:           translated.title_ar || titleInput,
+      title_en:           translated.title_en || titleInput,
+      title_zh:           translated.title_zh || titleInput,
+      description:        description,
+      description_ar:     translated.description_ar || null,
+      description_en:     translated.description_en || null,
+      description_zh:     translated.description_zh || null,
       quantity:           parseInt(form.quantity, 10),
       category:           form.category || 'other',
       budget_per_unit:    form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null,

@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { setupManagedRequest } from '../../lib/managedBrief';
+import { buildTranslatedRequestFields } from '../../lib/requestTranslation';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
@@ -341,10 +342,36 @@ export default function RequestsScreen({ navigation, route }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSubmitting(false); return; }
     const isManaged = sourcingMode === 'managed';
+    const description = form.description.trim();
+    const lang = getLang();
+
+    // Translate title and description to all 3 languages at write time so
+    // suppliers viewing in their own language see translated content.
+    let translated = {};
+    try {
+      translated = await buildTranslatedRequestFields({
+        titleAr: lang === 'ar' ? title : '',
+        titleEn: lang === 'en' ? title : '',
+        description,
+        lang,
+      });
+    } catch (translationErr) {
+      console.error('[RequestsScreen] buildTranslatedRequestFields threw:', translationErr?.message || translationErr);
+      translated = {
+        title_ar: title, title_en: title, title_zh: title,
+        description_ar: description, description_en: description, description_zh: description,
+      };
+    }
+
     const payload = {
       buyer_id: user.id,
-      title_ar: title, title_en: title, title_zh: title,
-      description: form.description.trim(),
+      title_ar: translated.title_ar || title,
+      title_en: translated.title_en || title,
+      title_zh: translated.title_zh || title,
+      description: description,
+      description_ar: translated.description_ar || null,
+      description_en: translated.description_en || null,
+      description_zh: translated.description_zh || null,
       quantity: parseInt(qty, 10),
       category: form.category || 'other',
       budget_per_unit: form.budgetPerUnit ? parseFloat(form.budgetPerUnit) : null,

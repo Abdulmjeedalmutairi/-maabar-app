@@ -9,6 +9,8 @@ import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import GuestSignupModal from '../../components/GuestSignupModal';
 import { setupManagedRequest } from '../../lib/managedBrief';
+import { buildTranslatedRequestFields } from '../../lib/requestTranslation';
+import { getLang } from '../../lib/lang';
 import {
   DISPLAY_CURRENCIES,
   normalizeDisplayCurrency,
@@ -215,13 +217,39 @@ export default function IdeaToProductScreen({ navigation }) {
     // Maabar's admin team curates before any supplier sees it. Insert with
     // sourcing_mode='managed' so the admin concierge queue picks it up, and
     // tag the buyer's last-action so admin knows it came from the assistant.
+
+    const titleInput = (draft.titleAr || '').trim();
+    const description = (draft.description || '').trim();
+    const lang = getLang();
+
+    // Translate title and description to all 3 languages at write time so
+    // suppliers viewing in their own language see translated content.
+    let translated = {};
+    try {
+      translated = await buildTranslatedRequestFields({
+        titleAr: lang === 'ar' ? titleInput : '',
+        titleEn: lang === 'en' ? titleInput : '',
+        description,
+        lang,
+      });
+    } catch (translationErr) {
+      console.error('[IdeaToProductScreen] buildTranslatedRequestFields threw:', translationErr?.message || translationErr);
+      translated = {
+        title_ar: titleInput, title_en: titleInput, title_zh: titleInput,
+        description_ar: description, description_en: description, description_zh: description,
+      };
+    }
+
     const payload = {
       buyer_id:                  userId,
-      title_ar:                  draft.titleAr,
-      title_en:                  draft.titleAr,
-      title_zh:                  draft.titleAr,
+      title_ar:                  translated.title_ar || titleInput,
+      title_en:                  translated.title_en || titleInput,
+      title_zh:                  translated.title_zh || titleInput,
       quantity:                  String(draft.quantity),
-      description:               draft.description || '',
+      description:               description,
+      description_ar:            translated.description_ar || null,
+      description_en:            translated.description_en || null,
+      description_zh:            translated.description_zh || null,
       category:                  draft.category || 'other',
       status:                    'open',
       budget_per_unit:           draft.budgetPerUnit ? parseFloat(draft.budgetPerUnit) : null,
