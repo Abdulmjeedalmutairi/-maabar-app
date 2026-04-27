@@ -29,30 +29,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { getProductGalleryImages, buildProductSpecs } from '../../lib/productMedia';
+import { buildDisplayPrice, useDisplayCurrency } from '../../lib/displayCurrency';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
-
-/* ── Fixed exchange rates (mirrors web displayCurrency DEFAULT_RATES) ── */
-const RATES = { USD: 1, SAR: 3.75, CNY: 7.2 };
-
-function getDisplayCurrency(lang) {
-  if (lang === 'ar') return 'SAR';
-  if (lang === 'zh') return 'CNY';
-  return 'USD';
-}
-
-function convertAndFormat(usdAmount, targetCurrency, lang) {
-  const rate = RATES[targetCurrency] || 1;
-  const converted = Number(usdAmount || 0) * rate;
-  const locale = lang === 'ar' ? 'ar-SA' : lang === 'zh' ? 'zh-CN' : 'en-US';
-  const str = converted.toLocaleString(locale, { maximumFractionDigits: 2 });
-  return `${str} ${targetCurrency}`;
-}
-
-function formatUSD(amount) {
-  const n = Number(amount || 0);
-  return `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD`;
-}
 
 /* ── Supplier helpers (mirrors web supplierOnboarding.js) ─────────── */
 const STATUS_MAP = {
@@ -114,6 +93,7 @@ export default function ProductDetailScreen({ route, navigation }) {
   const { productId } = route.params || {};
   const lang  = getLang();
   const isAr  = lang === 'ar';
+  const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
   const [product, setProduct]             = useState(null);
   const [loading, setLoading]             = useState(true);
@@ -296,14 +276,19 @@ export default function ProductDetailScreen({ route, navigation }) {
       ? (product.name_zh || product.name_en || '')
       : (product.name_zh || product.name_ar || '');
 
-  /* Price */
-  const displayCurrency  = getDisplayCurrency(lang);
-  const priceDisplay     = product.price_from != null
-    ? convertAndFormat(product.price_from, displayCurrency, lang)
+  /* Price — routed through central displayCurrency lib for proper locale
+     handling (ar-SA-u-nu-latn) and viewer-preference-aware conversion. */
+  const priceObj = product.price_from != null
+    ? buildDisplayPrice({
+        amount: product.price_from,
+        sourceCurrency: 'USD',
+        displayCurrency: viewerCurrency,
+        rates: exchangeRates,
+        lang,
+      })
     : null;
-  const priceOriginalUSD = product.price_from != null && displayCurrency !== 'USD'
-    ? formatUSD(product.price_from)
-    : null;
+  const priceDisplay     = priceObj?.formattedDisplay || null;
+  const priceOriginalUSD = priceObj && priceObj.isConverted ? priceObj.formattedSource : null;
 
   /* Sourcing highlights (mirrors web sourcingHighlights array exactly) */
   const origin = product.origin || sup.country || (isAr ? 'الصين' : lang === 'zh' ? '中国' : 'China');
