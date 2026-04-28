@@ -81,6 +81,28 @@ export function getOfferFieldValue(offer, key, lang, { fmtPrice }) {
       if (!Number.isFinite(n) || n <= 0) return null;
       return `${n} ${pickLang(DAYS_UNIT, lang)}`;
     }
+    case 'shipping_method': {
+      // Canonical shape after the supplier write fix is a pure numeric string
+      // (number of shipping days). Format with the viewer's lang. Free-form
+      // / legacy lang-baked values pass through unchanged.
+      const raw = String(offer[key] || '').trim();
+      if (!raw) return null;
+      const numeric = parseInt(raw, 10);
+      if (Number.isFinite(numeric) && String(numeric) === raw) {
+        return `${numeric} ${pickLang(DAYS_UNIT, lang)}`;
+      }
+      return raw;
+    }
+    case 'moq': {
+      // Strip CJK characters/punctuation so the numeric portion is visible
+      // to non-Chinese viewers. If everything was CJK, fall back to original.
+      if (isEmpty(offer[key])) return null;
+      const raw = String(offer[key]).trim();
+      const stripped = raw
+        .replace(/[一-鿿　-〿＀-￯]+/g, '')
+        .trim();
+      return stripped || raw;
+    }
     case 'note': {
       const s = pickNote(offer, lang);
       return s || null;

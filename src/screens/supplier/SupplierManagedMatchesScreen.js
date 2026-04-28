@@ -283,9 +283,9 @@ export default function SupplierManagedMatchesScreen() {
     // Web-exact submitManagedMatchOffer payload. `origin` is intentionally
     // omitted because the PostgREST schema cache on this project has dropped
     // that column — see the earlier direct-offer insert fix.
-    const shippingMethodText = shippingDays
-      ? `${shippingDays} ${lang === 'ar' ? 'يوم شحن' : lang === 'zh' ? '天运输时效' : 'shipping days'}`
-      : null;
+    // Store the numeric only; lang formatting happens at render time so
+    // each viewer sees their language. See offerFields.js shipping_method case.
+    const shippingMethodText = shippingDays ? String(shippingDays) : null;
 
     const noteTranslations = await translateOfferNote(form.note, getLang());
     const payload = {
