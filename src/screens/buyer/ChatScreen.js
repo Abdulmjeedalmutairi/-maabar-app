@@ -244,7 +244,7 @@ export default function ChatScreen({ route, navigation }) {
   useEffect(() => {
     if (transMode === 'none' || !myId || !messages.length) return;
     const ids = messages
-      .filter(m => !String(m.id).startsWith('temp-') && m.sender_id !== myId)
+      .filter(m => !String(m.id).startsWith('temp-') && m.sender_id !== myId && m.message_type !== 'system')
       .map(m => m.id);
     if (!ids.length) return;
     const direction = transModeToDbDirection(transMode);
@@ -272,6 +272,7 @@ export default function ChatScreen({ route, navigation }) {
     if (transMode === 'none' || !myId) return;
     messages.forEach(msg => {
       if (msg.sender_id === myId) return;          // only incoming
+      if (msg.message_type === 'system') return;   // system messages carry trilingual content; no AI translation
       if (!msg.content?.trim()) return;
       const cacheKey = `${transMode}:${msg.id}`;
       if (translations[cacheKey] || pendingTrans[cacheKey]) return;
@@ -534,11 +535,24 @@ export default function ChatScreen({ route, navigation }) {
 
   // ── Render single message row ────────────────────────────────────────────────
   const renderMessage = ({ item, index }) => {
-    // System message — centered gray label, no bubble
+    // System message — centered gray label, no bubble. Content is a
+    // JSON {ar,en,zh} payload set by the writer (e.g., cancel-request flow).
+    // No AI translation needed — pick the viewer's language directly.
     if (item.message_type === 'system') {
+      let systemText = '';
+      try {
+        const parsed = JSON.parse(item.content);
+        if (parsed && typeof parsed === 'object') {
+          systemText = parsed[lang] || parsed.en || parsed.ar || parsed.zh || '';
+        } else {
+          systemText = item.content || '';
+        }
+      } catch {
+        systemText = item.content || '';
+      }
       return (
         <View style={s.systemWrap}>
-          <Text style={s.systemText}>{item.content}</Text>
+          <Text style={s.systemText}>{systemText}</Text>
         </View>
       );
     }

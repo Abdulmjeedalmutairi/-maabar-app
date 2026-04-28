@@ -168,7 +168,17 @@ export default function OrderDetailScreen({ navigation, route }) {
               const nameEn = request.title_en || request.title_ar || '';
               await supabase.from('offers').update({ status: 'rejected' }).eq('id', offer.id);
               await supabase.from('notifications').insert({ user_id: offer.supplier_id, type: 'request_cancelled', title_ar: `قام التاجر بإلغاء الطلب: ${nameAr}`, title_en: `The trader has cancelled the request: ${nameEn}`, ref_id: requestId, is_read: false });
-              if (userId) await supabase.from('messages').insert({ sender_id: userId, receiver_id: offer.supplier_id, content: `The trader has cancelled the request: ${nameEn}`, is_read: false });
+              if (userId) await supabase.from('messages').insert({
+                sender_id: userId,
+                receiver_id: offer.supplier_id,
+                content: JSON.stringify({
+                  ar: `قام التاجر بإلغاء الطلب: ${nameAr}`,
+                  en: `The trader has cancelled the request: ${nameEn}`,
+                  zh: `采购商已取消请求: ${nameEn}`,
+                }),
+                message_type: 'system',
+                is_read: false,
+              });
             }
             navigation.goBack();
           },
