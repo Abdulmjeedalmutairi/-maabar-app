@@ -11,7 +11,8 @@ import { getLang } from '../../lib/lang';
 import { buildOfferDetailRows } from '../../lib/offerFields';
 import { resolveOfferNote, readCachedNote } from '../../lib/offerNoteCache';
 import {
-  formatPriceWithConversion,
+  convertCurrencyAmount,
+  formatCurrencyAmount,
   normalizeDisplayCurrency,
   useDisplayCurrency,
 } from '../../lib/displayCurrency';
@@ -48,19 +49,16 @@ export default function OffersScreen({ route, navigation }) {
   const isAr = lang === 'ar';
   const { displayCurrency: viewerCurrency, rates: exchangeRates } = useDisplayCurrency();
 
-  // amount is in `currency`; renders "X CCY [≈ Y viewerCurrency]" when they differ.
+  // Buyer-only: convert from offer's source currency to the viewer's display
+  // currency and show only the converted amount. No "≈" dual display, since
+  // the trader doesn't need to see the supplier's source currency.
   function fmtPrice(amount, currency) {
     if (amount == null || amount === '') return '—';
     const num = parseFloat(amount);
     if (!Number.isFinite(num)) return String(amount);
-    return formatPriceWithConversion({
-      amount: num,
-      sourceCurrency: normalizeDisplayCurrency(currency || 'USD'),
-      displayCurrency: viewerCurrency,
-      rates: exchangeRates,
-      lang,
-      options: { minimumFractionDigits: 2 },
-    });
+    const sourceCurrency = normalizeDisplayCurrency(currency || 'USD');
+    const converted = convertCurrencyAmount(num, sourceCurrency, viewerCurrency, exchangeRates);
+    return formatCurrencyAmount(converted, viewerCurrency, lang, { minimumFractionDigits: 2 });
   }
 
   function toggleExpanded(offerId) {
