@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
+import { translateOfferNote } from '../../lib/requestTranslation';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import {
@@ -178,6 +179,7 @@ export default function SupplierOffersScreen({ navigation }) {
     }
 
     setSaving(true);
+    const noteTranslations = await translateOfferNote(editForm.note, getLang());
     const editCurrency = normalizeDisplayCurrency(editForm.currency || editOffer?.currency || viewerCurrency);
     const { error } = await supabase.from('offers').update({
       price,
@@ -188,6 +190,7 @@ export default function SupplierOffersScreen({ navigation }) {
       delivery_days: days,
       origin: editForm.origin || 'China',
       note: editForm.note || null,
+      ...noteTranslations,
     }).eq('id', editOffer.id);
     setSaving(false);
 

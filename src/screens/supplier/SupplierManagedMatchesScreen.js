@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
+import { translateOfferNote } from '../../lib/requestTranslation';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 
@@ -279,6 +280,7 @@ export default function SupplierManagedMatchesScreen() {
       ? `${shippingDays} ${lang === 'ar' ? 'يوم شحن' : lang === 'zh' ? '天运输时效' : 'shipping days'}`
       : null;
 
+    const noteTranslations = await translateOfferNote(form.note, getLang());
     const payload = {
       request_id: match.request_id,
       supplier_id: myId,
@@ -288,6 +290,7 @@ export default function SupplierManagedMatchesScreen() {
       moq,
       delivery_days: productionDays,
       note: form.note || null,
+      ...noteTranslations,
       status: 'pending',
       managed_match_id: match.id,
       managed_visibility: 'admin_only',

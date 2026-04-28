@@ -26,6 +26,28 @@ export async function translateTextToAllLanguages(text, sourceLang) {
 }
 
 /**
+ * Translate a supplier offer note to all 3 languages and return the
+ * Supabase column shape ready to spread into an offers payload.
+ * Returns {} on empty input or any failure — never throws — so callers
+ * can submit even if translation is unavailable. The legacy `note` column
+ * preserves the source text in that case.
+ *
+ * @param {string} note - The note text typed by the supplier.
+ * @param {string} lang - Source language ('ar' | 'en' | 'zh'). Default 'zh'.
+ * @returns {Promise<{note_ar?:string, note_en?:string, note_zh?:string}>}
+ */
+export async function translateOfferNote(note, lang) {
+  if (!note) return {};
+  try {
+    const noteLangs = await translateTextToAllLanguages(note, lang || 'zh');
+    return { note_ar: noteLangs.ar, note_en: noteLangs.en, note_zh: noteLangs.zh };
+  } catch (err) {
+    console.error('translateOfferNote error:', err?.message || err);
+    return {};
+  }
+}
+
+/**
  * Translate `text` from `sourceLang` to every other language.
  * Returns an object like { ar: '...', en: '...', zh: '...' }.
  * The source language entry is filled with the original text; all others are

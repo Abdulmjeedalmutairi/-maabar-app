@@ -18,6 +18,7 @@ function parseDesc(raw, lang) {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase, SEND_EMAIL_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
+import { translateOfferNote } from '../../lib/requestTranslation';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import {
@@ -187,6 +188,7 @@ export default function SupplierRequestsScreen({ navigation }) {
       return;
     }
 
+    const noteTranslations = await translateOfferNote(form.note, getLang());
     const offerCurrency = normalizeDisplayCurrency(form.currency || viewerCurrency);
     const { error } = await supabase.from('offers').insert({
       request_id: selectedRequest.id,
@@ -198,6 +200,7 @@ export default function SupplierRequestsScreen({ navigation }) {
       moq: form.moq || null,
       delivery_days: days,
       note: form.note || null,
+      ...noteTranslations,
       status: 'pending',
     });
 
