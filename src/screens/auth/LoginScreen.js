@@ -283,6 +283,7 @@ export default function LoginScreen() {
             phone: form.phone.trim(),
             city: form.city.trim(),
             role: 'buyer',
+            lang: getLang(),
           },
         },
       });
@@ -301,6 +302,7 @@ export default function LoginScreen() {
           phone:     form.phone.trim(),
           city:      form.city.trim(),
           role:      'buyer',
+          lang:      getLang(),
         });
         console.log('[LoginScreen] buyer profile upsert:', uErr ? uErr.message : 'ok');
       }
@@ -311,7 +313,7 @@ export default function LoginScreen() {
         email: form.email.trim(),
         password: form.password,
         options: {
-          data: { company_name: form.supCompany.trim(), role: 'supplier' },
+          data: { company_name: form.supCompany.trim(), role: 'supplier', lang: getLang() },
         },
       });
 
@@ -334,6 +336,7 @@ export default function LoginScreen() {
           speciality:   form.speciality.trim(),
           role:         'supplier',
           status:       'registered',
+          lang:         getLang(),
         });
         console.log('[LoginScreen] supplier profile upsert:', uErr ? uErr.message : 'ok');
       }

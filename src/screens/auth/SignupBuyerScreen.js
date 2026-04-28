@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import MaabarLogo from '../../components/MaabarLogo';
 
@@ -45,6 +46,7 @@ export default function SignupBuyerScreen({ navigation }) {
     setLoading(true);
     setError('');
 
+    const lang = getLang();
     const { data, error: signupErr } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -54,6 +56,7 @@ export default function SignupBuyerScreen({ navigation }) {
           phone,
           city,
           role: 'buyer',
+          lang,
         },
       },
     });
@@ -69,6 +72,7 @@ export default function SignupBuyerScreen({ navigation }) {
         phone,
         city,
         role: 'buyer',
+        lang,
       });
     }
 

@@ -99,11 +99,12 @@ export default function SignupSupplierScreen({ navigation }) {
     setLoading(true);
     setError('');
 
+    const lang = getLang();
     const { data, error: signupErr } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        data: { company_name: companyName, role: 'supplier' },
+        data: { company_name: companyName, role: 'supplier', lang },
       },
     });
 
@@ -122,6 +123,7 @@ export default function SignupSupplierScreen({ navigation }) {
         speciality: form.speciality,
         role: 'supplier',
         status: 'registered',
+        lang,
       });
     }
 

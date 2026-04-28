@@ -11,6 +11,7 @@ import {
   Platform, ScrollView,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { getLang } from '../lib/lang';
 import { C } from '../lib/colors';
 import { F } from '../lib/fonts';
 
@@ -39,10 +40,11 @@ export default function GuestSignupModal({ visible, onClose, onSuccess, navigati
     setError('');
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    const lang = getLang();
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { full_name: fullName, role: 'buyer' } },
+      options: { data: { full_name: fullName, role: 'buyer', lang } },
     });
 
     if (err) { setError(err.message); setLoading(false); return; }
@@ -54,6 +56,7 @@ export default function GuestSignupModal({ visible, onClose, onSuccess, navigati
         email: email.trim().toLowerCase(),
         full_name: fullName,
         role: 'buyer',
+        lang,
       });
     }
 
