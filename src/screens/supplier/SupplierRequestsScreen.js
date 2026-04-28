@@ -5,7 +5,19 @@ import {
   KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 
-function parseDesc(raw, lang) {
+// Pick the request description to show the supplier in their UI language.
+// Prefers the per-language column populated at write time
+// (description_ar/_en/_zh), falls back to any sibling column, finally falls
+// back to the legacy `description` column (which on older rows may be
+// JSON-encoded multilang, otherwise plain text in the buyer's source lang).
+function pickRequestDescription(r, lang) {
+  if (!r) return '';
+  if (lang === 'zh' && r.description_zh) return String(r.description_zh).trim();
+  if (lang === 'en' && r.description_en) return String(r.description_en).trim();
+  if (lang === 'ar' && r.description_ar) return String(r.description_ar).trim();
+  const fallback = r.description_zh || r.description_en || r.description_ar;
+  if (fallback) return String(fallback).trim();
+  const raw = r.description;
   if (!raw) return '';
   try {
     const obj = JSON.parse(raw);
@@ -288,7 +300,7 @@ export default function SupplierRequestsScreen({ navigation }) {
               <Text style={[s.emptyText, isAr && s.rtl]}>{t.noRequests}</Text>
             </View>
           ) : requests.map(r => {
-            const desc = parseDesc(r.description, lang);
+            const desc = pickRequestDescription(r, lang);
             return (
               <View key={r.id} style={s.card}>
                 <View style={[s.cardHeader, isAr && s.rowRtl]}>
@@ -354,7 +366,7 @@ export default function SupplierRequestsScreen({ navigation }) {
           </View>
           <ScrollView contentContainerStyle={s.modalScroll}>
             {viewedRequest && (() => {
-              const desc = parseDesc(viewedRequest.description, lang);
+              const desc = pickRequestDescription(viewedRequest, lang);
               const payLabel = t.paymentPlan[String(viewedRequest.payment_plan)] || viewedRequest.payment_plan || '—';
               const smpLabel = t.sampleReq[viewedRequest.sample_requirement] || viewedRequest.sample_requirement || '—';
               return (

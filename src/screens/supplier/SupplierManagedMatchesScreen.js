@@ -225,6 +225,13 @@ export default function SupplierManagedMatchesScreen() {
 
   function getDesc(m) {
     const r = m.requests || {};
+    // Prefer per-language column based on viewer; fall back to siblings, then
+    // to the legacy `description` column (may be JSON-encoded on older rows).
+    if (lang === 'zh' && r.description_zh) return String(r.description_zh).trim();
+    if (lang === 'en' && r.description_en) return String(r.description_en).trim();
+    if (lang === 'ar' && r.description_ar) return String(r.description_ar).trim();
+    const sibling = r.description_zh || r.description_en || r.description_ar;
+    if (sibling) return String(sibling).trim();
     const raw = r.description;
     if (!raw) return '';
     try {
