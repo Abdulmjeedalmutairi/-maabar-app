@@ -109,6 +109,13 @@ function translateModeToLangs(mode) {
   return null;
 }
 
+// Mobile transMode is hyphen-separated ('zh-to-ar'); web's message_translations
+// table stores direction with underscores ('zh_to_ar'). Convert for DB I/O so
+// mobile and web share the same cache rows.
+function transModeToDbDirection(mode) {
+  return mode.replace('-to-', '_to_');
+}
+
 async function translateChatLine(text, mode) {
   if (!text || mode === 'none') return null;
   const langs = translateModeToLangs(mode);
@@ -230,18 +237,59 @@ export default function ChatScreen({ route, navigation }) {
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: false }), 80);
   }, [messages.length]);
 
-  // ── Translation — trigger for incoming messages when mode changes ───────────
+  // ── Translation Tier 1 — hydrate from message_translations DB cache ─────────
+  // Mirrors web Chat.jsx pattern. Pulls any previously-translated message
+  // bodies for this direction so we avoid re-calling the AI on every screen
+  // reopen.
+  useEffect(() => {
+    if (transMode === 'none' || !myId || !messages.length) return;
+    const ids = messages
+      .filter(m => !String(m.id).startsWith('temp-') && m.sender_id !== myId)
+      .map(m => m.id);
+    if (!ids.length) return;
+    const direction = transModeToDbDirection(transMode);
+    supabase.from('message_translations')
+      .select('message_id, translated_text')
+      .eq('direction', direction)
+      .in('message_id', ids)
+      .then(({ data }) => {
+        if (!data?.length) return;
+        setTranslations(prev => {
+          const next = { ...prev };
+          data.forEach(row => {
+            next[`${transMode}:${row.message_id}`] = row.translated_text;
+          });
+          return next;
+        });
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transMode, messages.length, myId]);
+
+  // ── Translation Tier 2/3 — translate untranslated, persist to DB ────────────
+  // Cache key is message-ID-based (matches web's pattern and the DB row key)
+  // so cached entries survive content edits and content-collision is avoided.
   useEffect(() => {
     if (transMode === 'none' || !myId) return;
     messages.forEach(msg => {
       if (msg.sender_id === myId) return;          // only incoming
       if (!msg.content?.trim()) return;
-      const cacheKey = `${transMode}:${msg.content}`;
+      const cacheKey = `${transMode}:${msg.id}`;
       if (translations[cacheKey] || pendingTrans[cacheKey]) return;
       setPendingTrans(prev => ({ ...prev, [cacheKey]: true }));
       translateChatLine(msg.content, transMode).then(result => {
         setPendingTrans(prev => { const n = { ...prev }; delete n[cacheKey]; return n; });
-        if (result) setTranslations(prev => ({ ...prev, [cacheKey]: result }));
+        if (!result) return;
+        setTranslations(prev => ({ ...prev, [cacheKey]: result }));
+        // Tier 3: persist to DB so the next session/device hits the cache.
+        // Skip temp- IDs (optimistic-send messages with no real DB row yet).
+        if (!String(msg.id).startsWith('temp-')) {
+          const direction = transModeToDbDirection(transMode);
+          supabase.from('message_translations').upsert({
+            message_id: msg.id,
+            direction,
+            translated_text: result,
+          }, { onConflict: 'message_id,direction' }).then(() => {});
+        }
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -505,7 +553,7 @@ export default function ChatScreen({ route, navigation }) {
     const hasAttachment = !!item.attachment_url;
 
     // Translation for incoming messages
-    const cacheKey    = `${transMode}:${item.content}`;
+    const cacheKey    = `${transMode}:${item.id}`;
     const translated  = (!isMe && transMode !== 'none' && hasContent) ? translations[cacheKey] : null;
     const translating = (!isMe && transMode !== 'none' && hasContent && !translated) ? pendingTrans[cacheKey] : false;
 
