@@ -94,3 +94,9 @@ export function getSpecialtyLabel(rawCode, lang = 'en') {
   const found = list.find((c) => c.val === code);
   return found ? found.label : code;
 }
+
+// Codes only — for forms that need the full 24-category list without the
+// synthetic 'all' filter row.
+export const SPECIALTY_CODES = CATEGORIES.en
+  .map((c) => c.val)
+  .filter((v) => v !== 'all');
