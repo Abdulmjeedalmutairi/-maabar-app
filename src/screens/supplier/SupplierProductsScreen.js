@@ -21,7 +21,14 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput, Image,
   StyleSheet, ActivityIndicator, Modal, RefreshControl,
   KeyboardAvoidingView, Platform, Alert,
+  LayoutAnimation, UIManager,
 } from 'react-native';
+
+// Android requires an experimental opt-in for LayoutAnimation. Safe to call
+// once at module load — it's a no-op on iOS and on subsequent calls.
+if (Platform.OS === 'android' && UIManager?.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -66,16 +73,16 @@ const B2B_COLUMNS =
 // via loadTiers). Selecting it here returned 400 from PostgREST.
 const PRODUCT_SELECT_FULL =
   'id, name_ar, name_en, name_zh, desc_ar, desc_en, desc_zh, ' +
-  'currency, moq, category, incoterms, ' +
-  'image_url, gallery_images, ' +
+  'currency, moq, category, incoterms, has_variants, ' +
+  'image_url, gallery_images, video_url, ' +
   'sample_available, sample_price, sample_currency, sample_max_qty, sample_note, ' +
   B2B_COLUMNS + ', ' +
   'supplier_id, is_active, created_at';
 
 const PRODUCT_SELECT_NO_SC =
   'id, name_ar, name_en, name_zh, desc_ar, desc_en, desc_zh, ' +
-  'currency, moq, category, incoterms, ' +
-  'image_url, gallery_images, ' +
+  'currency, moq, category, incoterms, has_variants, ' +
+  'image_url, gallery_images, video_url, ' +
   'sample_available, sample_price, sample_max_qty, sample_note, ' +
   B2B_COLUMNS + ', ' +
   'supplier_id, is_active, created_at';
@@ -139,6 +146,9 @@ const COPY = {
     galleryHint: 'حتى 8 صور',
     addGallery: '+ إضافة صور',
     galleryFull: 'وصلت إلى الحد الأقصى للصور',
+    videoLabel: 'الفيديو (اختياري)',
+    videoPickBtn: '+ رفع فيديو',
+    videoUploadedLabel: 'تم رفع الفيديو',
 
     sampleAvailable: '✓ العينات متاحة',
     sampleUnavailable: 'العينات غير متاحة',
@@ -310,6 +320,9 @@ const COPY = {
     galleryHint: 'Up to 8 images',
     addGallery: '+ Add images',
     galleryFull: 'Gallery limit reached',
+    videoLabel: 'Video (optional)',
+    videoPickBtn: '+ Upload video',
+    videoUploadedLabel: 'Video uploaded',
 
     sampleAvailable: '✓ Samples Available',
     sampleUnavailable: 'Samples Unavailable',
@@ -481,6 +494,9 @@ const COPY = {
     galleryHint: '最多 8 张',
     addGallery: '+ 添加图片',
     galleryFull: '已达图片上限',
+    videoLabel: '视频（可选）',
+    videoPickBtn: '+ 上传视频',
+    videoUploadedLabel: '视频已上传',
 
     sampleAvailable: '✓ 可提供样品',
     sampleUnavailable: '不提供样品',
@@ -606,6 +622,7 @@ const EMPTY_FORM = {
   incoterms: [],
   image_url: null,
   gallery_images: [],
+  video_url: null,
   sample_available: false,
   sample_price: '',
   sample_currency: 'USD',
@@ -690,6 +707,19 @@ async function uploadProductImage(uri, mimeType, userId, ext) {
   const ab = await fetch(uri).then((r) => r.arrayBuffer());
   const { error } = await supabase.storage.from('product-images').upload(path, ab, {
     contentType: mimeType || 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+  return publicUrl;
+}
+
+async function uploadProductVideo(uri, mimeType, userId, ext) {
+  const e = (ext || (mimeType?.includes('quicktime') ? 'mov' : 'mp4')).toLowerCase();
+  const path = `${userId}/video_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${e}`;
+  const ab = await fetch(uri).then((r) => r.arrayBuffer());
+  const { error } = await supabase.storage.from('product-images').upload(path, ab, {
+    contentType: mimeType || 'video/mp4',
     upsert: true,
   });
   if (error) throw error;
@@ -1383,6 +1413,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
   const [submitting, setSubmitting]         = useState(false);
   const [uploadingPrimary, setUploadingPrimary] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [uploadingVideo, setUploadingVideo]     = useState(false);
   const [certs, setCerts]                       = useState([]);
   const [prevCerts, setPrevCerts]               = useState([]);
 
@@ -1462,6 +1493,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
       gallery_images: Array.isArray(p.gallery_images)
         ? p.gallery_images.filter(Boolean).slice(0, GALLERY_LIMIT)
         : [],
+      video_url: p.video_url || null,
       sample_available: !!p.sample_available,
       sample_price: p.sample_price != null ? String(p.sample_price) : '',
       sample_currency: CURRENCY_OPTIONS.includes(p.sample_currency)
@@ -1771,6 +1803,30 @@ export default function SupplierProductsScreen({ navigation, route }) {
     }));
   }
 
+  async function pickVideo() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    setUploadingVideo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const a = r.assets[0];
+      const ext = (a.fileName?.split('.').pop() || '').toLowerCase();
+      const url = await uploadProductVideo(a.uri, a.mimeType || 'video/mp4', user.id, ext);
+      set('video_url', url);
+    } catch (e) {
+      console.error('[SupplierProducts] video upload error:', e?.message || e);
+      Alert.alert('', t.uploadFailed);
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+  function clearVideo() { set('video_url', null); }
+
   function validate() {
     if (!form.name_zh.trim()) return t.errorNameZh;
     if (!form.name_en.trim()) return t.errorNameEn;
@@ -1866,6 +1922,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
       incoterms: form.incoterms,
       image_url: form.image_url || form.gallery_images[0] || null,
       gallery_images: form.gallery_images,
+      video_url: form.video_url || null,
       sample_available: !!form.sample_available,
       sample_price: Number.isFinite(samplePriceNum) ? samplePriceNum : null,
       sample_currency: form.sample_available ? form.sample_currency : null,
@@ -2094,21 +2151,21 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </View>
 
               {/* ── Names ── */}
-              <Section title={t.sectionNames} isAr={isAr}>
+              <Section title={t.sectionNames} isAr={isAr} defaultExpanded>
                 <PField label={t.nameZh} value={form.name_zh} onChangeText={(v) => set('name_zh', v)} isAr={false} />
                 <PField label={t.nameEn} value={form.name_en} onChangeText={(v) => set('name_en', v)} isAr={false} />
                 <PField label={t.nameAr} value={form.name_ar} onChangeText={(v) => set('name_ar', v)} isAr />
               </Section>
 
               {/* ── Descriptions ── */}
-              <Section title={t.sectionDescriptions} isAr={isAr}>
+              <Section title={t.sectionDescriptions} isAr={isAr} defaultExpanded={false}>
                 <PField label={t.descEn} value={form.desc_en} onChangeText={(v) => set('desc_en', v)} multiline numberOfLines={4} isAr={false} />
                 <PField label={t.descAr} value={form.desc_ar} onChangeText={(v) => set('desc_ar', v)} multiline numberOfLines={3} isAr />
                 <PField label={t.descZh} value={form.desc_zh} onChangeText={(v) => set('desc_zh', v)} multiline numberOfLines={3} isAr={false} />
               </Section>
 
               {/* ── Category ── */}
-              <Section title={t.sectionCategory} isAr={isAr}>
+              <Section title={t.sectionCategory} isAr={isAr} defaultExpanded>
                 <View style={[s.chipRow, isAr && s.chipRowRtl]}>
                   {SPECIALTY_CODES.map((code) => {
                     const active = form.category === code;
@@ -2129,7 +2186,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </Section>
 
               {/* ── Pricing ── */}
-              <Section title={t.sectionPricing} isAr={isAr}>
+              <Section title={t.sectionPricing} isAr={isAr} defaultExpanded>
                 <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.currency}</Text>
                 <View style={[s.pillRow, isAr && s.chipRowRtl]}>
                   {CURRENCY_OPTIONS.map((cur) => {
@@ -2167,7 +2224,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
 
               {/* ── Pricing Tiers ── (hidden when variants own pricing) */}
               {!form.has_variants && (
-              <Section title={t.sectionTiers} isAr={isAr}>
+              <Section title={t.sectionTiers} isAr={isAr} defaultExpanded={false}>
                 <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 12 }]}>
                   {t.tiersHint}
                 </Text>
@@ -2245,7 +2302,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               )}
 
               {/* ── Incoterms ── */}
-              <Section title={t.sectionIncoterms} isAr={isAr}>
+              <Section title={t.sectionIncoterms} isAr={isAr} defaultExpanded>
                 <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 8 }]}>{t.incotermsHint}</Text>
                 <View style={[s.pillRow, isAr && s.chipRowRtl]}>
                   {INCOTERM_OPTIONS.map((code) => {
@@ -2265,7 +2322,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </Section>
 
               {/* ── B2B Logistics ── */}
-              <Section title={t.sectionB2B} isAr={isAr}>
+              <Section title={t.sectionB2B} isAr={isAr} defaultExpanded={false}>
 
                 {/* Shipping & Origin */}
                 <SubLabel isAr={isAr}>{t.subShipping}</SubLabel>
@@ -2530,7 +2587,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </Section>
 
               {/* ── Quality Certifications ── */}
-              <Section title={t.sectionCerts} isAr={isAr}>
+              <Section title={t.sectionCerts} isAr={isAr} defaultExpanded={false}>
                 <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 10 }]}>
                   {t.certsHint}
                 </Text>
@@ -2665,7 +2722,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </Section>
 
               {/* ── Media ── */}
-              <Section title={t.sectionMedia} isAr={isAr}>
+              <Section title={t.sectionMedia} isAr={isAr} defaultExpanded>
                 <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.primaryImage}</Text>
                 {form.image_url ? (
                   <View style={s.primaryWrap}>
@@ -2737,10 +2794,44 @@ export default function SupplierProductsScreen({ navigation, route }) {
                     ))}
                   </View>
                 )}
+
+                {/* Video upload (single file, optional) */}
+                <View style={{ height: 16 }} />
+                <View style={[s.galleryHeader, isAr && s.rowRtl]}>
+                  <Text style={[s.fieldLabel, isAr && s.rtl, { marginBottom: 0 }]}>
+                    {t.videoLabel}
+                  </Text>
+                  {!form.video_url && (
+                    <TouchableOpacity
+                      style={s.smallBtn}
+                      onPress={pickVideo}
+                      disabled={uploadingVideo}
+                      activeOpacity={0.85}
+                    >
+                      {uploadingVideo
+                        ? <ActivityIndicator color={C.textSecondary} />
+                        : <Text style={s.smallBtnText}>{t.videoPickBtn}</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {!!form.video_url && (
+                  <View style={[s.certPill, isAr && s.rowRtl, { marginTop: 8 }]}>
+                    <Text style={s.certPillCheck}>✓</Text>
+                    <Text style={s.certPillText} numberOfLines={1}>
+                      {t.videoUploadedLabel}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={clearVideo}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={s.certPillRemove}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </Section>
 
               {/* ── Options & Variants ── */}
-              <Section title={t.sectionVariants} isAr={isAr}>
+              <Section title={t.sectionVariants} isAr={isAr} defaultExpanded={false}>
                 <TouchableOpacity
                   style={[s.toggleRow, form.has_variants && s.toggleRowActive]}
                   onPress={toggleHasVariants}
@@ -2917,7 +3008,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
               </Section>
 
               {/* ── Sample ── */}
-              <Section title={t.sectionSample} isAr={isAr}>
+              <Section title={t.sectionSample} isAr={isAr} defaultExpanded={false}>
                 <TouchableOpacity
                   style={[s.toggleRow, form.sample_available && s.toggleRowActive]}
                   onPress={() => set('sample_available', !form.sample_available)}
@@ -2993,11 +3084,40 @@ export default function SupplierProductsScreen({ navigation, route }) {
   );
 }
 
-function Section({ title, isAr, children }) {
+// Collapsible section card. Header row (title + chevron) is always
+// rendered and tappable; children mount only when expanded so we don't
+// pay the layout cost for collapsed-by-default sections like Variants
+// or B2B Logistics. State is local — opening a fresh modal resets to
+// the per-section default. Animation uses LayoutAnimation when the
+// platform supports it (iOS always; Android needs an experimental opt-in
+// that we enable once at module load below).
+function Section({ title, isAr, defaultExpanded = true, children }) {
+  const [expanded, setExpanded] = React.useState(!!defaultExpanded);
+  const onPress = () => {
+    if (LayoutAnimation && typeof LayoutAnimation.configureNext === 'function') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setExpanded((v) => !v);
+  };
   return (
     <View style={s.section}>
-      <Text style={[s.sectionTitle, isAr && s.rtl]}>{title}</Text>
-      {children}
+      <TouchableOpacity
+        style={[s.sectionHeader, isAr && s.rowRtl]}
+        onPress={onPress}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+      >
+        <Text style={[s.sectionTitle, isAr && s.rtl, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={s.sectionChevron}>{expanded ? '▼' : (isAr ? '◀' : '▶')}</Text>
+      </TouchableOpacity>
+      {expanded && (
+        <View style={{ marginTop: 12 }}>
+          {children}
+        </View>
+      )}
     </View>
   );
 }
@@ -3175,6 +3295,14 @@ const s = StyleSheet.create({
   sectionTitle: {
     color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi,
     marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  sectionChevron: {
+    color: C.textTertiary, fontSize: 13, fontFamily: F.numSemi,
+    paddingHorizontal: 8,
   },
   subLabelWrap: {
     marginTop: 6, marginBottom: 10,
