@@ -13,6 +13,8 @@ import {
   formatPriceWithConversion,
   useDisplayCurrency,
 } from '../../lib/displayCurrency';
+import { getSpecialtyLabel } from '../../lib/specialtyLabel';
+import TranslatedText from '../../components/TranslatedText';
 
 // ─── Inlined from web/src/lib/supplierOnboarding.js ──────────────────────────
 const _STATUS_MAP = {
@@ -105,6 +107,8 @@ const T = {
   noTradeAvail:   { ar: 'لا يوجد رابط شركة',                        en: 'no public trade profile',                             zh: '暂未展示店铺链接'                 },
   wechatAvail:    { ar: 'WeChat متاح',                              en: 'WeChat available',                                    zh: '支持 WeChat 沟通'               },
   factoryAvail:   { ar: 'صور منشأة متاحة',                         en: 'factory photos available',                            zh: '提供工厂图片'                    },
+  qualityCerts:   { ar: 'شهادات الجودة',                            en: 'Quality Certifications',                              zh: '质量认证'                       },
+  viewCert:       { ar: 'عرض الشهادة ←',                           en: 'View Certificate →',                                  zh: '查看证书 →'                     },
 };
 
 function t(key, lang) {
@@ -125,13 +129,19 @@ function SectionLabel({ text, isAr }) {
   );
 }
 
-function InfoCard({ label, value, isAr }) {
+function InfoCard({ label, value, isAr, lang, translatable }) {
+  const valueStyle = [
+    s.infoCardValue,
+    { textAlign: isAr ? 'right' : 'left', writingDirection: isAr ? 'rtl' : 'ltr' },
+  ];
   return (
     <View style={s.infoCard}>
       <Text style={[s.infoCardLabel, { textAlign: isAr ? 'right' : 'left' }]}>{label}</Text>
-      <Text style={[s.infoCardValue, { textAlign: isAr ? 'right' : 'left', writingDirection: isAr ? 'rtl' : 'ltr' }]}>
-        {value}
-      </Text>
+      {translatable ? (
+        <TranslatedText text={String(value || '')} lang={lang} textStyle={valueStyle} />
+      ) : (
+        <Text style={valueStyle}>{value}</Text>
+      )}
     </View>
   );
 }
@@ -405,21 +415,36 @@ export default function SupplierProfileScreen({ route, navigation }) {
   const businessCards = [
     supplier.business_type          && { label: t('businessType',  lang), value: supplier.business_type },
     supplier.year_established       && { label: t('yearEst',       lang), value: supplier.year_established },
-    supplier.customization_support  && { label: t('customization', lang), value: supplier.customization_support },
-    supplier.company_address        && { label: t('address',       lang), value: supplier.company_address },
+    supplier.customization_support  && { label: t('customization', lang), value: supplier.customization_support, translatable: true },
+    supplier.company_address        && { label: t('address',       lang), value: supplier.company_address, translatable: true },
     supplierLanguages.length > 0    && { label: t('languages',     lang), value: supplierLanguages.join(' · ') },
     exportMarkets.length > 0        && { label: t('exportMarkets', lang), value: exportMarkets.join(' · ') },
   ].filter(Boolean);
 
+  // Phase port — specialty moved to hero (under company name); remove from stats grid.
   const stats = [
     supplier.export_years     && { label: t('exportYears', lang), val: supplier.export_years },
     supplier.city             && { label: t('city',        lang), val: supplier.city },
     supplier.country          && { label: t('country',     lang), val: supplier.country },
-    supplier.speciality       && { label: t('specialty',   lang), val: supplier.speciality },
     supplier.deals_completed  && { label: t('deals',       lang), val: supplier.deals_completed },
     supplier.completion_rate  && { label: t('completion',  lang), val: `${supplier.completion_rate}%` },
     supplier.created_at       && { label: t('memberSince', lang), val: new Date(supplier.created_at).getFullYear() },
   ].filter(Boolean);
+
+  // Localized specialty label for hero (skips empty + 'other').
+  const specialtyLabel = supplier.speciality && supplier.speciality !== 'other'
+    ? getSpecialtyLabel(supplier.speciality, lang)
+    : '';
+
+  // Normalize certifications for the buyer-facing block. Tolerates legacy
+  // shapes: ["ISO 9001"] (bare string) and [{ name }] (no file_url).
+  const certifications = (Array.isArray(supplier.certifications) ? supplier.certifications : [])
+    .map((c) => {
+      if (typeof c === 'string') return { name: c, file_url: null };
+      if (c && typeof c === 'object') return { name: c.name || '', file_url: c.file_url || null };
+      return null;
+    })
+    .filter((c) => c && (c.name || c.file_url));
 
   const trustText = [
     trustSignals.includes('trade_profile_available') ? t('tradeAvail', lang) : t('noTradeAvail', lang),
@@ -461,6 +486,13 @@ export default function SupplierProfileScreen({ route, navigation }) {
               </View>
             )}
           </View>
+
+          {/* Specialty (under company name, above city/country) — translated label */}
+          {!!specialtyLabel && (
+            <Text style={[s.specialtyLine, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+              {specialtyLabel}
+            </Text>
+          )}
 
           {/* Stars + city + country */}
           <Text style={s.heroMeta}>
@@ -523,8 +555,10 @@ export default function SupplierProfileScreen({ route, navigation }) {
           <InfoCard label={t('workingModel', lang)} value={t('workingText', lang)} isAr={isAr} />
         </View>
 
-        {/* ── CONTACT LINKS ── */}
-        {(supplier.company_website || supplier.trade_link || supplier.wechat || supplier.whatsapp) && (
+        {/* ── CONTACT LINKS ──
+            WeChat & WhatsApp removed: all trader-supplier communication must
+            flow through Maabar's internal chat (matches web Phase 6A policy). */}
+        {(supplier.company_website || supplier.trade_link) && (
           <View style={s.section}>
             <View style={{ gap: 8 }}>
               {!!supplier.company_website && (
@@ -547,33 +581,47 @@ export default function SupplierProfileScreen({ route, navigation }) {
                   </Text>
                 </TouchableOpacity>
               )}
-              {!!supplier.whatsapp && (
-                <TouchableOpacity
-                  style={s.contactBtn}
-                  onPress={() => Linking.openURL(`https://wa.me/${String(supplier.whatsapp).replace(/[^0-9]/g, '')}`)}
-                >
-                  <Text style={[s.contactBtnText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
-                    {t('whatsappLabel', lang)}: {supplier.whatsapp} ↗
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {!!supplier.wechat && (
-                <View style={s.contactDisplay}>
-                  <Text style={[s.contactDisplayText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
-                    {t('wechatLabel', lang)}: {supplier.wechat}
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
         )}
 
-        {/* ── COMPANY DESCRIPTION ── */}
+        {/* ── COMPANY DESCRIPTION (with AI translation) ── */}
         {!!bio && (
           <View style={s.section}>
-            <Text style={[s.bio, { textAlign, writingDirection: isAr ? 'rtl' : 'ltr', fontFamily: isAr ? F.ar : F.en }]}>
-              {bio}
-            </Text>
+            <TranslatedText
+              text={bio}
+              lang={lang}
+              textStyle={[s.bio, { textAlign, fontFamily: isAr ? F.ar : F.en }]}
+            />
+          </View>
+        )}
+
+        {/* ── QUALITY CERTIFICATIONS ── */}
+        {certifications.length > 0 && (
+          <View style={s.section}>
+            <SectionLabel text={t('qualityCerts', lang)} isAr={isAr} />
+            <View style={{ gap: 10 }}>
+              {certifications.map((cert, i) => (
+                <View
+                  key={`${cert.name}-${i}`}
+                  style={[s.certRow, { flexDirection: rowDir }]}
+                >
+                  <Text style={[s.certName, { textAlign, fontFamily: isAr ? F.arSemi : F.enSemi, flex: 1 }]} numberOfLines={2}>
+                    {cert.name}
+                  </Text>
+                  {!!cert.file_url && (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(cert.file_url)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={[s.certLink, { fontFamily: isAr ? F.ar : F.en }]}>
+                        {t('viewCert', lang)}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -581,7 +629,14 @@ export default function SupplierProfileScreen({ route, navigation }) {
         {businessCards.length > 0 && (
           <View style={s.section}>
             {businessCards.map(card => (
-              <InfoCard key={card.label} label={card.label} value={card.value} isAr={isAr} />
+              <InfoCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                isAr={isAr}
+                lang={lang}
+                translatable={card.translatable}
+              />
             ))}
           </View>
         )}
@@ -790,6 +845,8 @@ const s = StyleSheet.create({
   },
   verifiedText: { fontSize: 11, fontWeight: '700', color: C.green },
 
+  specialtyLine: { fontSize: 13, color: C.textSecondary, marginTop: 2, marginBottom: 2, letterSpacing: 0.2 },
+
   heroMeta:  { fontSize: 14, color: C.textSecondary, marginTop: 4 },
   stars:     { color: '#e8a020' },
 
@@ -869,6 +926,14 @@ const s = StyleSheet.create({
 
   // Bio
   bio: { fontSize: 14, lineHeight: 24, color: C.textSecondary },
+
+  // Quality certifications
+  certRow: {
+    alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  certName: { fontSize: 13, color: C.textPrimary, lineHeight: 18 },
+  certLink: { fontSize: 11, color: C.green, letterSpacing: 0.2 },
 
   // Action buttons
   ctaBtn: {
