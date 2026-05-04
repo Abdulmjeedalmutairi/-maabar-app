@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
 import { getLang } from '../../lib/lang';
+import { getSpecialtyLabel } from '../../lib/specialtyLabel';
 
 // ─── Inlined from web/src/lib/supplierOnboarding.js ──────────────────────────
 const _STATUS_MAP = {
@@ -112,7 +113,10 @@ function SupplierCard({ sup, lang, cats, navigation }) {
   const trustSignals = buildSupplierTrustSignals(sup);
   const isVerified   = isSupplierPubliclyVisible(sup.status);
   const maabarId     = getSupplierMaabarId(sup);
-  const catLabel     = cats.find(c => c.val === sup.speciality)?.label || sup.speciality;
+  // Use the canonical 24-category translator from lib/specialtyLabel.js
+  // instead of the local 6-category `cats` table — matches web Suppliers.jsx
+  // (Phase 6B Task 3). Falls back to the raw code if no entry matches.
+  const catLabel     = getSpecialtyLabel(sup.speciality, lang);
   const bio = isAr
     ? (sup.bio_ar || sup.bio_en)
     : lang === 'zh'
@@ -145,6 +149,16 @@ function SupplierCard({ sup, lang, cats, navigation }) {
             )}
           </View>
 
+          {/* specialty (under company name, above stars) — matches web Phase 6B Task 3 */}
+          {sup.speciality && sup.speciality !== 'other' && (
+            <Text
+              style={[s.specialtyLine, { textAlign, fontFamily: isAr ? F.arSemi : F.enSemi }]}
+              numberOfLines={1}
+            >
+              {catLabel}
+            </Text>
+          )}
+
           {/* stars + review count + deals badge */}
           <View style={[s.row, { flexDirection: rowDir, gap: 8, flexWrap: 'wrap' }]}>
             <Text style={s.stars}>{renderStars(sup.rating)}</Text>
@@ -170,11 +184,8 @@ function SupplierCard({ sup, lang, cats, navigation }) {
         </Text>
       )}
 
-      {/* ── TAGS ── */}
+      {/* ── TAGS — specialty promoted to header above; WeChat removed (Phase 6A) ── */}
       <View style={[s.tagRow, { flexDirection: rowDir }]}>
-        {sup.speciality && sup.speciality !== 'other' && (
-          <View style={s.tag}><Text style={s.tagText}>{catLabel}</Text></View>
-        )}
         {!!maabarId && isVerified && (
           <View style={s.tag}>
             <Text style={s.tagText}>{t('idLabel', lang)}: {maabarId}</Text>
@@ -193,20 +204,16 @@ function SupplierCard({ sup, lang, cats, navigation }) {
             <Text style={[s.tagText, s.tagGreenText]}>{t('tradeLink', lang)}</Text>
           </View>
         )}
-        {trustSignals.includes('wechat_available') && (
-          <View style={s.tag}><Text style={s.tagText}>WeChat</Text></View>
-        )}
         {trustSignals.includes('factory_media_available') && (
           <View style={s.tag}><Text style={s.tagText}>{t('factoryPics', lang)}</Text></View>
         )}
       </View>
 
-      {/* ── TRUST SIGNAL TEXT ── */}
+      {/* ── TRUST SIGNAL TEXT (WeChat segment removed — Phase 6A) ── */}
       {trustSignals.length > 0 && (
         <Text style={[s.trustText, { textAlign, writingDirection: wDir }]}>
           {isVerified ? t('reviewed', lang) : t('awaiting', lang)}
           {trustSignals.includes('trade_profile_available') ? ` · ${t('tradeOnFile', lang)}` : ''}
-          {trustSignals.includes('wechat_available') ? ` · ${t('wechatAvail', lang)}` : ''}
         </Text>
       )}
 
@@ -293,10 +300,12 @@ export default function SuppliersScreen({ navigation }) {
   const filtered = suppliers.filter(sup => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
+    // wechat/whatsapp removed from the search index — Phase 6A keeps them
+    // off every buyer-facing surface (no display, no side-channel search).
     return [
       sup.company_name, sup.bio_ar, sup.bio_en, sup.speciality,
       sup.city, sup.country, sup.maabar_supplier_id,
-      sup.trade_link, sup.wechat, sup.whatsapp,
+      sup.trade_link,
     ].filter(Boolean).some(v => String(v).toLowerCase().includes(q));
   });
 
@@ -458,6 +467,13 @@ const s = StyleSheet.create({
   // Name block
   nameBlock:   { flex: 1, minWidth: 0 },
   companyName: { fontSize: 15, fontWeight: '600', color: C.textPrimary, flexShrink: 1 },
+
+  // Specialty (under company name, above stars) — matches web Phase 6B Task 3
+  specialtyLine: {
+    fontSize: 12, color: C.textSecondary,
+    fontWeight: '500', marginBottom: 4,
+    letterSpacing: 0.2,
+  },
 
   // Verified badge — green (trust signal, not purple)
   verifiedBadge: {
