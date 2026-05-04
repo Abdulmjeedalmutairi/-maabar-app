@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
@@ -43,6 +44,12 @@ const PRICE_VALIDITY_OPTIONS = [30, 60, 90];
 // Sentinel value for "Other (free text)" — mirrors web's resolveSelectOrOther
 // so country/port can store either a known option or any free-text value.
 const OTHER_SENTINEL = '__other__';
+
+// Quality certifications — mirror web/src/lib/productCertifications.js
+const CERT_TYPES     = ['SASO', 'CE', 'FCC', 'RoHS', 'ISO', 'FDA', 'HALAL', 'OTHER'];
+const CERT_MAX_COUNT = 10;
+const CERT_MAX_BYTES = 10 * 1024 * 1024;
+const CERT_BUCKET    = 'product-certifications';
 
 const B2B_COLUMNS =
   'hs_code, country_of_origin, port_of_loading, ' +
@@ -94,6 +101,7 @@ const COPY = {
     sectionTiers: 'الشرائح السعرية',
     sectionIncoterms: 'شروط الشحن (Incoterms)',
     sectionB2B: 'الخدمات اللوجستية B2B',
+    sectionCerts: 'شهادات الجودة',
     sectionMedia: 'الصور',
     sectionSample: 'العينات',
 
@@ -188,6 +196,26 @@ const COPY = {
     errorTierOverlap: 'الشريحة {n}: تتداخل مع الشريحة السابقة',
     errorTierDescending: 'الشريحة {n}: السعر يجب أن يكون أقل من الشريحة السابقة',
     errorTierSave: 'تم حفظ المنتج، لكن فشل حفظ الشرائح السعرية',
+
+    certsHint: 'أضف شهادات الجودة لمنتجك (حتى ١٠ شهادات).',
+    certNoneYet: 'لم تُضف شهادات بعد.',
+    certAddBtn: '+ إضافة شهادة',
+    certTypeLabel: 'نوع الشهادة',
+    certLabelLabel: 'اسم الشهادة',
+    certLabelHint: 'مثال: ISO 9001:2015',
+    certLabelOtherHint: 'مطلوب عند اختيار "أخرى"',
+    certIssuedLabel: 'تاريخ الإصدار (اختياري)',
+    certExpiryLabel: 'تاريخ الانتهاء (اختياري)',
+    certUploadFile: 'رفع ملف (PDF أو صورة)',
+    certReplaceFile: 'استبدال الملف',
+    certUploadedLabel: 'تم الرفع',
+    certPendingLabel: 'بانتظار الحفظ',
+    certUploadingLabel: 'جاري الرفع...',
+    certMaxReached: 'تم الوصول إلى الحد الأقصى للشهادات.',
+    certTooLarge: 'الملف كبير جدًا. الحد الأقصى 10 ميجا.',
+    certWrongType: 'النوع غير مدعوم. الرجاء PDF أو صورة.',
+    certUploadFailed: 'فشل رفع الملف.',
+    errorCertSave: 'تم حفظ المنتج، لكن فشل حفظ الشهادات',
     errorLeadTimeOrder: 'الحد الأقصى لمدة التصنيع يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorOemLeadTimeOrder: 'الحد الأقصى لمدة OEM يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorCbmPositive: 'يجب أن يكون CBM أكبر من 0',
@@ -219,6 +247,7 @@ const COPY = {
     sectionTiers: 'Pricing Tiers',
     sectionIncoterms: 'Incoterms',
     sectionB2B: 'B2B Logistics',
+    sectionCerts: 'Quality Certifications',
     sectionMedia: 'Images',
     sectionSample: 'Samples',
 
@@ -313,6 +342,26 @@ const COPY = {
     errorTierOverlap: 'Tier {n}: overlaps with the previous tier',
     errorTierDescending: 'Tier {n}: price must be lower than the previous tier',
     errorTierSave: 'Product saved, but pricing tiers failed to save',
+
+    certsHint: 'Add quality certifications for your product (up to 10).',
+    certNoneYet: 'No certifications added yet.',
+    certAddBtn: '+ Add certification',
+    certTypeLabel: 'Cert type',
+    certLabelLabel: 'Cert name',
+    certLabelHint: 'e.g. ISO 9001:2015',
+    certLabelOtherHint: 'Required when "Other" is selected',
+    certIssuedLabel: 'Issued date (optional)',
+    certExpiryLabel: 'Expiry date (optional)',
+    certUploadFile: 'Upload file (PDF or image)',
+    certReplaceFile: 'Replace file',
+    certUploadedLabel: 'Uploaded',
+    certPendingLabel: 'Pending save',
+    certUploadingLabel: 'Uploading...',
+    certMaxReached: 'Certification limit reached.',
+    certTooLarge: 'File too large. Max 10 MB.',
+    certWrongType: 'Unsupported type. Please pick a PDF or image.',
+    certUploadFailed: 'Upload failed.',
+    errorCertSave: 'Product saved, but certifications failed to save',
     errorLeadTimeOrder: 'Lead time max must be ≥ lead time min',
     errorOemLeadTimeOrder: 'OEM lead time max must be ≥ OEM lead time min',
     errorCbmPositive: 'CBM must be greater than 0',
@@ -344,6 +393,7 @@ const COPY = {
     sectionTiers: '阶梯定价',
     sectionIncoterms: '贸易术语 (Incoterms)',
     sectionB2B: 'B2B 物流',
+    sectionCerts: '质量认证',
     sectionMedia: '产品图片',
     sectionSample: '样品',
 
@@ -438,6 +488,26 @@ const COPY = {
     errorTierOverlap: '第 {n} 阶：与上一阶重叠',
     errorTierDescending: '第 {n} 阶：价格必须低于上一阶',
     errorTierSave: '产品已保存，但阶梯价格保存失败',
+
+    certsHint: '为您的产品添加质量认证（最多 10 项）。',
+    certNoneYet: '尚未添加认证。',
+    certAddBtn: '+ 添加认证',
+    certTypeLabel: '认证类型',
+    certLabelLabel: '认证名称',
+    certLabelHint: '例：ISO 9001:2015',
+    certLabelOtherHint: '选择「其他」时必填',
+    certIssuedLabel: '颁发日期（可选）',
+    certExpiryLabel: '有效期至（可选）',
+    certUploadFile: '上传文件（PDF 或图片）',
+    certReplaceFile: '替换文件',
+    certUploadedLabel: '已上传',
+    certPendingLabel: '待保存',
+    certUploadingLabel: '上传中...',
+    certMaxReached: '已达认证数量上限。',
+    certTooLarge: '文件过大，上限 10 MB。',
+    certWrongType: '不支持该文件类型，请选择 PDF 或图片。',
+    certUploadFailed: '文件上传失败。',
+    errorCertSave: '产品已保存，但认证保存失败',
     errorLeadTimeOrder: '生产交期最长不得小于最短',
     errorOemLeadTimeOrder: 'OEM 交期最长不得小于最短',
     errorCbmPositive: 'CBM 必须大于 0',
@@ -693,6 +763,173 @@ async function saveTiers(productId, tiers, moqInt) {
   return null;
 }
 
+// ── Quality certifications ─────────────────────────────────────────────
+//
+// Ported from web/src/lib/productCertifications.js. Form holds an array
+// of cert rows — each new row carries `_pendingFile` (the picked
+// uri/mime/name) until save, then we upload and insert. Existing rows
+// keep their `id` so the diff phase can compute deletions. Storage path:
+//   product-certifications/<userId>/<productId>/<TYPE>_<timestamp>.<ext>
+
+let _certKeyCounter = 0;
+const certKey = () => `c${++_certKeyCounter}_${Date.now()}`;
+
+function emptyCertRow() {
+  return {
+    _key: certKey(),
+    cert_type: '',
+    cert_label: '',
+    cert_file_url: '',
+    issued_date: '',
+    expiry_date: '',
+    _pendingFile: null,
+    _uploading: false,
+    _error: null,
+  };
+}
+
+async function loadProductCertifications(productId) {
+  if (!productId) return [];
+  const { data, error } = await supabase
+    .from('product_certifications')
+    .select('id, cert_type, cert_label, cert_file_url, issued_date, expiry_date, created_at')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('[SupplierProducts] load certs error:', error);
+    return [];
+  }
+  return (data || []).map((r) => ({
+    _key: r.id,
+    id: r.id,
+    cert_type: r.cert_type || '',
+    cert_label: r.cert_label || '',
+    cert_file_url: r.cert_file_url || '',
+    issued_date: r.issued_date || '',
+    expiry_date: r.expiry_date || '',
+    _pendingFile: null,
+    _uploading: false,
+    _error: null,
+  }));
+}
+
+async function uploadCertFile(file, { userId, productId, certType }) {
+  const safeType = String(certType || 'OTHER').replace(/[^A-Za-z0-9_-]/g, '');
+  const rawExt   = (file.ext || file.name?.split('.').pop() || '').toLowerCase();
+  const ext      = /^[a-z0-9]{1,6}$/.test(rawExt)
+    ? rawExt
+    : (file.mimeType?.includes('pdf') ? 'pdf' : 'jpg');
+  const path = `${userId}/${productId}/${safeType}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+  const ab   = await fetch(file.uri).then((r) => r.arrayBuffer());
+  const { error } = await supabase.storage.from(CERT_BUCKET).upload(path, ab, {
+    contentType: file.mimeType || 'application/octet-stream',
+    upsert: true,
+  });
+  if (error) {
+    console.error('[SupplierProducts] cert upload error:', error);
+    return { error };
+  }
+  const { data } = supabase.storage.from(CERT_BUCKET).getPublicUrl(path);
+  return { url: data?.publicUrl || null };
+}
+
+// Derive the path-inside-bucket from a public URL so we can call
+// storage.remove(). Returns null when the URL doesn't belong to our bucket
+// (e.g. legacy / external URL) — caller skips the delete in that case.
+function pathInCertBucket(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(String(url));
+    const marker = `/storage/v1/object/public/${CERT_BUCKET}/`;
+    const idx = u.pathname.indexOf(marker);
+    if (idx < 0) return null;
+    const rest = u.pathname.slice(idx + marker.length);
+    return rest ? decodeURIComponent(rest) : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function removeCertObject(url) {
+  const path = pathInCertBucket(url);
+  if (!path) return;
+  try {
+    const { error } = await supabase.storage.from(CERT_BUCKET).remove([path]);
+    if (error) console.warn('[SupplierProducts] cert object remove:', error.message);
+  } catch (e) {
+    console.warn('[SupplierProducts] cert object remove exception:', e?.message || e);
+  }
+}
+
+// Diff-based save:
+//   • prev rows missing from next → delete (DB row + storage object)
+//   • next rows without id        → upload _pendingFile (if any) + insert
+//   • saved rows whose file was cleared in the form → delete the storage
+//     object and null out cert_file_url on the existing DB row
+async function saveProductCertifications({ productId, userId, nextCerts, prevCerts }) {
+  if (!productId || !userId) return new Error('productId and userId required');
+  const safeNext = Array.isArray(nextCerts) ? nextCerts : [];
+  const safePrev = Array.isArray(prevCerts) ? prevCerts : [];
+
+  // Removed rows
+  const nextIds = new Set(safeNext.filter((c) => c?.id).map((c) => c.id));
+  const removed = safePrev.filter((p) => p?.id && !nextIds.has(p.id));
+  for (const r of removed) {
+    if (r.cert_file_url) await removeCertObject(r.cert_file_url);
+    const { error: delErr } = await supabase
+      .from('product_certifications').delete().eq('id', r.id);
+    if (delErr) console.error('[SupplierProducts] cert delete error:', delErr);
+  }
+
+  // File-only changes on already-saved rows
+  for (const cert of safeNext) {
+    if (!cert.id) continue;
+    const prev = safePrev.find((p) => p?.id === cert.id);
+    if (!prev) continue;
+    if (prev.cert_file_url && !cert.cert_file_url) {
+      await removeCertObject(prev.cert_file_url);
+      const { error: updErr } = await supabase
+        .from('product_certifications')
+        .update({ cert_file_url: null })
+        .eq('id', cert.id);
+      if (updErr) console.error('[SupplierProducts] cert file-clear error:', updErr);
+    }
+  }
+
+  // Insert new rows (no id). Skip silently when type is missing or OTHER
+  // is missing a label — matches web's saveProductCertifications.
+  for (const cert of safeNext) {
+    if (cert.id) continue;
+    const certType = String(cert.cert_type || '').toUpperCase();
+    if (!CERT_TYPES.includes(certType)) continue;
+    if (certType === 'OTHER' && !String(cert.cert_label || '').trim()) continue;
+
+    let fileUrl = cert.cert_file_url || null;
+    if (cert._pendingFile) {
+      const uploaded = await uploadCertFile(cert._pendingFile, { userId, productId, certType });
+      if (uploaded?.error) continue;
+      fileUrl = uploaded.url;
+    }
+
+    const row = {
+      product_id: productId,
+      cert_type: certType,
+      cert_label: cert.cert_label ? String(cert.cert_label).trim() || null : null,
+      cert_file_url: fileUrl,
+      issued_date: cert.issued_date || null,
+      expiry_date: cert.expiry_date || null,
+    };
+    const { error: insErr } = await supabase.from('product_certifications').insert(row);
+    if (insErr) {
+      console.error('[SupplierProducts] cert insert error:', insErr);
+      // Cleanup orphan storage object so we don't leak files.
+      if (fileUrl && !cert.cert_file_url) await removeCertObject(fileUrl);
+    }
+  }
+
+  return null;
+}
+
 export default function SupplierProductsScreen({ navigation, route }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
@@ -710,6 +947,8 @@ export default function SupplierProductsScreen({ navigation, route }) {
   const [submitting, setSubmitting]         = useState(false);
   const [uploadingPrimary, setUploadingPrimary] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [certs, setCerts]                       = useState([]);
+  const [prevCerts, setPrevCerts]               = useState([]);
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -760,6 +999,8 @@ export default function SupplierProductsScreen({ navigation, route }) {
   function openAdd() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCerts([]);
+    setPrevCerts([]);
     setShowForm(true);
   }
 
@@ -823,20 +1064,30 @@ export default function SupplierProductsScreen({ navigation, route }) {
       // renders immediately.
       tiers: emptyTiers(),
     });
+    // Reset certs synchronously; they hydrate below alongside tiers.
+    setCerts([]);
+    setPrevCerts([]);
     setShowForm(true);
 
-    // Load existing pricing tiers in the background. Use the functional
-    // setForm so we don't clobber edits the user makes between open and
-    // load. We also gate by editing-id to ignore late responses for a
-    // closed/changed editor.
-    const tiers = await loadTiers(p.id);
+    // Load existing pricing tiers and certifications in parallel. Use the
+    // functional setForm so we don't clobber edits the user makes between
+    // open and load. prevCerts captures the original DB state so the diff
+    // save can compute deletions.
+    const [tiers, loadedCerts] = await Promise.all([
+      loadTiers(p.id),
+      loadProductCertifications(p.id),
+    ]);
     setForm((f) => ({ ...f, tiers }));
+    setCerts(loadedCerts);
+    setPrevCerts(loadedCerts);
   }
 
   function closeForm() {
     setShowForm(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCerts([]);
+    setPrevCerts([]);
   }
 
   function toggleIncoterm(code) {
@@ -854,6 +1105,59 @@ export default function SupplierProductsScreen({ navigation, route }) {
       ...f,
       tiers: f.tiers.map((row, i) => (i === idx ? { ...row, [field]: value } : row)),
     }));
+  }
+
+  // ── Certifications ────────────────────────────────────────────────────
+  function addCert() {
+    if (certs.length >= CERT_MAX_COUNT) {
+      Alert.alert('', t.certMaxReached);
+      return;
+    }
+    setCerts((cs) => [...cs, emptyCertRow()]);
+  }
+  function removeCert(key) {
+    setCerts((cs) => cs.filter((c) => c._key !== key));
+  }
+  function updateCert(key, patch) {
+    setCerts((cs) => cs.map((c) => (c._key === key ? { ...c, ...patch } : c)));
+  }
+  function clearCertFile(key) {
+    // Drop both the local pending file and the saved URL. The diff phase
+    // at save time handles deleting the storage object for already-saved
+    // certs whose file was cleared here.
+    updateCert(key, { _pendingFile: null, cert_file_url: '', _error: null });
+  }
+
+  async function pickCertFile(key) {
+    try {
+      const r = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (r.canceled || !r.assets?.[0]) return;
+      const asset = r.assets[0];
+
+      if (asset.size && asset.size > CERT_MAX_BYTES) {
+        updateCert(key, { _error: t.certTooLarge });
+        return;
+      }
+      const mime = asset.mimeType || '';
+      const looksOk = mime === 'application/pdf' || mime.startsWith('image/');
+      if (mime && !looksOk) {
+        updateCert(key, { _error: t.certWrongType });
+        return;
+      }
+
+      const ext = (asset.name?.split('.').pop() || '').toLowerCase();
+      updateCert(key, {
+        _pendingFile: { uri: asset.uri, mimeType: mime, name: asset.name, size: asset.size, ext },
+        _error: null,
+      });
+    } catch (e) {
+      console.error('[SupplierProducts] cert pick error:', e?.message || e);
+      updateCert(key, { _error: t.certUploadFailed });
+    }
   }
 
   async function pickPrimary() {
@@ -1052,18 +1356,29 @@ export default function SupplierProductsScreen({ navigation, route }) {
       return;
     }
 
-    // Tiers are saved AFTER the product so we have a stable productId to
-    // attach them to. A tier-save failure surfaces a separate alert but
-    // does not block closing — the product itself was saved.
+    // Tiers + certifications are saved AFTER the product so we have a
+    // stable productId to attach them to. Failures surface as separate
+    // alerts but do not block closing — the product itself was saved.
     let tierErr = null;
+    let certErr = null;
     if (productId) {
       tierErr = await saveTiers(productId, form.tiers, moqInt);
+      certErr = await saveProductCertifications({
+        productId,
+        userId: myId,
+        nextCerts: certs,
+        prevCerts,
+      });
     }
     setSubmitting(false);
 
     if (tierErr) {
       console.error('[SupplierProducts] tier save error:', tierErr);
       Alert.alert('', t.errorTierSave);
+    }
+    if (certErr) {
+      console.error('[SupplierProducts] cert save error:', certErr);
+      Alert.alert('', t.errorCertSave);
     }
 
     closeForm();
@@ -1644,6 +1959,141 @@ export default function SupplierProductsScreen({ navigation, route }) {
                 />
               </Section>
 
+              {/* ── Quality Certifications ── */}
+              <Section title={t.sectionCerts} isAr={isAr}>
+                <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 10 }]}>
+                  {t.certsHint}
+                </Text>
+
+                {certs.length === 0 && (
+                  <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 12 }]}>
+                    {t.certNoneYet}
+                  </Text>
+                )}
+
+                {certs.map((cert) => {
+                  const certType = String(cert.cert_type || '').toUpperCase();
+                  const isOther  = certType === 'OTHER';
+                  const hasFile  = !!(cert._pendingFile || cert.cert_file_url);
+                  const isPending = !!cert._pendingFile;
+
+                  return (
+                    <View key={cert._key} style={s.certCard}>
+                      {/* Row × delete (absolutely positioned, swaps side for RTL) */}
+                      <TouchableOpacity
+                        style={[s.certCardRemove, isAr ? s.certCardRemoveLeft : s.certCardRemoveRight]}
+                        onPress={() => removeCert(cert._key)}
+                        activeOpacity={0.85}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={s.certCardRemoveText}>×</Text>
+                      </TouchableOpacity>
+
+                      {/* Cert type chips */}
+                      <Text style={[s.fieldLabel, isAr && s.rtl, { marginTop: 0, paddingRight: 30 }]}>
+                        {t.certTypeLabel}
+                      </Text>
+                      <View style={[s.chipRow, isAr && s.chipRowRtl, { marginBottom: 12 }]}>
+                        {CERT_TYPES.map((typeOpt) => {
+                          const active = certType === typeOpt;
+                          return (
+                            <TouchableOpacity
+                              key={typeOpt}
+                              style={[s.chip, active && s.chipActive]}
+                              onPress={() => updateCert(cert._key, { cert_type: typeOpt })}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={[s.chipText, active && s.chipTextActive]}>{typeOpt}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {/* Cert label/name */}
+                      <View style={s.fieldWrap}>
+                        <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.certLabelLabel}</Text>
+                        <TextInput
+                          style={[s.input, isAr && s.rtl]}
+                          placeholder={t.certLabelHint}
+                          placeholderTextColor={C.textDisabled}
+                          value={cert.cert_label}
+                          onChangeText={(v) => updateCert(cert._key, { cert_label: v })}
+                        />
+                        {isOther && (
+                          <Text style={[s.fieldHint, isAr && s.rtl]}>{t.certLabelOtherHint}</Text>
+                        )}
+                      </View>
+
+                      {/* Issued / Expiry — text inputs (date pickers would be nicer but text keeps the form light) */}
+                      <View style={{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 10 }}>
+                        <View style={[s.fieldWrap, { flex: 1 }]}>
+                          <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.certIssuedLabel}</Text>
+                          <TextInput
+                            style={[s.input, isAr && s.rtl]}
+                            placeholder="YYYY-MM-DD"
+                            placeholderTextColor={C.textDisabled}
+                            value={cert.issued_date}
+                            onChangeText={(v) => updateCert(cert._key, { issued_date: v })}
+                          />
+                        </View>
+                        <View style={[s.fieldWrap, { flex: 1 }]}>
+                          <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.certExpiryLabel}</Text>
+                          <TextInput
+                            style={[s.input, isAr && s.rtl]}
+                            placeholder="YYYY-MM-DD"
+                            placeholderTextColor={C.textDisabled}
+                            value={cert.expiry_date}
+                            onChangeText={(v) => updateCert(cert._key, { expiry_date: v })}
+                          />
+                        </View>
+                      </View>
+
+                      {/* File: upload button when empty, sage pill when present */}
+                      {hasFile ? (
+                        <View style={[s.certPill, isAr && s.rowRtl]}>
+                          <Text style={s.certPillCheck}>✓</Text>
+                          <Text style={s.certPillText} numberOfLines={1}>
+                            {isPending
+                              ? (cert._pendingFile?.name
+                                  ? `${t.certPendingLabel} — ${cert._pendingFile.name}`
+                                  : t.certPendingLabel)
+                              : t.certUploadedLabel}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => clearCertFile(cert._key)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={s.certPillRemove}>×</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={s.certUploadBtn}
+                          onPress={() => pickCertFile(cert._key)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={s.certUploadText}>{t.certUploadFile}</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {!!cert._error && (
+                        <Text style={[s.certErrorText, isAr && s.rtl]}>{cert._error}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+
+                {certs.length < CERT_MAX_COUNT && (
+                  <TouchableOpacity
+                    style={s.certAddBtn}
+                    onPress={addCert}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.certAddBtnText}>{t.certAddBtn}</Text>
+                  </TouchableOpacity>
+                )}
+              </Section>
+
               {/* ── Media ── */}
               <Section title={t.sectionMedia} isAr={isAr}>
                 <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.primaryImage}</Text>
@@ -1950,6 +2400,52 @@ const s = StyleSheet.create({
   tierInputDisabledText: {
     color: C.textTertiary, fontSize: 14, fontFamily: F.num,
   },
+
+  // Quality certifications — one card per row
+  certCard: {
+    backgroundColor: C.bgBase, borderRadius: 12,
+    borderWidth: 1, borderColor: C.borderMuted,
+    padding: 14, marginBottom: 12, position: 'relative',
+  },
+  certCardRemove: {
+    position: 'absolute', top: 6,
+    width: 30, height: 30,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  certCardRemoveRight: { right: 6 },
+  certCardRemoveLeft:  { left: 6 },
+  certCardRemoveText: {
+    color: C.textTertiary, fontSize: 22, lineHeight: 22, fontFamily: F.enBold,
+  },
+  certPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 999, backgroundColor: C.greenSoft,
+    borderWidth: 1, borderColor: 'rgba(0,100,0,0.22)',
+    marginTop: 4, marginBottom: 4, maxWidth: '100%',
+  },
+  certPillCheck: { color: C.green, fontSize: 11, fontFamily: F.enBold },
+  certPillText:  { color: C.green, fontSize: 11, fontFamily: F.enSemi, flexShrink: 1 },
+  certPillRemove: {
+    color: C.green, fontSize: 16, lineHeight: 16,
+    fontFamily: F.enBold, paddingHorizontal: 2,
+  },
+  certUploadBtn: {
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised, alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  certUploadText: { color: C.textSecondary, fontSize: 13, fontFamily: F.arSemi },
+  certErrorText:  { color: C.red, fontSize: 11, marginTop: 6, fontFamily: F.ar },
+  certAddBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 10, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised, marginTop: 4,
+  },
+  certAddBtnText: { color: C.textSecondary, fontSize: 13, fontFamily: F.arSemi },
 
   // Field
   fieldWrap: { marginBottom: 14 },
