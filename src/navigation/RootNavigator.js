@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { View } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
@@ -9,6 +10,15 @@ import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import BuyerTabs from './BuyerTabs';
 import SupplierTabs from './SupplierTabs';
+import SupplierOnboardingScreen from '../screens/supplier/SupplierOnboardingScreen';
+
+// Navigation ref so the post-approval onboarding overlay can route to a
+// supplier tab (SProducts / SRequests) once it flips onboarding_completed=true.
+const navRef = createNavigationContainerRef();
+
+// Approved-status set the gate honors. Must match
+// web/src/lib/supplierOnboarding.js LEGACY_VERIFIED_STATUSES + 'verified'.
+const APPROVED_STATUSES = ['verified', 'approved', 'active'];
 
 const Stack = createNativeStackNavigator();
 const LAUNCHED_KEY = 'maabar_hasLaunched';
@@ -48,7 +58,7 @@ export default function RootNavigator() {
   async function loadProfile(userId) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, role, full_name, status, company_name, preferred_display_currency')
+      .select('id, role, full_name, status, company_name, preferred_display_currency, onboarding_completed, maabar_supplier_id')
       .eq('id', userId)
       .single();
     setProfile(data);
@@ -70,26 +80,72 @@ export default function RootNavigator() {
   // (they've already completed Language + Role onboarding).
   const authInitialRoute = hasLaunched ? 'TraderHome' : 'Language';
 
+  // Post-approval onboarding gate — mirrors web DashboardSupplier.jsx:348
+  // (showOnboardingSequence). Renders the overlay when the supplier has been
+  // approved but hasn't yet flipped onboarding_completed=true.
+  const showSupplierOnboarding = (
+    isLoggedIn
+    && isSupplier
+    && profile
+    && APPROVED_STATUSES.includes(String(profile.status || '').toLowerCase())
+    && profile.onboarding_completed !== true
+  );
+
+  function handleNavigateToSupplierTab(tabName) {
+    if (navRef.isReady()) {
+      navRef.navigate('SupplierApp', { screen: tabName });
+    }
+  }
+
+  function handleOnboardingComplete() {
+    // Re-fetch profile so onboarding_completed=true persists across cold reloads.
+    if (session?.user?.id) loadProfile(session.user.id);
+  }
+
   return (
-    <NavigationContainer>
-      {/* animation:'none' only affects root-level screen transitions; inner
-          stacks keep their own animations. The Splash fade-out handles the
-          visual transition, so no cross-fade is needed here. */}
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
-        {!splashDone ? (
-          <Stack.Screen name="Splash">
-            {() => <SplashScreen onDone={handleSplashDone} />}
-          </Stack.Screen>
-        ) : isLoggedIn && isSupplier ? (
-          <Stack.Screen name="SupplierApp" component={SupplierTabs} />
-        ) : isLoggedIn ? (
-          <Stack.Screen name="BuyerApp" component={BuyerTabs} />
-        ) : (
-          <Stack.Screen name="Auth">
-            {() => <AuthStack initialRoute={authInitialRoute} />}
-          </Stack.Screen>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <NavigationContainer ref={navRef}>
+        {/* animation:'none' only affects root-level screen transitions; inner
+            stacks keep their own animations. The Splash fade-out handles the
+            visual transition, so no cross-fade is needed here. */}
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
+          {!splashDone ? (
+            <Stack.Screen name="Splash">
+              {() => <SplashScreen onDone={handleSplashDone} />}
+            </Stack.Screen>
+          ) : isLoggedIn && isSupplier ? (
+            <Stack.Screen name="SupplierApp" component={SupplierTabs} />
+          ) : isLoggedIn ? (
+            <Stack.Screen name="BuyerApp" component={BuyerTabs} />
+          ) : (
+            <Stack.Screen name="Auth">
+              {() => <AuthStack initialRoute={authInitialRoute} />}
+            </Stack.Screen>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {/* Post-approval onboarding overlay — full-screen modal above SupplierTabs.
+          Matches web's "no escape until completed" UX (BackHandler is blocked
+          inside the overlay component). */}
+      {showSupplierOnboarding && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 1000,
+            elevation: 1000,
+          }}
+        >
+          <SupplierOnboardingScreen
+            user={session.user}
+            profile={profile}
+            setProfile={setProfile}
+            onComplete={handleOnboardingComplete}
+            onNavigateToTab={handleNavigateToSupplierTab}
+          />
+        </View>
+      )}
+    </View>
   );
 }
