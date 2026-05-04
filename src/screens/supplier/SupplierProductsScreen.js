@@ -37,12 +37,29 @@ import {
 const GALLERY_LIMIT = 8;
 const CURRENCY_OPTIONS = ['USD', 'SAR', 'CNY'];
 const INCOTERM_OPTIONS = ['FOB', 'CIF', 'EXW', 'DDP'];
+const COUNTRY_OPTIONS = ['China', 'Vietnam', 'Turkey', 'India', 'Pakistan', 'Bangladesh', 'Indonesia'];
+const PORT_OPTIONS = ['Shanghai', 'Shenzhen', 'Ningbo', 'Guangzhou', 'Qingdao', 'Tianjin'];
+const PRICE_VALIDITY_OPTIONS = [30, 60, 90];
+// Sentinel value for "Other (free text)" — mirrors web's resolveSelectOrOther
+// so country/port can store either a known option or any free-text value.
+const OTHER_SENTINEL = '__other__';
+
+const B2B_COLUMNS =
+  'hs_code, country_of_origin, port_of_loading, ' +
+  'units_per_carton, cbm, gross_weight_kg, net_weight_kg, ' +
+  'unit_weight_kg, package_dimensions, ' +
+  'lead_time_min_days, lead_time_max_days, lead_time_negotiable, ' +
+  'price_validity_days, ' +
+  'oem_available, odm_available, oem_lead_time_min_days, oem_lead_time_max_days, ' +
+  'spec_material, spec_dimensions, spec_color_options, ' +
+  'spec_packaging_details, spec_customization';
 
 const PRODUCT_SELECT_FULL =
   'id, name_ar, name_en, name_zh, desc_ar, desc_en, desc_zh, ' +
   'price_from, currency, moq, category, incoterms, ' +
   'image_url, gallery_images, ' +
   'sample_available, sample_price, sample_currency, sample_max_qty, sample_note, ' +
+  B2B_COLUMNS + ', ' +
   'supplier_id, is_active, created_at';
 
 const PRODUCT_SELECT_NO_SC =
@@ -50,6 +67,7 @@ const PRODUCT_SELECT_NO_SC =
   'price_from, currency, moq, category, incoterms, ' +
   'image_url, gallery_images, ' +
   'sample_available, sample_price, sample_max_qty, sample_note, ' +
+  B2B_COLUMNS + ', ' +
   'supplier_id, is_active, created_at';
 
 const COPY = {
@@ -74,8 +92,15 @@ const COPY = {
     sectionCategory: 'التصنيف',
     sectionPricing: 'السعر والكمية',
     sectionIncoterms: 'شروط الشحن (Incoterms)',
+    sectionB2B: 'الخدمات اللوجستية B2B',
     sectionMedia: 'الصور',
     sectionSample: 'العينات',
+
+    subShipping: 'الشحن والمنشأ',
+    subCarton: 'تفاصيل الكرتون',
+    subLeadTime: 'مدة التصنيع وصلاحية السعر',
+    subOemOdm: 'OEM / ODM',
+    subSpecs: 'المواصفات',
 
     nameZh: 'الاسم بالصينية *',
     nameEn: 'الاسم بالإنجليزية *',
@@ -110,11 +135,46 @@ const COPY = {
     sampleNote: 'ملاحظة العينة',
     sampleNoteHint: 'مثال: العينة تُخصم من الطلب الكبير',
 
+    countryOfOrigin: 'بلد المنشأ',
+    portOfLoading: 'ميناء الشحن',
+    otherOption: 'أخرى',
+    countryOtherPlaceholder: 'أدخل بلد المنشأ',
+    portOtherPlaceholder: 'أدخل ميناء الشحن',
+    hsCode: 'رمز التعريفة الجمركية (HS)',
+
+    unitsPerCarton: 'عدد الوحدات في الكرتون',
+    cbm: 'الحجم (CBM م³)',
+    grossWeightKg: 'الوزن الإجمالي (كجم)',
+    netWeightKg: 'الوزن الصافي (كجم)',
+    unitWeightKg: 'وزن الوحدة (كجم)',
+    packageDimensions: 'أبعاد العبوة',
+
+    leadTimeMin: 'الحد الأدنى لمدة التصنيع (أيام)',
+    leadTimeMax: 'الحد الأقصى لمدة التصنيع (أيام)',
+    leadTimeNegotiable: 'مدة التصنيع قابلة للتفاوض',
+    priceValidityDays: 'صلاحية السعر',
+    priceValidityUnit: 'يومًا',
+
+    oemAvailable: 'OEM متاح',
+    odmAvailable: 'ODM متاح',
+    oemLeadTimeMin: 'الحد الأدنى لمدة OEM (أيام)',
+    oemLeadTimeMax: 'الحد الأقصى لمدة OEM (أيام)',
+
+    specMaterial: 'المادة',
+    specDimensions: 'الأبعاد',
+    specColorOptions: 'الألوان / الخيارات',
+    specPackagingDetails: 'تفاصيل التغليف',
+    specCustomization: 'التخصيص / OEM',
+
     errorNameZh: 'الاسم بالصينية مطلوب',
     errorNameEn: 'الاسم بالإنجليزية مطلوب',
     errorDescEn: 'الوصف بالإنجليزية مطلوب',
     errorMoq: 'يجب أن يكون MOQ رقمًا صحيحًا أكبر من أو يساوي 1',
     errorIncoterms: 'اختر شرط شحن واحدًا على الأقل',
+    errorLeadTimeOrder: 'الحد الأقصى لمدة التصنيع يجب أن يكون أكبر من أو يساوي الحد الأدنى',
+    errorOemLeadTimeOrder: 'الحد الأقصى لمدة OEM يجب أن يكون أكبر من أو يساوي الحد الأدنى',
+    errorCbmPositive: 'يجب أن يكون CBM أكبر من 0',
+    errorWeightPositive: 'يجب أن يكون الوزن أكبر من 0',
     errorGeneric: 'حدث خطأ، حاول مرة أخرى',
     permissionDenied: 'تم رفض إذن الصور',
     uploadFailed: 'فشل رفع الصورة',
@@ -140,8 +200,15 @@ const COPY = {
     sectionCategory: 'Category',
     sectionPricing: 'Price & Quantity',
     sectionIncoterms: 'Incoterms',
+    sectionB2B: 'B2B Logistics',
     sectionMedia: 'Images',
     sectionSample: 'Samples',
+
+    subShipping: 'Shipping & Origin',
+    subCarton: 'Carton Details',
+    subLeadTime: 'Lead Time & Price Validity',
+    subOemOdm: 'OEM / ODM',
+    subSpecs: 'Specs',
 
     nameZh: 'Chinese Name *',
     nameEn: 'English Name *',
@@ -176,11 +243,46 @@ const COPY = {
     sampleNote: 'Sample note',
     sampleNoteHint: 'e.g. sample cost deducted from bulk order',
 
+    countryOfOrigin: 'Country of Origin',
+    portOfLoading: 'Port of Loading',
+    otherOption: 'Other',
+    countryOtherPlaceholder: 'Enter country of origin',
+    portOtherPlaceholder: 'Enter port of loading',
+    hsCode: 'HS Code',
+
+    unitsPerCarton: 'Units per carton',
+    cbm: 'Carton Volume (CBM m³)',
+    grossWeightKg: 'Gross weight (kg)',
+    netWeightKg: 'Net weight (kg)',
+    unitWeightKg: 'Unit weight (kg)',
+    packageDimensions: 'Package dimensions',
+
+    leadTimeMin: 'Lead time min (days)',
+    leadTimeMax: 'Lead time max (days)',
+    leadTimeNegotiable: 'Lead time negotiable',
+    priceValidityDays: 'Price validity',
+    priceValidityUnit: 'days',
+
+    oemAvailable: 'OEM available',
+    odmAvailable: 'ODM available',
+    oemLeadTimeMin: 'OEM lead time min (days)',
+    oemLeadTimeMax: 'OEM lead time max (days)',
+
+    specMaterial: 'Material',
+    specDimensions: 'Dimensions',
+    specColorOptions: 'Colors / variants',
+    specPackagingDetails: 'Packaging details',
+    specCustomization: 'Customization / OEM',
+
     errorNameZh: 'Chinese name is required',
     errorNameEn: 'English name is required',
     errorDescEn: 'English description is required',
     errorMoq: 'MOQ must be a whole number ≥ 1',
     errorIncoterms: 'Select at least one Incoterm',
+    errorLeadTimeOrder: 'Lead time max must be ≥ lead time min',
+    errorOemLeadTimeOrder: 'OEM lead time max must be ≥ OEM lead time min',
+    errorCbmPositive: 'CBM must be greater than 0',
+    errorWeightPositive: 'Weight must be greater than 0',
     errorGeneric: 'Something went wrong, please try again',
     permissionDenied: 'Photo permission denied',
     uploadFailed: 'Image upload failed',
@@ -206,8 +308,15 @@ const COPY = {
     sectionCategory: '产品类别',
     sectionPricing: '价格与数量',
     sectionIncoterms: '贸易术语 (Incoterms)',
+    sectionB2B: 'B2B 物流',
     sectionMedia: '产品图片',
     sectionSample: '样品',
+
+    subShipping: '装运与原产地',
+    subCarton: '装箱信息',
+    subLeadTime: '生产交期与价格有效期',
+    subOemOdm: 'OEM / ODM',
+    subSpecs: '规格',
 
     nameZh: '中文名称 *',
     nameEn: '英文名称 *',
@@ -242,11 +351,46 @@ const COPY = {
     sampleNote: '样品说明',
     sampleNoteHint: '例：大货下单可返还样品费',
 
+    countryOfOrigin: '原产国',
+    portOfLoading: '装运港',
+    otherOption: '其他',
+    countryOtherPlaceholder: '请输入原产国',
+    portOtherPlaceholder: '请输入装运港',
+    hsCode: '海关编码 (HS Code)',
+
+    unitsPerCarton: '每箱数量',
+    cbm: '装箱体积 (CBM m³)',
+    grossWeightKg: '毛重 (kg)',
+    netWeightKg: '净重 (kg)',
+    unitWeightKg: '单件重量 (kg)',
+    packageDimensions: '包装尺寸',
+
+    leadTimeMin: '生产交期最短（天）',
+    leadTimeMax: '生产交期最长（天）',
+    leadTimeNegotiable: '生产交期可议',
+    priceValidityDays: '价格有效期',
+    priceValidityUnit: '天',
+
+    oemAvailable: '可提供 OEM',
+    odmAvailable: '可提供 ODM',
+    oemLeadTimeMin: 'OEM 交期最短（天）',
+    oemLeadTimeMax: 'OEM 交期最长（天）',
+
+    specMaterial: '材质',
+    specDimensions: '尺寸 / 规格',
+    specColorOptions: '颜色 / 款式',
+    specPackagingDetails: '包装信息',
+    specCustomization: '定制 / OEM',
+
     errorNameZh: '请填写中文产品名称',
     errorNameEn: '请填写英文产品名称',
     errorDescEn: '请填写英文描述',
     errorMoq: 'MOQ 必须为不小于 1 的整数',
     errorIncoterms: '请至少选择一个贸易术语',
+    errorLeadTimeOrder: '生产交期最长不得小于最短',
+    errorOemLeadTimeOrder: 'OEM 交期最长不得小于最短',
+    errorCbmPositive: 'CBM 必须大于 0',
+    errorWeightPositive: '重量必须大于 0',
     errorGeneric: '出现错误，请重试',
     permissionDenied: '相册权限被拒绝',
     uploadFailed: '图片上传失败',
@@ -268,7 +412,63 @@ const EMPTY_FORM = {
   sample_currency: 'USD',
   sample_max_qty: '3',
   sample_note: '',
+  // B2B Logistics — Shipping & Origin
+  // country_of_origin holds either a known option, '__other__' (paired with
+  // country_of_origin_other), or '' for unset. Mirrors the dual-state model
+  // in web/src/components/supplier/ProductComposer.jsx.
+  country_of_origin: 'China',
+  country_of_origin_other: '',
+  port_of_loading: '',
+  port_of_loading_other: '',
+  hs_code: '',
+  // Carton
+  units_per_carton: '',
+  cbm: '',
+  gross_weight_kg: '',
+  net_weight_kg: '',
+  unit_weight_kg: '',
+  package_dimensions: '',
+  // Lead time
+  lead_time_min_days: '',
+  lead_time_max_days: '',
+  lead_time_negotiable: false,
+  price_validity_days: 30,
+  // OEM / ODM
+  oem_available: false,
+  odm_available: false,
+  oem_lead_time_min_days: '',
+  oem_lead_time_max_days: '',
+  // Specs
+  spec_material: '',
+  spec_dimensions: '',
+  spec_color_options: '',
+  spec_packaging_details: '',
+  spec_customization: '',
 };
+
+// Resolve a "select OR other" pair into a single column value. If the user
+// picked '__other__', returns the trimmed free-text; otherwise returns the
+// known option (or null when nothing chosen). Mirrors web's helper of the
+// same name in ProductComposer.jsx.
+function resolveSelectOrOther(selectValue, otherValue) {
+  const sel = String(selectValue || '').trim();
+  if (sel === OTHER_SENTINEL) {
+    const other = String(otherValue || '').trim();
+    return other || null;
+  }
+  if (!sel) return null;
+  return sel;
+}
+
+// Expand a DB-stored value into the form's { selectValue, otherValue } pair
+// so the dropdown reflects the stored value (or flips to "Other" + free text
+// when the value isn't in knownOptions).
+function expandStoredSelect(stored, knownOptions) {
+  const v = String(stored || '').trim();
+  if (!v) return { selectValue: '', otherValue: '' };
+  if (knownOptions.includes(v)) return { selectValue: v, otherValue: '' };
+  return { selectValue: OTHER_SENTINEL, otherValue: v };
+}
 
 async function uploadProductImage(uri, mimeType, userId, ext) {
   const e = (ext || (mimeType?.includes('png') ? 'png' : 'jpg')).toLowerCase();
@@ -369,6 +569,8 @@ export default function SupplierProductsScreen({ navigation, route }) {
 
   function openEdit(p) {
     setEditing(p);
+    const country = expandStoredSelect(p.country_of_origin, COUNTRY_OPTIONS);
+    const port    = expandStoredSelect(p.port_of_loading, PORT_OPTIONS);
     setForm({
       name_zh: p.name_zh || '',
       name_en: p.name_en || '',
@@ -394,6 +596,33 @@ export default function SupplierProductsScreen({ navigation, route }) {
         : (CURRENCY_OPTIONS.includes(p.currency) ? p.currency : 'USD'),
       sample_max_qty: p.sample_max_qty != null ? String(p.sample_max_qty) : '3',
       sample_note: p.sample_note || '',
+      // B2B
+      country_of_origin: country.selectValue,
+      country_of_origin_other: country.otherValue,
+      port_of_loading: port.selectValue,
+      port_of_loading_other: port.otherValue,
+      hs_code: p.hs_code || '',
+      units_per_carton: p.units_per_carton != null ? String(p.units_per_carton) : '',
+      cbm: p.cbm != null ? String(p.cbm) : '',
+      gross_weight_kg: p.gross_weight_kg != null ? String(p.gross_weight_kg) : '',
+      net_weight_kg: p.net_weight_kg != null ? String(p.net_weight_kg) : '',
+      unit_weight_kg: p.unit_weight_kg != null ? String(p.unit_weight_kg) : '',
+      package_dimensions: p.package_dimensions || '',
+      lead_time_min_days: p.lead_time_min_days != null ? String(p.lead_time_min_days) : '',
+      lead_time_max_days: p.lead_time_max_days != null ? String(p.lead_time_max_days) : '',
+      lead_time_negotiable: !!p.lead_time_negotiable,
+      price_validity_days: PRICE_VALIDITY_OPTIONS.includes(Number(p.price_validity_days))
+        ? Number(p.price_validity_days)
+        : 30,
+      oem_available: !!p.oem_available,
+      odm_available: !!p.odm_available,
+      oem_lead_time_min_days: p.oem_lead_time_min_days != null ? String(p.oem_lead_time_min_days) : '',
+      oem_lead_time_max_days: p.oem_lead_time_max_days != null ? String(p.oem_lead_time_max_days) : '',
+      spec_material: p.spec_material || '',
+      spec_dimensions: p.spec_dimensions || '',
+      spec_color_options: p.spec_color_options || '',
+      spec_packaging_details: p.spec_packaging_details || '',
+      spec_customization: p.spec_customization || '',
     });
     setShowForm(true);
   }
@@ -488,6 +717,30 @@ export default function SupplierProductsScreen({ navigation, route }) {
       return t.errorMoq;
     }
     if (!form.incoterms.length) return t.errorIncoterms;
+
+    // Lead-time order check (only when both are filled)
+    const lmin = parseInt(form.lead_time_min_days, 10);
+    const lmax = parseInt(form.lead_time_max_days, 10);
+    if (Number.isFinite(lmin) && Number.isFinite(lmax) && lmax < lmin) {
+      return t.errorLeadTimeOrder;
+    }
+    // OEM lead-time order check (only when both are filled, OEM enabled)
+    const omin = parseInt(form.oem_lead_time_min_days, 10);
+    const omax = parseInt(form.oem_lead_time_max_days, 10);
+    if (Number.isFinite(omin) && Number.isFinite(omax) && omax < omin) {
+      return t.errorOemLeadTimeOrder;
+    }
+    // Positive-only checks for filled numeric packaging fields.
+    const positive = (raw) => {
+      if (raw === '' || raw === null || raw === undefined) return true;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0;
+    };
+    if (!positive(form.cbm)) return t.errorCbmPositive;
+    if (!positive(form.gross_weight_kg) || !positive(form.net_weight_kg)) {
+      return t.errorWeightPositive;
+    }
+
     return null;
   }
 
@@ -510,6 +763,21 @@ export default function SupplierProductsScreen({ navigation, route }) {
       ? (parseInt(form.sample_max_qty, 10) || 3)
       : null;
 
+    // B2B coercion helpers
+    const intOrNull = (raw, min = 0) => {
+      const n = parseInt(raw, 10);
+      return Number.isFinite(n) && n >= min ? n : null;
+    };
+    const numOrNull = (raw) => {
+      if (raw === '' || raw === null || raw === undefined) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const strOrNull = (raw) => {
+      const s = String(raw || '').trim();
+      return s ? s : null;
+    };
+
     const payload = {
       supplier_id: myId,
       name_zh: form.name_zh.trim(),
@@ -530,6 +798,31 @@ export default function SupplierProductsScreen({ navigation, route }) {
       sample_currency: form.sample_available ? form.sample_currency : null,
       sample_max_qty: sampleMaxQtyInt,
       sample_note: form.sample_available ? (form.sample_note.trim() || null) : null,
+      // B2B Logistics
+      country_of_origin: resolveSelectOrOther(form.country_of_origin, form.country_of_origin_other),
+      port_of_loading:   resolveSelectOrOther(form.port_of_loading, form.port_of_loading_other),
+      hs_code: strOrNull(form.hs_code),
+      units_per_carton:  intOrNull(form.units_per_carton, 1),
+      cbm:               numOrNull(form.cbm),
+      gross_weight_kg:   numOrNull(form.gross_weight_kg),
+      net_weight_kg:     numOrNull(form.net_weight_kg),
+      unit_weight_kg:    numOrNull(form.unit_weight_kg),
+      package_dimensions: strOrNull(form.package_dimensions),
+      lead_time_min_days: intOrNull(form.lead_time_min_days, 0),
+      lead_time_max_days: intOrNull(form.lead_time_max_days, 0),
+      lead_time_negotiable: !!form.lead_time_negotiable,
+      price_validity_days: PRICE_VALIDITY_OPTIONS.includes(Number(form.price_validity_days))
+        ? Number(form.price_validity_days)
+        : 30,
+      oem_available: !!form.oem_available,
+      odm_available: !!form.odm_available,
+      oem_lead_time_min_days: form.oem_available ? intOrNull(form.oem_lead_time_min_days, 0) : null,
+      oem_lead_time_max_days: form.oem_available ? intOrNull(form.oem_lead_time_max_days, 0) : null,
+      spec_material:          strOrNull(form.spec_material),
+      spec_dimensions:        strOrNull(form.spec_dimensions),
+      spec_color_options:     strOrNull(form.spec_color_options),
+      spec_packaging_details: strOrNull(form.spec_packaging_details),
+      spec_customization:     strOrNull(form.spec_customization),
       is_active: editing ? !!editing.is_active : true,
     };
 
@@ -777,6 +1070,271 @@ export default function SupplierProductsScreen({ navigation, route }) {
                 </View>
               </Section>
 
+              {/* ── B2B Logistics ── */}
+              <Section title={t.sectionB2B} isAr={isAr}>
+
+                {/* Shipping & Origin */}
+                <SubLabel isAr={isAr}>{t.subShipping}</SubLabel>
+
+                <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.countryOfOrigin}</Text>
+                <View style={[s.chipRow, isAr && s.chipRowRtl]}>
+                  {COUNTRY_OPTIONS.map((opt) => {
+                    const active = form.country_of_origin === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[s.chip, active && s.chipActive]}
+                        onPress={() => set('country_of_origin', opt)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.chipText, active && s.chipTextActive]}>{opt}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[s.chip, form.country_of_origin === OTHER_SENTINEL && s.chipActive]}
+                    onPress={() => set('country_of_origin', OTHER_SENTINEL)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[s.chipText, form.country_of_origin === OTHER_SENTINEL && s.chipTextActive]}>
+                      {t.otherOption}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {form.country_of_origin === OTHER_SENTINEL && (
+                  <View style={{ marginTop: 8, marginBottom: 8 }}>
+                    <TextInput
+                      style={[s.input, isAr && s.rtl]}
+                      placeholder={t.countryOtherPlaceholder}
+                      placeholderTextColor={C.textDisabled}
+                      value={form.country_of_origin_other}
+                      onChangeText={(v) => set('country_of_origin_other', v)}
+                    />
+                  </View>
+                )}
+
+                <View style={{ height: 14 }} />
+
+                <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.portOfLoading}</Text>
+                <View style={[s.chipRow, isAr && s.chipRowRtl]}>
+                  {PORT_OPTIONS.map((opt) => {
+                    const active = form.port_of_loading === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[s.chip, active && s.chipActive]}
+                        onPress={() => set('port_of_loading', opt)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.chipText, active && s.chipTextActive]}>{opt}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[s.chip, form.port_of_loading === OTHER_SENTINEL && s.chipActive]}
+                    onPress={() => set('port_of_loading', OTHER_SENTINEL)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[s.chipText, form.port_of_loading === OTHER_SENTINEL && s.chipTextActive]}>
+                      {t.otherOption}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {form.port_of_loading === OTHER_SENTINEL && (
+                  <View style={{ marginTop: 8, marginBottom: 8 }}>
+                    <TextInput
+                      style={[s.input, isAr && s.rtl]}
+                      placeholder={t.portOtherPlaceholder}
+                      placeholderTextColor={C.textDisabled}
+                      value={form.port_of_loading_other}
+                      onChangeText={(v) => set('port_of_loading_other', v)}
+                    />
+                  </View>
+                )}
+
+                <View style={{ height: 14 }} />
+
+                <PField
+                  label={t.hsCode}
+                  value={form.hs_code}
+                  onChangeText={(v) => set('hs_code', v)}
+                  isAr={isAr}
+                />
+
+                {/* Carton */}
+                <SubLabel isAr={isAr}>{t.subCarton}</SubLabel>
+
+                <PField
+                  label={t.unitsPerCarton}
+                  value={form.units_per_carton}
+                  onChangeText={(v) => set('units_per_carton', v.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.cbm}
+                  value={form.cbm}
+                  onChangeText={(v) => set('cbm', v)}
+                  keyboardType="decimal-pad"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.grossWeightKg}
+                  value={form.gross_weight_kg}
+                  onChangeText={(v) => set('gross_weight_kg', v)}
+                  keyboardType="decimal-pad"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.netWeightKg}
+                  value={form.net_weight_kg}
+                  onChangeText={(v) => set('net_weight_kg', v)}
+                  keyboardType="decimal-pad"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.unitWeightKg}
+                  value={form.unit_weight_kg}
+                  onChangeText={(v) => set('unit_weight_kg', v)}
+                  keyboardType="decimal-pad"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.packageDimensions}
+                  value={form.package_dimensions}
+                  onChangeText={(v) => set('package_dimensions', v)}
+                  isAr={isAr}
+                />
+
+                {/* Lead Time + Price Validity */}
+                <SubLabel isAr={isAr}>{t.subLeadTime}</SubLabel>
+
+                <PField
+                  label={t.leadTimeMin}
+                  value={form.lead_time_min_days}
+                  onChangeText={(v) => set('lead_time_min_days', v.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.leadTimeMax}
+                  value={form.lead_time_max_days}
+                  onChangeText={(v) => set('lead_time_max_days', v.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  isAr={isAr}
+                />
+
+                <TouchableOpacity
+                  style={[s.toggleRow, form.lead_time_negotiable && s.toggleRowActive, { marginBottom: 14 }]}
+                  onPress={() => set('lead_time_negotiable', !form.lead_time_negotiable)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[s.toggleRowText, form.lead_time_negotiable && s.toggleRowTextActive]}>
+                    {form.lead_time_negotiable ? `✓ ${t.leadTimeNegotiable}` : t.leadTimeNegotiable}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.priceValidityDays}</Text>
+                <View style={[s.pillRow, isAr && s.chipRowRtl]}>
+                  {PRICE_VALIDITY_OPTIONS.map((days) => {
+                    const active = Number(form.price_validity_days) === days;
+                    return (
+                      <TouchableOpacity
+                        key={days}
+                        style={[s.pill, active && s.pillActive]}
+                        onPress={() => set('price_validity_days', days)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.pillText, active && s.pillTextActive]}>
+                          {days} {t.priceValidityUnit}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* OEM / ODM */}
+                <SubLabel isAr={isAr}>{t.subOemOdm}</SubLabel>
+
+                <View style={{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 10, marginBottom: 14 }}>
+                  <TouchableOpacity
+                    style={[s.toggleRow, { flex: 1 }, form.oem_available && s.toggleRowActive]}
+                    onPress={() => set('oem_available', !form.oem_available)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[s.toggleRowText, form.oem_available && s.toggleRowTextActive]}>
+                      {form.oem_available ? `✓ ${t.oemAvailable}` : t.oemAvailable}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.toggleRow, { flex: 1 }, form.odm_available && s.toggleRowActive]}
+                    onPress={() => set('odm_available', !form.odm_available)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[s.toggleRowText, form.odm_available && s.toggleRowTextActive]}>
+                      {form.odm_available ? `✓ ${t.odmAvailable}` : t.odmAvailable}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {form.oem_available && (
+                  <>
+                    <PField
+                      label={t.oemLeadTimeMin}
+                      value={form.oem_lead_time_min_days}
+                      onChangeText={(v) => set('oem_lead_time_min_days', v.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      isAr={isAr}
+                    />
+                    <PField
+                      label={t.oemLeadTimeMax}
+                      value={form.oem_lead_time_max_days}
+                      onChangeText={(v) => set('oem_lead_time_max_days', v.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      isAr={isAr}
+                    />
+                  </>
+                )}
+
+                {/* Specs */}
+                <SubLabel isAr={isAr}>{t.subSpecs}</SubLabel>
+
+                <PField
+                  label={t.specMaterial}
+                  value={form.spec_material}
+                  onChangeText={(v) => set('spec_material', v)}
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.specDimensions}
+                  value={form.spec_dimensions}
+                  onChangeText={(v) => set('spec_dimensions', v)}
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.specColorOptions}
+                  value={form.spec_color_options}
+                  onChangeText={(v) => set('spec_color_options', v)}
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.specPackagingDetails}
+                  value={form.spec_packaging_details}
+                  onChangeText={(v) => set('spec_packaging_details', v)}
+                  multiline
+                  numberOfLines={2}
+                  isAr={isAr}
+                />
+                <PField
+                  label={t.specCustomization}
+                  value={form.spec_customization}
+                  onChangeText={(v) => set('spec_customization', v)}
+                  multiline
+                  numberOfLines={2}
+                  isAr={isAr}
+                />
+              </Section>
+
               {/* ── Media ── */}
               <Section title={t.sectionMedia} isAr={isAr}>
                 <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.primaryImage}</Text>
@@ -938,6 +1496,14 @@ function Section({ title, isAr, children }) {
   );
 }
 
+function SubLabel({ isAr, children }) {
+  return (
+    <View style={s.subLabelWrap}>
+      <Text style={[s.subLabel, isAr && s.rtl]}>{children}</Text>
+    </View>
+  );
+}
+
 function PField({ label, isAr, multiline, hint, ...props }) {
   return (
     <View style={s.fieldWrap}>
@@ -1030,6 +1596,15 @@ const s = StyleSheet.create({
   sectionTitle: {
     color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi,
     marginBottom: 12,
+  },
+  subLabelWrap: {
+    marginTop: 6, marginBottom: 10,
+    paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: C.borderSubtle,
+  },
+  subLabel: {
+    color: C.textSecondary, fontSize: 12, fontFamily: F.arSemi,
+    letterSpacing: 0.3,
   },
 
   // Field
