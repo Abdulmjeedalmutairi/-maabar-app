@@ -61,9 +61,12 @@ const B2B_COLUMNS =
   'spec_material, spec_dimensions, spec_color_options, ' +
   'spec_packaging_details, spec_customization';
 
+// price_from was dropped from public.products in Phase 4 of the web app
+// — pricing now lives entirely in product_pricing_tiers (loaded separately
+// via loadTiers). Selecting it here returned 400 from PostgREST.
 const PRODUCT_SELECT_FULL =
   'id, name_ar, name_en, name_zh, desc_ar, desc_en, desc_zh, ' +
-  'price_from, currency, moq, category, incoterms, ' +
+  'currency, moq, category, incoterms, ' +
   'image_url, gallery_images, ' +
   'sample_available, sample_price, sample_currency, sample_max_qty, sample_note, ' +
   B2B_COLUMNS + ', ' +
@@ -71,7 +74,7 @@ const PRODUCT_SELECT_FULL =
 
 const PRODUCT_SELECT_NO_SC =
   'id, name_ar, name_en, name_zh, desc_ar, desc_en, desc_zh, ' +
-  'price_from, currency, moq, category, incoterms, ' +
+  'currency, moq, category, incoterms, ' +
   'image_url, gallery_images, ' +
   'sample_available, sample_price, sample_max_qty, sample_note, ' +
   B2B_COLUMNS + ', ' +
