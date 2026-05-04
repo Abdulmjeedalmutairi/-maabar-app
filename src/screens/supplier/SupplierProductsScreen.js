@@ -103,6 +103,7 @@ const COPY = {
     sectionB2B: 'الخدمات اللوجستية B2B',
     sectionCerts: 'شهادات الجودة',
     sectionMedia: 'الصور',
+    sectionVariants: 'الخيارات والمتغيرات',
     sectionSample: 'العينات',
 
     subShipping: 'الشحن والمنشأ',
@@ -216,6 +217,30 @@ const COPY = {
     certWrongType: 'النوع غير مدعوم. الرجاء PDF أو صورة.',
     certUploadFailed: 'فشل رفع الملف.',
     errorCertSave: 'تم حفظ المنتج، لكن فشل حفظ الشهادات',
+
+    hasVariantsOn:  '✓ هذا المنتج له خيارات / متغيرات',
+    hasVariantsOff: 'هذا المنتج له خيارات / متغيرات',
+    hasVariantsHint: 'فعّل هذا الخيار إذا كان منتجك متوفرًا بألوان أو مقاسات أو إصدارات مختلفة. سيتم إخفاء الشرائح السعرية الموحدة أعلاه.',
+    addOption: '+ إضافة خيار',
+    optionLabelN: 'الخيار {n}',
+    optionName: 'اسم الخيار (مثال: اللون، المقاس)',
+    optionValuesLabel: 'القيم',
+    optionValuesPlaceholder: 'اكتب قيمة ثم اضغط Enter',
+    addValueBtn: '+ إضافة قيمة',
+    removeOptionBtn: 'حذف',
+    variantsMatrixTitle: 'مصفوفة المتغيرات',
+    variantsAutoNote: 'تُولّد المتغيرات تلقائيًا من جميع التركيبات الممكنة لقيم الخيارات.',
+    noVariantsYet: 'أضف خيارًا واحدًا على الأقل مع قيم لتوليد المصفوفة.',
+    variantSku: 'SKU',
+    variantStock: 'المخزون (فارغ = ∞)',
+    variantImage: 'صورة المتغير',
+    variantPickImage: 'اختر صورة',
+    variantChangeImage: 'تغيير الصورة',
+    variantRemoveImage: 'إزالة',
+
+    errorVariantNoOptions: 'فعّلت "خيارات" لكن لم تُضف أي متغيرات. أضف خيارًا واحدًا على الأقل مع قيم.',
+    errorVariantNoSku: '{label}: SKU مطلوب',
+    errorVariantsSave: 'تم حفظ المنتج، لكن فشل حفظ المتغيرات',
     errorLeadTimeOrder: 'الحد الأقصى لمدة التصنيع يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorOemLeadTimeOrder: 'الحد الأقصى لمدة OEM يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorCbmPositive: 'يجب أن يكون CBM أكبر من 0',
@@ -249,6 +274,7 @@ const COPY = {
     sectionB2B: 'B2B Logistics',
     sectionCerts: 'Quality Certifications',
     sectionMedia: 'Images',
+    sectionVariants: 'Options & Variants',
     sectionSample: 'Samples',
 
     subShipping: 'Shipping & Origin',
@@ -362,6 +388,30 @@ const COPY = {
     certWrongType: 'Unsupported type. Please pick a PDF or image.',
     certUploadFailed: 'Upload failed.',
     errorCertSave: 'Product saved, but certifications failed to save',
+
+    hasVariantsOn:  '✓ This product has options / variants',
+    hasVariantsOff: 'This product has options / variants',
+    hasVariantsHint: 'Turn this on if your product comes in different colors, sizes, or versions. The single pricing tiers above will be hidden.',
+    addOption: '+ Add option',
+    optionLabelN: 'Option {n}',
+    optionName: 'Option name (e.g. Color, Size)',
+    optionValuesLabel: 'Values',
+    optionValuesPlaceholder: 'Type a value, press Enter',
+    addValueBtn: '+ Add value',
+    removeOptionBtn: 'Delete',
+    variantsMatrixTitle: 'Variant Matrix',
+    variantsAutoNote: 'Variants are auto-generated from every combination of option values.',
+    noVariantsYet: 'Add at least one option with values to generate the matrix.',
+    variantSku: 'SKU',
+    variantStock: 'Stock (blank = ∞)',
+    variantImage: 'Variant image',
+    variantPickImage: 'Pick image',
+    variantChangeImage: 'Change image',
+    variantRemoveImage: 'Remove',
+
+    errorVariantNoOptions: 'You turned on options but no variants were generated. Add at least one option with values.',
+    errorVariantNoSku: '{label}: SKU is required',
+    errorVariantsSave: 'Product saved, but variants failed to save',
     errorLeadTimeOrder: 'Lead time max must be ≥ lead time min',
     errorOemLeadTimeOrder: 'OEM lead time max must be ≥ OEM lead time min',
     errorCbmPositive: 'CBM must be greater than 0',
@@ -395,6 +445,7 @@ const COPY = {
     sectionB2B: 'B2B 物流',
     sectionCerts: '质量认证',
     sectionMedia: '产品图片',
+    sectionVariants: '选项与规格',
     sectionSample: '样品',
 
     subShipping: '装运与原产地',
@@ -508,6 +559,30 @@ const COPY = {
     certWrongType: '不支持该文件类型，请选择 PDF 或图片。',
     certUploadFailed: '文件上传失败。',
     errorCertSave: '产品已保存，但认证保存失败',
+
+    hasVariantsOn:  '✓ 此产品有选项 / 多规格',
+    hasVariantsOff: '此产品有选项 / 多规格',
+    hasVariantsHint: '如果产品有不同颜色、尺码或版本，请打开此项。上方的统一阶梯定价将隐藏。',
+    addOption: '+ 添加选项',
+    optionLabelN: '选项 {n}',
+    optionName: '选项名（例：颜色、尺寸）',
+    optionValuesLabel: '取值',
+    optionValuesPlaceholder: '输入值，按 Enter',
+    addValueBtn: '+ 添加值',
+    removeOptionBtn: '删除',
+    variantsMatrixTitle: '规格矩阵',
+    variantsAutoNote: '规格根据所有选项取值的组合自动生成。',
+    noVariantsYet: '请先添加至少一个带取值的选项以生成矩阵。',
+    variantSku: 'SKU',
+    variantStock: '库存（空 = ∞）',
+    variantImage: '规格图片',
+    variantPickImage: '选择图片',
+    variantChangeImage: '更换图片',
+    variantRemoveImage: '移除',
+
+    errorVariantNoOptions: '已开启「选项」但未生成规格。请添加至少一个带取值的选项。',
+    errorVariantNoSku: '{label}：SKU 必填',
+    errorVariantsSave: '产品已保存，但规格保存失败',
     errorLeadTimeOrder: '生产交期最长不得小于最短',
     errorOemLeadTimeOrder: 'OEM 交期最长不得小于最短',
     errorCbmPositive: 'CBM 必须大于 0',
@@ -541,6 +616,13 @@ const EMPTY_FORM = {
     { qty_from: '', qty_to: '', unit_price: '' },
     { qty_from: '', qty_to: '', unit_price: '' },
   ],
+  // Variants subsystem — when has_variants is true, the product-level
+  // tiers above are ignored and per-variant tiers (in varVariants) are
+  // used instead. varVariants is regenerated from varOptions whenever
+  // options/values change.
+  has_variants: false,
+  varOptions: [],
+  varVariants: [],
   // B2B Logistics — Shipping & Origin
   // country_of_origin holds either a known option, '__other__' (paired with
   // country_of_origin_other), or '' for unset. Mirrors the dual-state model
@@ -930,6 +1012,357 @@ async function saveProductCertifications({ productId, userId, nextCerts, prevCer
   return null;
 }
 
+// ── Variants subsystem ────────────────────────────────────────────────
+//
+// Form shape:
+//   form.has_variants    : boolean — when true, replaces product-level
+//                          tiers with per-variant tiers
+//   form.varOptions      : array of { _key, name, values: [{_key, value}] }
+//   form.varVariants     : array of { _key, combo, sku, stock, image_url,
+//                                     tiers: [{qty_from,qty_to,unit_price}*3] }
+//                          regenerated whenever options/values change so
+//                          the cartesian product stays in sync.
+//
+// DB shape (matches 20260420000001_product_variants_system.sql):
+//   product_options.name_zh is NOT NULL — the form's single `name` is
+//   written to BOTH name_zh AND name_en so buyer-side rendering sees a
+//   useful label regardless of language. Same for option_values.value_zh /
+//   value_en. (Web maintains separate trilingual fields; the user spec for
+//   this PR is single-string per option/value.)
+//
+// Save is delete-and-rewrite, mirroring the tiers helpers. ON DELETE
+// CASCADE on product_options → product_option_values means we only need
+// to delete options + variants — the values + variant tiers fall away.
+
+let _varKeyCounter = 0;
+const varKey = () => `v${++_varKeyCounter}_${Date.now()}`;
+
+function emptyOptionRow()       { return { _key: varKey(), name: '', values: [] }; }
+function emptyOptionValue()     { return { _key: varKey(), value: '' }; }
+function emptyVariantTier()     { return { qty_from: '', qty_to: '', unit_price: '' }; }
+function emptyVariantTiers()    { return [emptyVariantTier(), emptyVariantTier(), emptyVariantTier()]; }
+
+function variantComboKey(combo) {
+  return combo.map((c) => `${c.optionKey}:${c.valueKey}`).join('|');
+}
+
+function emptyVariant(combo) {
+  return {
+    _key: variantComboKey(combo),
+    combo,
+    sku: '',
+    stock: '',
+    image_url: null,
+    tiers: emptyVariantTiers(),
+  };
+}
+
+function cartesian(arrays) {
+  if (!arrays.length) return [];
+  return arrays.reduce(
+    (acc, arr) => acc.flatMap((x) => arr.map((y) => [...x, y])),
+    [[]],
+  );
+}
+
+// Given the current options array and existing variants, regenerate the
+// variants list so it matches the cartesian product of all option values.
+// Existing variant data (sku, stock, tiers, image) is preserved by combo
+// key — switching a value's order or adding a new value won't wipe out
+// the user's input on unaffected combos.
+function regenerateVariants(options, existingVariants) {
+  const activeOptions = (options || []).filter((o) =>
+    Array.isArray(o.values)
+    && o.values.some((v) => String(v.value || '').trim()),
+  );
+  if (!activeOptions.length) return [];
+
+  const axes = activeOptions.map((o) =>
+    o.values
+      .filter((v) => String(v.value || '').trim())
+      .map((v) => ({ optionKey: o._key, valueKey: v._key })),
+  );
+  const combos = cartesian(axes);
+
+  const existingMap = new Map();
+  for (const v of (existingVariants || [])) existingMap.set(v._key, v);
+
+  return combos.map((combo) => {
+    const key  = variantComboKey(combo);
+    const prev = existingMap.get(key);
+    return prev ? { ...prev, _key: key, combo } : emptyVariant(combo);
+  });
+}
+
+// Resolve a variant's combo into a human label using the user's option
+// names — e.g. ["Red / S"]. Used for rendering each variant card header.
+function variantLabel(combo, options) {
+  return combo.map(({ optionKey, valueKey }) => {
+    const opt = options.find((o) => o._key === optionKey);
+    const val = opt?.values.find((v) => v._key === valueKey);
+    return String(val?.value || '').trim() || '?';
+  }).join(' / ');
+}
+
+// Validate the variants subsystem when has_variants is on. Returns a
+// localized error string or null. Does NOT validate product-level tiers
+// (those are skipped when has_variants is on).
+function validateVariantsSubsystem(options, variants, t) {
+  const validOpts = (options || []).filter(
+    (o) => String(o.name || '').trim()
+        && Array.isArray(o.values)
+        && o.values.some((v) => String(v.value || '').trim()),
+  );
+  if (!validOpts.length) return t.errorVariantNoOptions;
+  if (!Array.isArray(variants) || !variants.length) return t.errorVariantNoOptions;
+
+  for (let i = 0; i < variants.length; i++) {
+    const v = variants[i];
+    const label = variantLabel(v.combo, options) || `#${i + 1}`;
+    if (!String(v.sku || '').trim()) {
+      return t.errorVariantNoSku.replace('{label}', label);
+    }
+    // Reuse the product-tier validator. moqInt is not bound here — pass
+    // 1 so tier 1 qty_from must just be ≥ 1, which the validator already
+    // enforces via tierValidationQtyFromMin.
+    const tierErr = validateTiers(v.tiers, 1, t);
+    if (tierErr) {
+      return `${label} — ${tierErr}`;
+    }
+  }
+  return null;
+}
+
+async function loadVariantsSubsystem(productId) {
+  if (!productId) return { options: [], variants: [] };
+
+  const [optsRes, varsRes, tiersRes] = await Promise.all([
+    supabase.from('product_options')
+      .select('id, name_zh, name_en, display_order')
+      .eq('product_id', productId)
+      .order('display_order', { ascending: true }),
+    supabase.from('product_variants')
+      .select('id, sku, option_values, stock, image_url')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: true }),
+    supabase.from('product_pricing_tiers')
+      .select('variant_id, qty_from, qty_to, unit_price')
+      .eq('product_id', productId)
+      .not('variant_id', 'is', null)
+      .order('qty_from', { ascending: true }),
+  ]);
+
+  if (optsRes.error || varsRes.error || tiersRes.error) {
+    console.error('[SupplierProducts] load variants error:',
+      optsRes.error || varsRes.error || tiersRes.error);
+    return { options: [], variants: [] };
+  }
+
+  // Need each option's values too. Pull them in one fetch.
+  const optionIds = (optsRes.data || []).map((o) => o.id);
+  let valuesByOption = new Map();
+  if (optionIds.length) {
+    const { data: valRows, error: valErr } = await supabase
+      .from('product_option_values')
+      .select('id, option_id, value_zh, value_en, display_order')
+      .in('option_id', optionIds)
+      .order('display_order', { ascending: true });
+    if (valErr) {
+      console.error('[SupplierProducts] load option values error:', valErr);
+    } else {
+      for (const row of (valRows || [])) {
+        const list = valuesByOption.get(row.option_id) || [];
+        list.push({
+          _key: row.id, // stable key from DB so combo keys match below
+          dbId: row.id,
+          value: row.value_en || row.value_zh || '',
+        });
+        valuesByOption.set(row.option_id, list);
+      }
+    }
+  }
+
+  const options = (optsRes.data || []).map((o) => ({
+    _key: o.id,
+    dbId: o.id,
+    name: o.name_en || o.name_zh || '',
+    values: valuesByOption.get(o.id) || [],
+  }));
+
+  // Group tiers by variant_id and pad to 3.
+  const tiersByVariant = new Map();
+  for (const t of (tiersRes.data || [])) {
+    if (!t.variant_id) continue;
+    const list = tiersByVariant.get(t.variant_id) || [];
+    list.push({
+      qty_from:   t.qty_from   != null ? String(t.qty_from)   : '',
+      qty_to:     t.qty_to     != null ? String(t.qty_to)     : '',
+      unit_price: t.unit_price != null ? String(t.unit_price) : '',
+    });
+    tiersByVariant.set(t.variant_id, list);
+  }
+
+  const variants = (varsRes.data || []).map((v) => {
+    // option_values is a jsonb [{option_id, value_id}, …] — translate to
+    // our combo shape using the DB ids as our local _keys.
+    const ovList = Array.isArray(v.option_values) ? v.option_values : [];
+    const combo  = ovList.map((ov) => ({
+      optionKey: ov.option_id,
+      valueKey:  ov.value_id,
+    }));
+    const tiers  = tiersByVariant.get(v.id) || [];
+    while (tiers.length < 3) tiers.push(emptyVariantTier());
+    return {
+      _key: variantComboKey(combo),
+      combo,
+      sku: v.sku || '',
+      stock: v.stock != null ? String(v.stock) : '',
+      image_url: v.image_url || null,
+      tiers: tiers.slice(0, 3),
+    };
+  });
+
+  return { options, variants };
+}
+
+// Delete-and-rewrite the variants subsystem. Cascades:
+//   delete product_options → product_option_values
+//   delete product_variants → product_pricing_tiers (variant rows)
+// We also explicitly delete product-level tiers so toggling has_variants
+// across saves doesn't leave orphans of either flavor.
+async function saveVariantsSubsystem(productId, options, variants) {
+  if (!productId) return new Error('saveVariantsSubsystem: productId required');
+
+  // Wipe everything first.
+  const { error: delTiers } = await supabase
+    .from('product_pricing_tiers').delete().eq('product_id', productId);
+  if (delTiers) {
+    console.error('[SupplierProducts] variant tiers delete:', delTiers);
+    return delTiers;
+  }
+  const { error: delVars } = await supabase
+    .from('product_variants').delete().eq('product_id', productId);
+  if (delVars) {
+    console.error('[SupplierProducts] variants delete:', delVars);
+    return delVars;
+  }
+  const { error: delOpts } = await supabase
+    .from('product_options').delete().eq('product_id', productId);
+  if (delOpts) {
+    console.error('[SupplierProducts] options delete:', delOpts);
+    return delOpts;
+  }
+
+  // Filter out empty options (no name OR no usable values) — silently,
+  // the form-level validator already rejected these for has_variants on.
+  const cleanOpts = (options || []).filter((o) =>
+    String(o.name || '').trim()
+    && Array.isArray(o.values)
+    && o.values.some((v) => String(v.value || '').trim()),
+  );
+  if (!cleanOpts.length) return null;
+
+  // 1) Insert options. Use Promise.all so we get back ids in form order.
+  const optionDbIds = new Map(); // form _key → db id
+  for (let i = 0; i < cleanOpts.length; i++) {
+    const o = cleanOpts[i];
+    const name = String(o.name).trim();
+    const { data, error } = await supabase
+      .from('product_options')
+      .insert({
+        product_id: productId,
+        name_zh: name,
+        name_en: name, // mirror so buyers see a label regardless of lang
+        display_order: i,
+        input_type: 'select',
+      })
+      .select('id').single();
+    if (error) {
+      console.error('[SupplierProducts] option insert:', error);
+      return error;
+    }
+    optionDbIds.set(o._key, data.id);
+  }
+
+  // 2) Insert option values per option.
+  const valueDbIds = new Map(); // form value _key → db id
+  for (const o of cleanOpts) {
+    const optionId = optionDbIds.get(o._key);
+    const cleanValues = o.values.filter((v) => String(v.value || '').trim());
+    for (let j = 0; j < cleanValues.length; j++) {
+      const v = cleanValues[j];
+      const value = String(v.value).trim();
+      const { data, error } = await supabase
+        .from('product_option_values')
+        .insert({
+          option_id: optionId,
+          value_zh: value,
+          value_en: value,
+          display_order: j,
+        })
+        .select('id').single();
+      if (error) {
+        console.error('[SupplierProducts] option_value insert:', error);
+        return error;
+      }
+      valueDbIds.set(v._key, data.id);
+    }
+  }
+
+  // 3) Insert variants — translate combo to {option_id, value_id} pairs.
+  for (const v of (variants || [])) {
+    const optionValuesJson = (v.combo || []).map((c) => ({
+      option_id: optionDbIds.get(c.optionKey),
+      value_id:  valueDbIds.get(c.valueKey),
+    })).filter((p) => p.option_id && p.value_id);
+
+    if (!optionValuesJson.length) continue;
+
+    const stockInt = (() => {
+      if (v.stock === '' || v.stock === null || v.stock === undefined) return null;
+      const n = parseInt(v.stock, 10);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    })();
+
+    const { data: vRow, error: vErr } = await supabase
+      .from('product_variants')
+      .insert({
+        product_id: productId,
+        sku: String(v.sku || '').trim() || null,
+        option_values: optionValuesJson,
+        stock: stockInt,
+        image_url: v.image_url || null,
+        is_active: true,
+      })
+      .select('id').single();
+    if (vErr) {
+      console.error('[SupplierProducts] variant insert:', vErr);
+      return vErr;
+    }
+    const variantId = vRow.id;
+
+    // 4) Insert this variant's pricing tiers.
+    const tierRows = (Array.isArray(v.tiers) ? v.tiers : []).slice(0, 3).map((r) => {
+      const qty_from   = tierIntOrNaN(r?.qty_from);
+      const qty_to     = tierIntOrNaN(r?.qty_to);
+      const unit_price = tierNumOrNaN(r?.unit_price);
+      return { product_id: productId, variant_id: variantId, qty_from, qty_to, unit_price };
+    }).filter((r) =>
+      Number.isFinite(r.qty_from) && r.qty_from >= 1 &&
+      Number.isFinite(r.unit_price) && r.unit_price > 0,
+    );
+    if (tierRows.length) {
+      const { error: tErr } = await supabase.from('product_pricing_tiers').insert(tierRows);
+      if (tErr) {
+        console.error('[SupplierProducts] variant tier insert:', tErr);
+        return tErr;
+      }
+    }
+  }
+
+  return null;
+}
+
 export default function SupplierProductsScreen({ navigation, route }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
@@ -1073,11 +1506,18 @@ export default function SupplierProductsScreen({ navigation, route }) {
     // functional setForm so we don't clobber edits the user makes between
     // open and load. prevCerts captures the original DB state so the diff
     // save can compute deletions.
-    const [tiers, loadedCerts] = await Promise.all([
+    const [tiers, loadedCerts, variantData] = await Promise.all([
       loadTiers(p.id),
       loadProductCertifications(p.id),
+      loadVariantsSubsystem(p.id),
     ]);
-    setForm((f) => ({ ...f, tiers }));
+    setForm((f) => ({
+      ...f,
+      tiers,
+      has_variants: !!p.has_variants,
+      varOptions:  variantData.options,
+      varVariants: variantData.variants,
+    }));
     setCerts(loadedCerts);
     setPrevCerts(loadedCerts);
   }
@@ -1105,6 +1545,109 @@ export default function SupplierProductsScreen({ navigation, route }) {
       ...f,
       tiers: f.tiers.map((row, i) => (i === idx ? { ...row, [field]: value } : row)),
     }));
+  }
+
+  // ── Variants subsystem handlers ──────────────────────────────────────
+  // Whenever options/values change, regenerate the variants array so the
+  // matrix reflects the current cartesian product. Existing per-variant
+  // data is preserved by combo key (see regenerateVariants).
+  function setVarOptions(updater) {
+    setForm((f) => {
+      const newOptions  = typeof updater === 'function' ? updater(f.varOptions) : updater;
+      const newVariants = regenerateVariants(newOptions, f.varVariants);
+      return { ...f, varOptions: newOptions, varVariants: newVariants };
+    });
+  }
+
+  function toggleHasVariants() {
+    setForm((f) => {
+      const next = !f.has_variants;
+      // Toggling ON: leave product-level tiers in state but they're
+      // ignored at save. Toggling OFF: clear options/variants so user
+      // doesn't accidentally re-save stale data.
+      if (!next) {
+        return { ...f, has_variants: false, varOptions: [], varVariants: [] };
+      }
+      return { ...f, has_variants: true };
+    });
+  }
+
+  function addVarOption() {
+    setVarOptions((opts) => [...opts, emptyOptionRow()]);
+  }
+  function removeVarOption(optionKey) {
+    setVarOptions((opts) => opts.filter((o) => o._key !== optionKey));
+  }
+  function setVarOptionName(optionKey, name) {
+    setVarOptions((opts) =>
+      opts.map((o) => (o._key === optionKey ? { ...o, name } : o)),
+    );
+  }
+  function addVarOptionValue(optionKey, raw) {
+    const value = String(raw || '').trim();
+    if (!value) return;
+    setVarOptions((opts) => opts.map((o) => {
+      if (o._key !== optionKey) return o;
+      // Skip duplicates (case-insensitive) so the matrix doesn't get
+      // confused by visually-identical combos.
+      const already = o.values.some(
+        (v) => String(v.value || '').trim().toLowerCase() === value.toLowerCase(),
+      );
+      if (already) return o;
+      return { ...o, values: [...o.values, { ...emptyOptionValue(), value }] };
+    }));
+  }
+  function removeVarOptionValue(optionKey, valueKey) {
+    setVarOptions((opts) => opts.map((o) =>
+      o._key === optionKey
+        ? { ...o, values: o.values.filter((v) => v._key !== valueKey) }
+        : o,
+    ));
+  }
+
+  function updateVariant(variantKey, patch) {
+    setForm((f) => ({
+      ...f,
+      varVariants: f.varVariants.map((v) =>
+        v._key === variantKey ? { ...v, ...patch } : v,
+      ),
+    }));
+  }
+  function setVariantTierField(variantKey, tierIdx, field, value) {
+    setForm((f) => ({
+      ...f,
+      varVariants: f.varVariants.map((v) => {
+        if (v._key !== variantKey) return v;
+        const newTiers = (v.tiers || emptyVariantTiers()).map((row, i) =>
+          i === tierIdx ? { ...row, [field]: value } : row,
+        );
+        return { ...v, tiers: newTiers };
+      }),
+    }));
+  }
+
+  async function pickVariantImage(variantKey) {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const a = r.assets[0];
+      const ext = (a.fileName?.split('.').pop() || 'jpg').toLowerCase();
+      const url = await uploadProductImage(a.uri, a.mimeType || 'image/jpeg', user.id, ext);
+      updateVariant(variantKey, { image_url: url });
+    } catch (e) {
+      console.error('[SupplierProducts] variant image upload error:', e?.message || e);
+      Alert.alert('', t.uploadFailed);
+    }
+  }
+  function clearVariantImage(variantKey) {
+    updateVariant(variantKey, { image_url: null });
   }
 
   // ── Certifications ────────────────────────────────────────────────────
@@ -1258,9 +1801,15 @@ export default function SupplierProductsScreen({ navigation, route }) {
       return t.errorWeightPositive;
     }
 
-    // Pricing tiers — moqInt was checked above, safe to reuse.
-    const tierErr = validateTiers(form.tiers, moqInt, t);
-    if (tierErr) return tierErr;
+    if (form.has_variants) {
+      // Variants on: per-variant tiers replace product-level tiers.
+      const vErr = validateVariantsSubsystem(form.varOptions, form.varVariants, t);
+      if (vErr) return vErr;
+    } else {
+      // Variants off: product-level tiers required.
+      const tierErr = validateTiers(form.tiers, moqInt, t);
+      if (tierErr) return tierErr;
+    }
 
     return null;
   }
@@ -1344,6 +1893,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
       spec_color_options:     strOrNull(form.spec_color_options),
       spec_packaging_details: strOrNull(form.spec_packaging_details),
       spec_customization:     strOrNull(form.spec_customization),
+      has_variants: !!form.has_variants,
       is_active: editing ? !!editing.is_active : true,
     };
 
@@ -1356,13 +1906,24 @@ export default function SupplierProductsScreen({ navigation, route }) {
       return;
     }
 
-    // Tiers + certifications are saved AFTER the product so we have a
-    // stable productId to attach them to. Failures surface as separate
-    // alerts but do not block closing — the product itself was saved.
+    // Tiers / variants / certifications are saved AFTER the product so
+    // we have a stable productId. Failures surface as separate alerts
+    // but do not block closing — the product itself was saved.
     let tierErr = null;
     let certErr = null;
+    let varErr  = null;
     if (productId) {
-      tierErr = await saveTiers(productId, form.tiers, moqInt);
+      if (form.has_variants) {
+        // Variants own pricing — saveVariantsSubsystem also wipes any
+        // product-level tiers left over from a prior save.
+        varErr = await saveVariantsSubsystem(productId, form.varOptions, form.varVariants);
+      } else {
+        // No variants — write product-level tiers and clear any stale
+        // variants subsystem from a prior save (in case has_variants
+        // was toggled off this round).
+        tierErr = await saveTiers(productId, form.tiers, moqInt);
+        await saveVariantsSubsystem(productId, [], []);
+      }
       certErr = await saveProductCertifications({
         productId,
         userId: myId,
@@ -1375,6 +1936,10 @@ export default function SupplierProductsScreen({ navigation, route }) {
     if (tierErr) {
       console.error('[SupplierProducts] tier save error:', tierErr);
       Alert.alert('', t.errorTierSave);
+    }
+    if (varErr) {
+      console.error('[SupplierProducts] variants save error:', varErr);
+      Alert.alert('', t.errorVariantsSave);
     }
     if (certErr) {
       console.error('[SupplierProducts] cert save error:', certErr);
@@ -1597,7 +2162,8 @@ export default function SupplierProductsScreen({ navigation, route }) {
                 />
               </Section>
 
-              {/* ── Pricing Tiers ── */}
+              {/* ── Pricing Tiers ── (hidden when variants own pricing) */}
+              {!form.has_variants && (
               <Section title={t.sectionTiers} isAr={isAr}>
                 <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 12 }]}>
                   {t.tiersHint}
@@ -1673,6 +2239,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
                   {t.tierMoqAutoNote}
                 </Text>
               </Section>
+              )}
 
               {/* ── Incoterms ── */}
               <Section title={t.sectionIncoterms} isAr={isAr}>
@@ -2169,6 +2736,183 @@ export default function SupplierProductsScreen({ navigation, route }) {
                 )}
               </Section>
 
+              {/* ── Options & Variants ── */}
+              <Section title={t.sectionVariants} isAr={isAr}>
+                <TouchableOpacity
+                  style={[s.toggleRow, form.has_variants && s.toggleRowActive]}
+                  onPress={toggleHasVariants}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[s.toggleRowText, form.has_variants && s.toggleRowTextActive]}>
+                    {form.has_variants ? t.hasVariantsOn : t.hasVariantsOff}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={[s.fieldHint, isAr && s.rtl, { marginTop: 8 }]}>
+                  {t.hasVariantsHint}
+                </Text>
+
+                {form.has_variants && (
+                  <View style={{ marginTop: 14 }}>
+                    {/* Options */}
+                    {form.varOptions.map((opt, oi) => (
+                      <OptionEditor
+                        key={opt._key}
+                        option={opt}
+                        index={oi}
+                        isAr={isAr}
+                        t={t}
+                        onChangeName={(v) => setVarOptionName(opt._key, v)}
+                        onAddValue={(v) => addVarOptionValue(opt._key, v)}
+                        onRemoveValue={(vk) => removeVarOptionValue(opt._key, vk)}
+                        onRemoveOption={() => removeVarOption(opt._key)}
+                      />
+                    ))}
+
+                    <TouchableOpacity
+                      style={[s.smallBtn, { alignSelf: 'flex-start', marginTop: 4 }]}
+                      onPress={addVarOption}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={s.smallBtnText}>{t.addOption}</Text>
+                    </TouchableOpacity>
+
+                    {/* Variant matrix */}
+                    <View style={{ marginTop: 18 }}>
+                      <Text style={[s.subLabel, isAr && s.rtl, { marginBottom: 6 }]}>
+                        {t.variantsMatrixTitle}
+                      </Text>
+                      <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 12 }]}>
+                        {t.variantsAutoNote}
+                      </Text>
+
+                      {form.varVariants.length === 0 ? (
+                        <Text style={[s.fieldHint, isAr && s.rtl]}>
+                          {t.noVariantsYet}
+                        </Text>
+                      ) : (
+                        form.varVariants.map((v) => {
+                          const label = variantLabel(v.combo, form.varOptions) || '—';
+                          return (
+                            <View key={v._key} style={s.variantCard}>
+                              <Text style={[s.variantCardTitle, isAr && s.rtl]} numberOfLines={2}>
+                                {label}
+                              </Text>
+
+                              {/* Image */}
+                              <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.variantImage}</Text>
+                              {v.image_url ? (
+                                <View style={[s.primaryWrap, { marginBottom: 12 }]}>
+                                  <Image source={{ uri: v.image_url }} style={s.variantImg} />
+                                  <View style={[s.primaryActions, isAr && s.rowRtl]}>
+                                    <TouchableOpacity
+                                      style={s.smallBtn}
+                                      onPress={() => pickVariantImage(v._key)}
+                                      activeOpacity={0.85}
+                                    >
+                                      <Text style={s.smallBtnText}>{t.variantChangeImage}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={[s.smallBtn, s.smallBtnDanger]}
+                                      onPress={() => clearVariantImage(v._key)}
+                                      activeOpacity={0.85}
+                                    >
+                                      <Text style={[s.smallBtnText, { color: C.red }]}>
+                                        {t.variantRemoveImage}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                </View>
+                              ) : (
+                                <TouchableOpacity
+                                  style={[s.uploadBtn, { marginBottom: 12 }]}
+                                  onPress={() => pickVariantImage(v._key)}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={s.uploadBtnText}>{t.variantPickImage}</Text>
+                                </TouchableOpacity>
+                              )}
+
+                              {/* SKU + Stock */}
+                              <PField
+                                label={t.variantSku}
+                                value={v.sku}
+                                onChangeText={(val) => updateVariant(v._key, { sku: val })}
+                                isAr={false}
+                              />
+                              <PField
+                                label={t.variantStock}
+                                value={v.stock}
+                                onChangeText={(val) => updateVariant(v._key, { stock: val.replace(/[^0-9]/g, '') })}
+                                keyboardType="numeric"
+                                isAr={isAr}
+                              />
+
+                              {/* Tier headers */}
+                              <View style={[s.tierHeaderRow, isAr && s.rowRtl]}>
+                                <View style={s.tierLabelCell} />
+                                <Text style={[s.tierColLabel, { flex: 1 }]} numberOfLines={1}>
+                                  {t.tierColMinQty}
+                                </Text>
+                                <Text style={[s.tierColLabel, { flex: 1 }]} numberOfLines={1}>
+                                  {t.tierColMaxQty}
+                                </Text>
+                                <Text style={[s.tierColLabel, { flex: 1.3 }]} numberOfLines={1}>
+                                  {t.tierColUnitPrice} ({form.currency})
+                                </Text>
+                              </View>
+
+                              {/* 3 tier rows */}
+                              {(v.tiers || emptyVariantTiers()).map((row, ti) => {
+                                const isLast = ti === 2;
+                                return (
+                                  <View key={ti} style={[s.tierRow, isAr && s.rowRtl]}>
+                                    <View style={s.tierLabelCell}>
+                                      <Text style={s.tierRowLabel}>
+                                        {t.tierLabel.replace('{n}', String(ti + 1))}
+                                      </Text>
+                                    </View>
+                                    <TextInput
+                                      style={[s.tierInput, { flex: 1 }]}
+                                      keyboardType="numeric"
+                                      value={row.qty_from}
+                                      onChangeText={(val) =>
+                                        setVariantTierField(v._key, ti, 'qty_from', val.replace(/[^0-9]/g, ''))
+                                      }
+                                      placeholderTextColor={C.textDisabled}
+                                    />
+                                    <TextInput
+                                      style={[s.tierInput, { flex: 1 }]}
+                                      keyboardType="numeric"
+                                      value={row.qty_to}
+                                      onChangeText={(val) =>
+                                        setVariantTierField(v._key, ti, 'qty_to', val.replace(/[^0-9]/g, ''))
+                                      }
+                                      placeholder={isLast ? t.tierMaxQtyUnlimited : ''}
+                                      placeholderTextColor={C.textDisabled}
+                                    />
+                                    <TextInput
+                                      style={[s.tierInput, { flex: 1.3 }]}
+                                      keyboardType="decimal-pad"
+                                      value={row.unit_price}
+                                      onChangeText={(val) =>
+                                        setVariantTierField(v._key, ti, 'unit_price', val)
+                                      }
+                                      placeholder="0.00"
+                                      placeholderTextColor={C.textDisabled}
+                                    />
+                                  </View>
+                                );
+                              })}
+                            </View>
+                          );
+                        })
+                      )}
+                    </View>
+                  </View>
+                )}
+              </Section>
+
               {/* ── Sample ── */}
               <Section title={t.sectionSample} isAr={isAr}>
                 <TouchableOpacity
@@ -2259,6 +3003,79 @@ function SubLabel({ isAr, children }) {
   return (
     <View style={s.subLabelWrap}>
       <Text style={[s.subLabel, isAr && s.rtl]}>{children}</Text>
+    </View>
+  );
+}
+
+// One option card (name + tag-input list of values + remove). Local state
+// holds the in-progress "new value" text so each card has its own input.
+function OptionEditor({ option, index, isAr, t, onChangeName, onAddValue, onRemoveValue, onRemoveOption }) {
+  const [draft, setDraft] = React.useState('');
+
+  const commit = () => {
+    const v = draft.trim();
+    if (!v) return;
+    onAddValue(v);
+    setDraft('');
+  };
+
+  return (
+    <View style={s.optionCard}>
+      <View style={[s.optionCardHeader, isAr && s.rowRtl]}>
+        <Text style={s.optionCardLabel}>
+          {t.optionLabelN.replace('{n}', String(index + 1))}
+        </Text>
+        <TouchableOpacity onPress={onRemoveOption} style={s.smallBtn} activeOpacity={0.85}>
+          <Text style={[s.smallBtnText, { color: C.red }]}>{t.removeOptionBtn}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={s.fieldWrap}>
+        <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.optionName}</Text>
+        <TextInput
+          style={[s.input, isAr && s.rtl]}
+          value={option.name}
+          onChangeText={onChangeName}
+          placeholderTextColor={C.textDisabled}
+        />
+      </View>
+
+      <Text style={[s.fieldLabel, isAr && s.rtl]}>{t.optionValuesLabel}</Text>
+
+      {/* Existing value tags */}
+      {option.values.length > 0 && (
+        <View style={[s.chipRow, isAr && s.chipRowRtl, { marginBottom: 10 }]}>
+          {option.values.map((v) => (
+            <View key={v._key} style={[s.tagChip, isAr && s.rowRtl]}>
+              <Text style={s.tagChipText} numberOfLines={1}>
+                {v.value || ''}
+              </Text>
+              <TouchableOpacity
+                onPress={() => onRemoveValue(v._key)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={s.tagChipRemove}>×</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Add-value row */}
+      <View style={[{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 8, alignItems: 'center' }]}>
+        <TextInput
+          style={[s.input, isAr && s.rtl, { flex: 1 }]}
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={commit}
+          placeholder={t.optionValuesPlaceholder}
+          placeholderTextColor={C.textDisabled}
+          returnKeyType="done"
+        />
+        <TouchableOpacity onPress={commit} style={s.smallBtn} activeOpacity={0.85}>
+          <Text style={s.smallBtnText}>{t.addValueBtn}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -2446,6 +3263,47 @@ const s = StyleSheet.create({
     backgroundColor: C.bgRaised, marginTop: 4,
   },
   certAddBtnText: { color: C.textSecondary, fontSize: 13, fontFamily: F.arSemi },
+
+  // Variants subsystem — option cards + tag chips + variant cards
+  optionCard: {
+    backgroundColor: C.bgBase, borderRadius: 12,
+    borderWidth: 1, borderColor: C.borderMuted,
+    padding: 14, marginBottom: 12,
+  },
+  optionCardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 10,
+  },
+  optionCardLabel: {
+    color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi,
+    letterSpacing: 0.5,
+  },
+  tagChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 999, backgroundColor: C.bgRaised,
+    borderWidth: 1, borderColor: C.borderDefault,
+  },
+  tagChipText: {
+    color: C.textPrimary, fontSize: 12, fontFamily: F.ar, maxWidth: 140,
+  },
+  tagChipRemove: {
+    color: C.textTertiary, fontSize: 14, lineHeight: 14,
+    fontFamily: F.enBold, paddingHorizontal: 2,
+  },
+
+  variantCard: {
+    backgroundColor: C.bgBase, borderRadius: 12,
+    borderWidth: 1, borderColor: C.borderMuted,
+    padding: 14, marginBottom: 12,
+  },
+  variantCardTitle: {
+    color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi,
+    marginBottom: 10,
+  },
+  variantImg: {
+    width: '100%', height: 140, borderRadius: 10, resizeMode: 'cover',
+  },
 
   // Field
   fieldWrap: { marginBottom: 14 },
