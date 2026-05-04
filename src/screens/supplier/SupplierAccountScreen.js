@@ -34,7 +34,9 @@ import { F } from '../../lib/fonts';
 import { getSpecialtyLabel } from '../../lib/specialtyLabel';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const FACTORY_IMAGE_LIMIT = 3;
+// Alibaba allows up to 10 factory photos in their supplier profile UI;
+// matching that ceiling so we don't artificially constrain serious sellers.
+const FACTORY_IMAGE_LIMIT = 10;
 const SPECIALTY_KEYS = [
   'electronics', 'home_appliances', 'furniture', 'office_furniture',
   'bedroom_furniture', 'kitchen_furniture', 'outdoor_furniture', 'home_decor',
@@ -42,8 +44,11 @@ const SPECIALTY_KEYS = [
   'car_accessories', 'tires', 'lubricants', 'health', 'packaging', 'gifts',
   'agriculture', 'other',
 ];
-const BUSINESS_TYPE_KEYS = ['manufacturer', 'wholesaler', 'trading', 'other'];
-const CUSTOMIZATION_KEYS = ['oem', 'odm', 'obm', 'none'];
+// business_type and customization_support option sets now mirror web
+// (DashboardSupplier.jsx settings tab) — buyers see the same labels in the
+// supplier profile regardless of which client edited the row.
+const BUSINESS_TYPE_KEYS = ['manufacturer', 'trading_company', 'agent', 'distributor'];
+const CUSTOMIZATION_KEYS = ['yes', 'oem', 'odm', 'no'];
 const CURRENCY_OPTIONS = ['USD', 'SAR', 'CNY', 'EUR'];
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
@@ -114,9 +119,9 @@ const COPY = {
     businessType: 'نوع النشاط',
     businessTypePlaceholder: 'اختر نوع النشاط',
     bizManufacturer: 'مصنّع',
-    bizWholesaler: 'تاجر جملة',
-    bizTrading: 'شركة تجارية',
-    bizOther: 'أخرى',
+    bizTradingCompany: 'شركة تجارية',
+    bizAgent: 'وكيل',
+    bizDistributor: 'موزّع',
     specialty: 'التخصص',
     specialtyPlaceholder: 'اختر التخصص',
     yearEstablished: 'سنة التأسيس',
@@ -131,10 +136,10 @@ const COPY = {
     preferredCurrency: 'العملة المفضلة للعرض',
     customizationLabel: 'دعم التخصيص',
     customizationPlaceholder: 'اختر',
+    customYes: 'نعم',
     customOEM: 'OEM',
     customODM: 'ODM',
-    customOBM: 'OBM',
-    customNone: 'غير متوفر',
+    customNo: 'لا',
     tradeProfile: 'رابط المتجر / الملف التجاري',
     exportMarketsLabel: 'أسواق التصدير',
     exportMarketsHint: 'افصل بفاصلة (مثال: السعودية، الإمارات)',
@@ -144,6 +149,8 @@ const COPY = {
 
     addCert: '+ إضافة شهادة',
     certName: 'اسم الشهادة (مثال: ISO 9001)',
+    certIssuer: 'الجهة المانحة',
+    certValidUntil: 'صالحة حتى',
     uploadFile: 'رفع ملف',
     uploadingLabel: 'جاري الرفع...',
     uploadedLabel: 'تم الرفع',
@@ -152,6 +159,10 @@ const COPY = {
     certFileTypesHint: 'PDF أو JPG أو PNG · حد أقصى 10 ميغابايت',
     permissionDenied: 'يرجى السماح بالوصول للصور',
     uploadFailed: 'فشل الرفع. حاول مرة أخرى.',
+
+    profileVideoLabel: 'فيديو الشركة (اختياري)',
+    profileVideoPickBtn: '+ رفع فيديو',
+    profileVideoUploadedLabel: 'تم رفع الفيديو',
   },
   en: {
     title: 'My Account',
@@ -218,9 +229,9 @@ const COPY = {
     businessType: 'Business Type',
     businessTypePlaceholder: 'Select business type',
     bizManufacturer: 'Manufacturer',
-    bizWholesaler: 'Wholesaler',
-    bizTrading: 'Trading Company',
-    bizOther: 'Other',
+    bizTradingCompany: 'Trading Company',
+    bizAgent: 'Agent',
+    bizDistributor: 'Distributor',
     specialty: 'Specialty',
     specialtyPlaceholder: 'Select specialty',
     yearEstablished: 'Year Established',
@@ -235,10 +246,10 @@ const COPY = {
     preferredCurrency: 'Preferred Display Currency',
     customizationLabel: 'Customization Support',
     customizationPlaceholder: 'Select',
+    customYes: 'Yes',
     customOEM: 'OEM',
     customODM: 'ODM',
-    customOBM: 'OBM',
-    customNone: 'None',
+    customNo: 'No',
     tradeProfile: 'Trade Profile / Storefront Link',
     exportMarketsLabel: 'Export Markets',
     exportMarketsHint: 'Comma-separated (e.g. Saudi Arabia, UAE)',
@@ -248,6 +259,8 @@ const COPY = {
 
     addCert: '+ Add certification',
     certName: 'Cert name (e.g. ISO 9001)',
+    certIssuer: 'Issuing body',
+    certValidUntil: 'Valid until',
     uploadFile: 'Upload file',
     uploadingLabel: 'Uploading...',
     uploadedLabel: 'Uploaded',
@@ -256,6 +269,10 @@ const COPY = {
     certFileTypesHint: 'PDF, JPG, PNG · 10 MB max',
     permissionDenied: 'Please allow photo library access',
     uploadFailed: 'Upload failed. Please try again.',
+
+    profileVideoLabel: 'Company Profile Video (optional)',
+    profileVideoPickBtn: '+ Upload video',
+    profileVideoUploadedLabel: 'Video uploaded',
   },
   zh: {
     title: '我的账户',
@@ -322,9 +339,9 @@ const COPY = {
     businessType: '企业类型',
     businessTypePlaceholder: '请选择企业类型',
     bizManufacturer: '制造商',
-    bizWholesaler: '批发商',
-    bizTrading: '贸易公司',
-    bizOther: '其他',
+    bizTradingCompany: '贸易公司',
+    bizAgent: '代理商',
+    bizDistributor: '经销商',
     specialty: '专业领域',
     specialtyPlaceholder: '请选择',
     yearEstablished: '成立年份',
@@ -339,10 +356,10 @@ const COPY = {
     preferredCurrency: '首选展示货币',
     customizationLabel: '定制支持',
     customizationPlaceholder: '请选择',
+    customYes: '是',
     customOEM: 'OEM',
     customODM: 'ODM',
-    customOBM: 'OBM',
-    customNone: '无',
+    customNo: '否',
     tradeProfile: '贸易主页 / 店铺链接',
     exportMarketsLabel: '出口市场',
     exportMarketsHint: '用逗号分隔（例如：沙特、阿联酋）',
@@ -352,6 +369,8 @@ const COPY = {
 
     addCert: '+ 添加认证',
     certName: '认证名称（例如 ISO 9001）',
+    certIssuer: '颁发机构',
+    certValidUntil: '有效期至',
     uploadFile: '上传文件',
     uploadingLabel: '上传中...',
     uploadedLabel: '已上传',
@@ -360,6 +379,10 @@ const COPY = {
     certFileTypesHint: 'PDF / JPG / PNG · 最大 10MB',
     permissionDenied: '请允许访问图库',
     uploadFailed: '上传失败，请重试。',
+
+    profileVideoLabel: '公司介绍视频（可选）',
+    profileVideoPickBtn: '+ 上传视频',
+    profileVideoUploadedLabel: '视频已上传',
   },
 };
 
@@ -373,17 +396,17 @@ const VERIFY_COLOR = {
 };
 
 const BIZ_LABEL = (lang) => ({
-  manufacturer: COPY[lang]?.bizManufacturer || COPY.en.bizManufacturer,
-  wholesaler:   COPY[lang]?.bizWholesaler   || COPY.en.bizWholesaler,
-  trading:      COPY[lang]?.bizTrading      || COPY.en.bizTrading,
-  other:        COPY[lang]?.bizOther        || COPY.en.bizOther,
+  manufacturer:    COPY[lang]?.bizManufacturer    || COPY.en.bizManufacturer,
+  trading_company: COPY[lang]?.bizTradingCompany  || COPY.en.bizTradingCompany,
+  agent:           COPY[lang]?.bizAgent           || COPY.en.bizAgent,
+  distributor:     COPY[lang]?.bizDistributor     || COPY.en.bizDistributor,
 });
 
 const CUSTOM_LABEL = (lang) => ({
-  oem:  COPY[lang]?.customOEM  || 'OEM',
-  odm:  COPY[lang]?.customODM  || 'ODM',
-  obm:  COPY[lang]?.customOBM  || 'OBM',
-  none: COPY[lang]?.customNone || 'None',
+  yes: COPY[lang]?.customYes || 'Yes',
+  oem: COPY[lang]?.customOEM || 'OEM',
+  odm: COPY[lang]?.customODM || 'ODM',
+  no:  COPY[lang]?.customNo  || 'No',
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -391,17 +414,21 @@ function hydrateCerts(rawCerts = []) {
   if (!Array.isArray(rawCerts)) return [];
   return rawCerts
     .map((c) => {
-      const name = typeof c === 'string' ? c : (c && c.name) ? c.name : '';
-      const fileUrl = (c && typeof c === 'object' && c.file_url) ? c.file_url : null;
+      const name      = typeof c === 'string' ? c : (c && c.name) ? c.name : '';
+      const fileUrl   = (c && typeof c === 'object' && c.file_url)    ? c.file_url    : null;
+      const issuer    = (c && typeof c === 'object' && c.issuer)      ? c.issuer      : '';
+      const validUntil = (c && typeof c === 'object' && c.valid_until) ? c.valid_until : '';
       return {
         _id: Math.random().toString(36).slice(2, 10),
         name,
+        issuer,
+        valid_until: validUntil,
         file_url: fileUrl,
         uploading: false,
         error: null,
       };
     })
-    .filter((c) => c.name || c.file_url);
+    .filter((c) => c.name || c.file_url || c.issuer || c.valid_until);
 }
 
 function serializeArray(a) {
@@ -417,6 +444,19 @@ async function uploadToProductImages(uri, mimeType, userId, type, ext) {
   const ab = await fetch(uri).then((r) => r.arrayBuffer());
   const { error } = await supabase.storage.from('product-images').upload(path, ab, {
     contentType: mimeType || 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+  return publicUrl;
+}
+
+async function uploadProfileVideo(uri, mimeType, userId, ext) {
+  const e = (ext || (mimeType?.includes('quicktime') ? 'mov' : 'mp4')).toLowerCase();
+  const path = `${userId}/profile_video_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${e}`;
+  const ab = await fetch(uri).then((r) => r.arrayBuffer());
+  const { error } = await supabase.storage.from('product-images').upload(path, ab, {
+    contentType: mimeType || 'video/mp4',
     upsert: true,
   });
   if (error) throw error;
@@ -452,6 +492,7 @@ export default function SupplierAccountScreen({ navigation }) {
   const [editForm, setEditForm] = useState({
     avatar_url: '',
     factory_images: [],
+    company_video_url: '',
     company_name: '',
     business_type: '',
     speciality: '',
@@ -474,6 +515,7 @@ export default function SupplierAccountScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingFactory, setUploadingFactory] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   useEffect(() => { loadProfile(); }, []);
 
@@ -497,6 +539,7 @@ export default function SupplierAccountScreen({ navigation }) {
         factory_images: Array.isArray(data.factory_images)
           ? data.factory_images.filter((u) => typeof u === 'string' && /^https?:/i.test(u))
           : [],
+        company_video_url: data.company_video_url || '',
         company_name: data.company_name || '',
         business_type: data.business_type || '',
         speciality: data.speciality || '',
@@ -610,6 +653,34 @@ export default function SupplierAccountScreen({ navigation }) {
     ]);
   }
 
+  // ── Profile video (single) ─────────────────────────────────────────────
+  // Stored on profiles.company_video_url. The column is added by a separate
+  // migration; if it's missing, the UPDATE in saveSettings will reject and
+  // surface via the existing error path.
+  async function pickAndUploadVideo() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    setUploadingVideo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const a = r.assets[0];
+      const ext = (a.fileName?.split('.').pop() || '').toLowerCase();
+      const url = await uploadProfileVideo(a.uri, a.mimeType || 'video/mp4', user.id, ext);
+      setF('company_video_url', url);
+    } catch (e) {
+      console.error('[SupplierAccount] video upload error:', e?.message || e);
+      Alert.alert('', t.uploadFailed);
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+  function clearProfileVideo() { setF('company_video_url', ''); }
+
   // ── Cert handlers ────────────────────────────────────────────────────────
   const updateCert = (id, patch) => setEditCerts((p) => p.map((c) => (c._id === id ? { ...c, ...patch } : c)));
   const addCert = () => setEditCerts((p) => [
@@ -645,13 +716,19 @@ export default function SupplierAccountScreen({ navigation }) {
     const yr = editForm.year_established ? parseInt(editForm.year_established, 10) : null;
     const moqv = editForm.min_order_value ? parseFloat(editForm.min_order_value) : null;
     const certsArray = editCerts
-      .map((c) => ({ name: String(c.name || '').trim(), file_url: c.file_url || null }))
-      .filter((c) => c.name || c.file_url);
+      .map((c) => ({
+        name:        String(c.name || '').trim(),
+        issuer:      String(c.issuer || '').trim(),
+        valid_until: String(c.valid_until || '').trim(),
+        file_url:    c.file_url || null,
+      }))
+      .filter((c) => c.name || c.issuer || c.valid_until || c.file_url);
     const description = editForm.company_description.trim();
 
     const payload = {
       avatar_url: editForm.avatar_url || null,
       factory_images: editForm.factory_images,
+      company_video_url: editForm.company_video_url || null,
       company_name: editForm.company_name.trim() || null,
       business_type: editForm.business_type || null,
       speciality: editForm.speciality || null,
@@ -888,6 +965,44 @@ export default function SupplierAccountScreen({ navigation }) {
                     </TouchableOpacity>
                   )}
                 </View>
+
+                <View style={{ height: 18 }} />
+
+                {/* Profile video (single, optional) */}
+                <View style={[s.factoryHeaderRow, isAr && s.rowRtl]}>
+                  <Text style={[s.cardFieldLabel, isAr && s.rtl, { flex: 1 }]}>
+                    {t.profileVideoLabel}
+                  </Text>
+                  {!editForm.company_video_url && (
+                    <TouchableOpacity
+                      style={[s.smallBtn, uploadingVideo && { opacity: 0.6 }]}
+                      onPress={pickAndUploadVideo}
+                      disabled={uploadingVideo}
+                      activeOpacity={0.85}
+                    >
+                      {uploadingVideo
+                        ? <ActivityIndicator color={C.textSecondary} size="small" />
+                        : <Text style={s.smallBtnText}>{t.profileVideoPickBtn}</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {!!editForm.company_video_url && (
+                  <View style={[s.certPill, isAr && s.rowRtl, { alignSelf: 'flex-start', marginTop: 4 }]}>
+                    <Text style={[s.certPillCheck, { fontFamily: F.enBold }]}>✓</Text>
+                    <Text
+                      style={[s.certPillText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}
+                      numberOfLines={1}
+                    >
+                      {t.profileVideoUploadedLabel}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={clearProfileVideo}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[s.certPillRemove, { fontFamily: F.enBold }]}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* ── CARD 1 — IDENTITY ── */}
@@ -1020,6 +1135,8 @@ export default function SupplierAccountScreen({ navigation }) {
                       isAr={isAr}
                       lang={lang}
                       onChangeName={(v) => updateCert(cert._id, { name: v })}
+                      onChangeIssuer={(v) => updateCert(cert._id, { issuer: v })}
+                      onChangeValidUntil={(v) => updateCert(cert._id, { valid_until: v })}
                       onUpload={() => uploadCertFile(cert._id)}
                       onRemoveFile={() => removeCertFile(cert._id)}
                       onRemoveRow={() => removeCert(cert._id)}
@@ -1143,40 +1260,77 @@ function PickerField({ label, value, placeholder, options, onChange, isAr }) {
   );
 }
 
-function CertEditRow({ cert, isAr, lang, onChangeName, onUpload, onRemoveFile, onRemoveRow }) {
+function CertEditRow({
+  cert, isAr, lang,
+  onChangeName, onChangeIssuer, onChangeValidUntil,
+  onUpload, onRemoveFile, onRemoveRow,
+}) {
   const t = COPY[lang] || COPY.en;
   return (
-    <View style={[s.certRow, isAr && s.rowRtl]}>
-      <TextInput
-        style={[s.certNameInput, { fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' }]}
-        placeholder={t.certName}
-        placeholderTextColor={C.textDisabled}
-        value={cert.name}
-        onChangeText={onChangeName}
-      />
-
-      {cert.uploading ? (
-        <Text style={[s.certStatus, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadingLabel}</Text>
-      ) : cert.file_url ? (
-        <View style={[s.certPill, isAr && s.rowRtl]}>
-          <Text style={[s.certPillCheck, { fontFamily: F.enBold }]}>✓</Text>
-          <Text style={[s.certPillText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>{t.uploadedLabel}</Text>
-          <TouchableOpacity onPress={onRemoveFile} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Text style={[s.certPillRemove, { fontFamily: F.enBold }]}>×</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity onPress={onUpload} style={s.certUploadBtn} activeOpacity={0.85}>
-          <Text style={[s.certUploadText, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadFile}</Text>
+    <View style={s.certRowV2}>
+      {/* Top row: cert name + × delete row */}
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, isAr && s.rowRtl]}>
+        <TextInput
+          style={[s.certNameInput, { flex: 1, fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' }]}
+          placeholder={t.certName}
+          placeholderTextColor={C.textDisabled}
+          value={cert.name}
+          onChangeText={onChangeName}
+        />
+        <TouchableOpacity
+          onPress={onRemoveRow}
+          style={s.certRowRemove}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={[s.certRowRemoveText, { fontFamily: F.enBold }]}>×</Text>
         </TouchableOpacity>
-      )}
+      </View>
 
-      <TouchableOpacity onPress={onRemoveRow} style={s.certRowRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={[s.certRowRemoveText, { fontFamily: F.enBold }]}>×</Text>
-      </TouchableOpacity>
+      {/* Issuer + valid_until — side-by-side on a second row */}
+      <View style={[{ flexDirection: 'row', gap: 8, marginTop: 8 }, isAr && s.rowRtl]}>
+        <TextInput
+          style={[s.certSubInput, { flex: 1, fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' }]}
+          placeholder={t.certIssuer}
+          placeholderTextColor={C.textDisabled}
+          value={cert.issuer || ''}
+          onChangeText={onChangeIssuer}
+        />
+        <TextInput
+          style={[s.certSubInput, { flex: 1, fontFamily: F.en, textAlign: 'left' }]}
+          placeholder={t.certValidUntil}
+          placeholderTextColor={C.textDisabled}
+          value={cert.valid_until || ''}
+          onChangeText={onChangeValidUntil}
+        />
+      </View>
+
+      {/* File upload control / pill */}
+      <View style={{ marginTop: 10 }}>
+        {cert.uploading ? (
+          <Text style={[s.certStatus, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadingLabel}</Text>
+        ) : cert.file_url ? (
+          <View style={[s.certPill, isAr && s.rowRtl, { alignSelf: 'flex-start' }]}>
+            <Text style={[s.certPillCheck, { fontFamily: F.enBold }]}>✓</Text>
+            <Text style={[s.certPillText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>{t.uploadedLabel}</Text>
+            <TouchableOpacity onPress={onRemoveFile} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Text style={[s.certPillRemove, { fontFamily: F.enBold }]}>×</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={onUpload}
+            style={[s.certUploadBtn, { alignSelf: 'flex-start' }]}
+            activeOpacity={0.85}
+          >
+            <Text style={[s.certUploadText, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadFile}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {!!cert.error && (
-        <Text style={[s.certError, { fontFamily: isAr ? F.ar : F.en }]}>{cert.error}</Text>
+        <Text style={[s.certError, { fontFamily: isAr ? F.ar : F.en, marginTop: 6 }]}>
+          {cert.error}
+        </Text>
       )}
     </View>
   );
@@ -1374,9 +1528,20 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.borderSubtle,
     paddingHorizontal: 12, paddingVertical: 10,
   },
+  // V2 row stacks vertically: name+×, then issuer+valid_until, then file
+  // upload — keeps the inputs readable on narrow phone screens.
+  certRowV2: {
+    backgroundColor: C.bgBase, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderSubtle,
+    paddingHorizontal: 12, paddingVertical: 12,
+  },
   certNameInput: {
     flex: 1, minWidth: 130,
     color: C.textPrimary, fontSize: 14,
+    paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  certSubInput: {
+    color: C.textPrimary, fontSize: 13,
     paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
   certStatus: { color: C.textSecondary, fontSize: 11, paddingHorizontal: 8 },
