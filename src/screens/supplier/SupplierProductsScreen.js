@@ -91,6 +91,7 @@ const COPY = {
     sectionDescriptions: 'الوصف',
     sectionCategory: 'التصنيف',
     sectionPricing: 'السعر والكمية',
+    sectionTiers: 'الشرائح السعرية',
     sectionIncoterms: 'شروط الشحن (Incoterms)',
     sectionB2B: 'الخدمات اللوجستية B2B',
     sectionMedia: 'الصور',
@@ -166,11 +167,27 @@ const COPY = {
     specPackagingDetails: 'تفاصيل التغليف',
     specCustomization: 'التخصيص / OEM',
 
+    tiersHint: 'أدخل ٣ شرائح سعرية. الشريحة 1 مرتبطة بـ MOQ، والأسعار تنازلية.',
+    tierLabel: 'الشريحة {n}',
+    tierColMinQty: 'الكمية الدنيا',
+    tierColMaxQty: 'الكمية القصوى',
+    tierColUnitPrice: 'سعر الوحدة',
+    tierMaxQtyUnlimited: '∞ وما فوق',
+    tierMoqAutoNote: 'تُملأ الكمية الدنيا للشريحة 1 تلقائيًا من MOQ.',
+
     errorNameZh: 'الاسم بالصينية مطلوب',
     errorNameEn: 'الاسم بالإنجليزية مطلوب',
     errorDescEn: 'الوصف بالإنجليزية مطلوب',
     errorMoq: 'يجب أن يكون MOQ رقمًا صحيحًا أكبر من أو يساوي 1',
     errorIncoterms: 'اختر شرط شحن واحدًا على الأقل',
+    errorTierMissing: 'الشريحة {n}: حقول مفقودة',
+    errorTierNumeric: 'الشريحة {n}: قيم غير رقمية',
+    errorTierQtyFromMin: 'الشريحة {n}: الكمية الدنيا يجب أن تكون 1 أو أكثر',
+    errorTierPricePositive: 'الشريحة {n}: السعر يجب أن يكون أكبر من 0',
+    errorTierQtyOrder: 'الشريحة {n}: الكمية الدنيا يجب أن تكون أقل من الكمية القصوى',
+    errorTierOverlap: 'الشريحة {n}: تتداخل مع الشريحة السابقة',
+    errorTierDescending: 'الشريحة {n}: السعر يجب أن يكون أقل من الشريحة السابقة',
+    errorTierSave: 'تم حفظ المنتج، لكن فشل حفظ الشرائح السعرية',
     errorLeadTimeOrder: 'الحد الأقصى لمدة التصنيع يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorOemLeadTimeOrder: 'الحد الأقصى لمدة OEM يجب أن يكون أكبر من أو يساوي الحد الأدنى',
     errorCbmPositive: 'يجب أن يكون CBM أكبر من 0',
@@ -199,6 +216,7 @@ const COPY = {
     sectionDescriptions: 'Descriptions',
     sectionCategory: 'Category',
     sectionPricing: 'Price & Quantity',
+    sectionTiers: 'Pricing Tiers',
     sectionIncoterms: 'Incoterms',
     sectionB2B: 'B2B Logistics',
     sectionMedia: 'Images',
@@ -274,11 +292,27 @@ const COPY = {
     specPackagingDetails: 'Packaging details',
     specCustomization: 'Customization / OEM',
 
+    tiersHint: 'Enter 3 pricing tiers. Tier 1 is bound to MOQ; prices must be in descending order.',
+    tierLabel: 'Tier {n}',
+    tierColMinQty: 'Min Qty',
+    tierColMaxQty: 'Max Qty',
+    tierColUnitPrice: 'Unit Price',
+    tierMaxQtyUnlimited: '∞ and above',
+    tierMoqAutoNote: 'Tier 1 min qty is auto-filled from MOQ.',
+
     errorNameZh: 'Chinese name is required',
     errorNameEn: 'English name is required',
     errorDescEn: 'English description is required',
     errorMoq: 'MOQ must be a whole number ≥ 1',
     errorIncoterms: 'Select at least one Incoterm',
+    errorTierMissing: 'Tier {n}: missing fields',
+    errorTierNumeric: 'Tier {n}: non-numeric values',
+    errorTierQtyFromMin: 'Tier {n}: min qty must be ≥ 1',
+    errorTierPricePositive: 'Tier {n}: unit price must be greater than 0',
+    errorTierQtyOrder: 'Tier {n}: min qty must be less than max qty',
+    errorTierOverlap: 'Tier {n}: overlaps with the previous tier',
+    errorTierDescending: 'Tier {n}: price must be lower than the previous tier',
+    errorTierSave: 'Product saved, but pricing tiers failed to save',
     errorLeadTimeOrder: 'Lead time max must be ≥ lead time min',
     errorOemLeadTimeOrder: 'OEM lead time max must be ≥ OEM lead time min',
     errorCbmPositive: 'CBM must be greater than 0',
@@ -307,6 +341,7 @@ const COPY = {
     sectionDescriptions: '产品描述',
     sectionCategory: '产品类别',
     sectionPricing: '价格与数量',
+    sectionTiers: '阶梯定价',
     sectionIncoterms: '贸易术语 (Incoterms)',
     sectionB2B: 'B2B 物流',
     sectionMedia: '产品图片',
@@ -382,11 +417,27 @@ const COPY = {
     specPackagingDetails: '包装信息',
     specCustomization: '定制 / OEM',
 
+    tiersHint: '请输入 3 阶价格。第 1 阶绑定 MOQ；价格必须按降序排列。',
+    tierLabel: '第 {n} 阶',
+    tierColMinQty: '最小数量',
+    tierColMaxQty: '最大数量',
+    tierColUnitPrice: '单价',
+    tierMaxQtyUnlimited: '∞ 及以上',
+    tierMoqAutoNote: '第 1 阶最小数量自动等于 MOQ。',
+
     errorNameZh: '请填写中文产品名称',
     errorNameEn: '请填写英文产品名称',
     errorDescEn: '请填写英文描述',
     errorMoq: 'MOQ 必须为不小于 1 的整数',
     errorIncoterms: '请至少选择一个贸易术语',
+    errorTierMissing: '第 {n} 阶：缺少字段',
+    errorTierNumeric: '第 {n} 阶：非数字值',
+    errorTierQtyFromMin: '第 {n} 阶：最小数量必须 ≥ 1',
+    errorTierPricePositive: '第 {n} 阶：单价必须大于 0',
+    errorTierQtyOrder: '第 {n} 阶：最小数量必须小于最大数量',
+    errorTierOverlap: '第 {n} 阶：与上一阶重叠',
+    errorTierDescending: '第 {n} 阶：价格必须低于上一阶',
+    errorTierSave: '产品已保存，但阶梯价格保存失败',
     errorLeadTimeOrder: '生产交期最长不得小于最短',
     errorOemLeadTimeOrder: 'OEM 交期最长不得小于最短',
     errorCbmPositive: 'CBM 必须大于 0',
@@ -412,6 +463,14 @@ const EMPTY_FORM = {
   sample_currency: 'USD',
   sample_max_qty: '3',
   sample_note: '',
+  // 3 mandatory pricing tiers — see Phase 2 spec.
+  // Tier 1's qty_from is bound to MOQ (read-only in UI; coerced at save).
+  // Tier 3's qty_to may be blank (= unlimited).
+  tiers: [
+    { qty_from: '', qty_to: '', unit_price: '' },
+    { qty_from: '', qty_to: '', unit_price: '' },
+    { qty_from: '', qty_to: '', unit_price: '' },
+  ],
   // B2B Logistics — Shipping & Origin
   // country_of_origin holds either a known option, '__other__' (paired with
   // country_of_origin_other), or '' for unset. Mirrors the dual-state model
@@ -484,17 +543,154 @@ async function uploadProductImage(uri, mimeType, userId, ext) {
 }
 
 // Insert or update with sample_currency, retrying without it if the column
-// is missing on the products table.
+// is missing on the products table. Returns { error, id } so the caller can
+// chain a saveTiers() write against the new product.
 async function writeProduct(payload, productId) {
-  const op = (p) => productId
-    ? supabase.from('products').update(p).eq('id', productId)
-    : supabase.from('products').insert(p);
-  let { error } = await op(payload);
+  const isUpdate = !!productId;
+  const op = (p) => isUpdate
+    ? supabase.from('products').update(p).eq('id', productId).select('id').single()
+    : supabase.from('products').insert(p).select('id').single();
+
+  let { data, error } = await op(payload);
   if (error && /sample_currency/i.test(error.message || '')) {
     const { sample_currency: _drop, ...rest } = payload;
-    ({ error } = await op(rest));
+    ({ data, error } = await op(rest));
   }
-  return error;
+  return { error, id: data?.id || (isUpdate ? productId : null) };
+}
+
+// ── Pricing tiers ──────────────────────────────────────────────────────
+//
+// Ported from web/src/lib/productPricingTiers.js. Three mandatory rows are
+// stored in product_pricing_tiers with variant_id = NULL. Tier 1's qty_from
+// is bound to MOQ (read-only in the UI); tier 3's qty_to is nullable
+// (= unlimited / "∞"). Save uses delete-and-rewrite so reordering or
+// removing tiers is straightforward.
+
+const TIER_COUNT = 3;
+
+function emptyTier() { return { qty_from: '', qty_to: '', unit_price: '' }; }
+function emptyTiers() { return Array.from({ length: TIER_COUNT }, emptyTier); }
+function padTiers(tiers) {
+  const out = Array.isArray(tiers) ? tiers.slice(0, TIER_COUNT) : [];
+  while (out.length < TIER_COUNT) out.push(emptyTier());
+  return out;
+}
+
+function tierIntOrNaN(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && Number.isInteger(n) ? n : NaN;
+}
+function tierNumOrNaN(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// Returns null when valid, otherwise a localized error string.
+function validateTiers(tiers, moqInt, t) {
+  const rows = padTiers(tiers);
+  const parsed = rows.map((r) => ({
+    qty_from:   tierIntOrNaN(r?.qty_from),
+    qty_to:     tierIntOrNaN(r?.qty_to),
+    unit_price: tierNumOrNaN(r?.unit_price),
+  }));
+
+  // Tier 1's qty_from is bound to MOQ. The UI keeps its input read-only and
+  // the form pre-fills it from MOQ; coerce here so blank/typed-other resolves
+  // to MOQ at validation time.
+  if (Number.isFinite(moqInt) && moqInt >= 1) parsed[0].qty_from = moqInt;
+
+  for (let i = 0; i < TIER_COUNT; i++) {
+    const p = parsed[i];
+    const n = i + 1;
+    if (Number.isNaN(p.qty_from) || Number.isNaN(p.qty_to) || Number.isNaN(p.unit_price)) {
+      return t.errorTierNumeric.replace('{n}', String(n));
+    }
+    if (p.qty_from === null || p.unit_price === null) {
+      return t.errorTierMissing.replace('{n}', String(n));
+    }
+    if (i < TIER_COUNT - 1 && p.qty_to === null) {
+      return t.errorTierMissing.replace('{n}', String(n));
+    }
+    if (p.qty_from < 1) return t.errorTierQtyFromMin.replace('{n}', String(n));
+    if (p.unit_price <= 0) return t.errorTierPricePositive.replace('{n}', String(n));
+    if (p.qty_to !== null && p.qty_from >= p.qty_to) {
+      return t.errorTierQtyOrder.replace('{n}', String(n));
+    }
+  }
+
+  for (let i = 1; i < TIER_COUNT; i++) {
+    const prev = parsed[i - 1];
+    const curr = parsed[i];
+    if (prev.qty_to !== null && curr.qty_from <= prev.qty_to) {
+      return t.errorTierOverlap.replace('{n}', String(i + 1));
+    }
+  }
+
+  for (let i = 1; i < TIER_COUNT; i++) {
+    if (parsed[i].unit_price >= parsed[i - 1].unit_price) {
+      return t.errorTierDescending.replace('{n}', String(i + 1));
+    }
+  }
+
+  return null;
+}
+
+async function loadTiers(productId) {
+  const { data, error } = await supabase
+    .from('product_pricing_tiers')
+    .select('qty_from, qty_to, unit_price')
+    .eq('product_id', productId)
+    .is('variant_id', null)
+    .order('qty_from', { ascending: true });
+  if (error) {
+    console.error('[SupplierProducts] load tiers error:', error);
+    return emptyTiers();
+  }
+  return padTiers((data || []).map((r) => ({
+    qty_from:   r.qty_from   != null ? String(r.qty_from)   : '',
+    qty_to:     r.qty_to     != null ? String(r.qty_to)     : '',
+    unit_price: r.unit_price != null ? String(r.unit_price) : '',
+  })));
+}
+
+// Delete-and-rewrite. Validation should already have passed before calling
+// this. Tier 1's qty_from is coerced to moqInt.
+async function saveTiers(productId, tiers, moqInt) {
+  if (!productId) return new Error('saveTiers: productId is required');
+
+  const { error: delErr } = await supabase
+    .from('product_pricing_tiers')
+    .delete()
+    .eq('product_id', productId)
+    .is('variant_id', null);
+  if (delErr) {
+    console.error('[SupplierProducts] tier delete error:', delErr);
+    return delErr;
+  }
+
+  const moqLocked = Number.isFinite(moqInt) && moqInt >= 1;
+  const rows = padTiers(tiers).map((r, idx) => {
+    let qty_from = tierIntOrNaN(r?.qty_from);
+    if (idx === 0 && moqLocked) qty_from = moqInt;
+    const qty_to     = tierIntOrNaN(r?.qty_to);
+    const unit_price = tierNumOrNaN(r?.unit_price);
+    return { product_id: productId, variant_id: null, qty_from, qty_to, unit_price };
+  }).filter((r) =>
+    Number.isFinite(r.qty_from) && r.qty_from >= 1 &&
+    Number.isFinite(r.unit_price) && r.unit_price > 0
+  );
+
+  if (!rows.length) return null;
+
+  const { error: insErr } = await supabase.from('product_pricing_tiers').insert(rows);
+  if (insErr) {
+    console.error('[SupplierProducts] tier insert error:', insErr);
+    return insErr;
+  }
+  return null;
 }
 
 export default function SupplierProductsScreen({ navigation, route }) {
@@ -567,7 +763,7 @@ export default function SupplierProductsScreen({ navigation, route }) {
     setShowForm(true);
   }
 
-  function openEdit(p) {
+  async function openEdit(p) {
     setEditing(p);
     const country = expandStoredSelect(p.country_of_origin, COUNTRY_OPTIONS);
     const port    = expandStoredSelect(p.port_of_loading, PORT_OPTIONS);
@@ -623,8 +819,18 @@ export default function SupplierProductsScreen({ navigation, route }) {
       spec_color_options: p.spec_color_options || '',
       spec_packaging_details: p.spec_packaging_details || '',
       spec_customization: p.spec_customization || '',
+      // Tiers hydrate asynchronously below; start with empties so the form
+      // renders immediately.
+      tiers: emptyTiers(),
     });
     setShowForm(true);
+
+    // Load existing pricing tiers in the background. Use the functional
+    // setForm so we don't clobber edits the user makes between open and
+    // load. We also gate by editing-id to ignore late responses for a
+    // closed/changed editor.
+    const tiers = await loadTiers(p.id);
+    setForm((f) => ({ ...f, tiers }));
   }
 
   function closeForm() {
@@ -641,6 +847,13 @@ export default function SupplierProductsScreen({ navigation, route }) {
         incoterms: has ? f.incoterms.filter((x) => x !== code) : [...f.incoterms, code],
       };
     });
+  }
+
+  function setTier(idx, field, value) {
+    setForm((f) => ({
+      ...f,
+      tiers: f.tiers.map((row, i) => (i === idx ? { ...row, [field]: value } : row)),
+    }));
   }
 
   async function pickPrimary() {
@@ -741,6 +954,10 @@ export default function SupplierProductsScreen({ navigation, route }) {
       return t.errorWeightPositive;
     }
 
+    // Pricing tiers — moqInt was checked above, safe to reuse.
+    const tierErr = validateTiers(form.tiers, moqInt, t);
+    if (tierErr) return tierErr;
+
     return null;
   }
 
@@ -826,14 +1043,29 @@ export default function SupplierProductsScreen({ navigation, route }) {
       is_active: editing ? !!editing.is_active : true,
     };
 
-    const error = await writeProduct(payload, editing?.id);
-    setSubmitting(false);
+    const { error, id: productId } = await writeProduct(payload, editing?.id);
 
     if (error) {
+      setSubmitting(false);
       console.error('[SupplierProducts] save error:', error);
       Alert.alert('', t.errorGeneric);
       return;
     }
+
+    // Tiers are saved AFTER the product so we have a stable productId to
+    // attach them to. A tier-save failure surfaces a separate alert but
+    // does not block closing — the product itself was saved.
+    let tierErr = null;
+    if (productId) {
+      tierErr = await saveTiers(productId, form.tiers, moqInt);
+    }
+    setSubmitting(false);
+
+    if (tierErr) {
+      console.error('[SupplierProducts] tier save error:', tierErr);
+      Alert.alert('', t.errorTierSave);
+    }
+
     closeForm();
     load();
   }
@@ -1048,6 +1280,83 @@ export default function SupplierProductsScreen({ navigation, route }) {
                   hint={t.moqHint}
                   isAr={isAr}
                 />
+              </Section>
+
+              {/* ── Pricing Tiers ── */}
+              <Section title={t.sectionTiers} isAr={isAr}>
+                <Text style={[s.fieldHint, isAr && s.rtl, { marginBottom: 12 }]}>
+                  {t.tiersHint}
+                </Text>
+
+                {/* Column headers */}
+                <View style={[s.tierHeaderRow, isAr && s.rowRtl]}>
+                  <View style={s.tierLabelCell} />
+                  <Text style={[s.tierColLabel, { flex: 1 }]} numberOfLines={1}>
+                    {t.tierColMinQty}
+                  </Text>
+                  <Text style={[s.tierColLabel, { flex: 1 }]} numberOfLines={1}>
+                    {t.tierColMaxQty}
+                  </Text>
+                  <Text style={[s.tierColLabel, { flex: 1.3 }]} numberOfLines={1}>
+                    {t.tierColUnitPrice} ({form.currency})
+                  </Text>
+                </View>
+
+                {form.tiers.map((row, idx) => {
+                  const isFirst = idx === 0;
+                  const isLast  = idx === form.tiers.length - 1;
+                  const moqDisplay = String(form.moq || '').trim();
+                  return (
+                    <View key={idx} style={[s.tierRow, isAr && s.rowRtl]}>
+                      <View style={s.tierLabelCell}>
+                        <Text style={s.tierRowLabel} numberOfLines={1}>
+                          {t.tierLabel.replace('{n}', String(idx + 1))}
+                        </Text>
+                      </View>
+
+                      {/* qty_from — tier 1 is bound to MOQ (read-only) */}
+                      {isFirst ? (
+                        <View style={[s.tierInputDisabled, { flex: 1 }]}>
+                          <Text style={s.tierInputDisabledText} numberOfLines={1}>
+                            {moqDisplay || '—'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <TextInput
+                          style={[s.tierInput, { flex: 1 }]}
+                          keyboardType="numeric"
+                          value={row.qty_from}
+                          onChangeText={(v) => setTier(idx, 'qty_from', v.replace(/[^0-9]/g, ''))}
+                          placeholderTextColor={C.textDisabled}
+                        />
+                      )}
+
+                      {/* qty_to — last tier may be blank (∞) */}
+                      <TextInput
+                        style={[s.tierInput, { flex: 1 }]}
+                        keyboardType="numeric"
+                        value={row.qty_to}
+                        onChangeText={(v) => setTier(idx, 'qty_to', v.replace(/[^0-9]/g, ''))}
+                        placeholder={isLast ? t.tierMaxQtyUnlimited : ''}
+                        placeholderTextColor={C.textDisabled}
+                      />
+
+                      {/* unit_price */}
+                      <TextInput
+                        style={[s.tierInput, { flex: 1.3 }]}
+                        keyboardType="decimal-pad"
+                        value={row.unit_price}
+                        onChangeText={(v) => setTier(idx, 'unit_price', v)}
+                        placeholder="0.00"
+                        placeholderTextColor={C.textDisabled}
+                      />
+                    </View>
+                  );
+                })}
+
+                <Text style={[s.fieldHint, isAr && s.rtl, { marginTop: 10 }]}>
+                  {t.tierMoqAutoNote}
+                </Text>
               </Section>
 
               {/* ── Incoterms ── */}
@@ -1605,6 +1914,41 @@ const s = StyleSheet.create({
   subLabel: {
     color: C.textSecondary, fontSize: 12, fontFamily: F.arSemi,
     letterSpacing: 0.3,
+  },
+
+  // Pricing tiers — compact 3-input row per tier
+  tierHeaderRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 6, paddingHorizontal: 4, marginBottom: 6,
+  },
+  tierLabelCell: { width: 56 },
+  tierColLabel: {
+    color: C.textTertiary, fontSize: 11, fontFamily: F.ar,
+    textAlign: 'center',
+  },
+  tierRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 6, marginBottom: 8,
+  },
+  tierRowLabel: {
+    color: C.textSecondary, fontSize: 12, fontFamily: F.arSemi,
+  },
+  tierInput: {
+    backgroundColor: C.bgBase, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderMuted,
+    paddingHorizontal: 8, paddingVertical: 10,
+    color: C.textPrimary, fontSize: 14, fontFamily: F.num,
+    textAlign: 'center',
+  },
+  tierInputDisabled: {
+    backgroundColor: C.bgOverlay, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderMuted,
+    paddingHorizontal: 8, paddingVertical: 10,
+    alignItems: 'center', justifyContent: 'center',
+    minHeight: 42,
+  },
+  tierInputDisabledText: {
+    color: C.textTertiary, fontSize: 14, fontFamily: F.num,
   },
 
   // Field
