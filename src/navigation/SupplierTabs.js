@@ -23,6 +23,7 @@ import SupplierOffersScreen from '../screens/supplier/SupplierOffersScreen';
 import SupplierDirectOrdersScreen from '../screens/supplier/SupplierDirectOrdersScreen';
 import SupplierInboxScreen from '../screens/supplier/SupplierInboxScreen';
 import SupplierAccountScreen from '../screens/supplier/SupplierAccountScreen';
+import SupplierVerificationScreen from '../screens/supplier/SupplierVerificationScreen';
 import ChatScreen from '../screens/buyer/ChatScreen';
 
 const Tab = createBottomTabNavigator();
@@ -86,6 +87,15 @@ function SupplierInboxStack() {
     <Stack.Navigator screenOptions={STACK_OPTS}>
       <Stack.Screen name="SupplierInboxList" component={SupplierInboxScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function SupplierAccountStack() {
+  return (
+    <Stack.Navigator screenOptions={STACK_OPTS}>
+      <Stack.Screen name="SupplierAccountHome" component={SupplierAccountScreen} />
+      <Stack.Screen name="SupplierVerification" component={SupplierVerificationScreen} />
     </Stack.Navigator>
   );
 }
@@ -192,7 +202,7 @@ export default function SupplierTabs() {
       <Tab.Screen name="SProducts" component={SupplierProductsScreen} />
       <Tab.Screen name="SOffers" component={SupplierOffersScreen} />
       <Tab.Screen name="SInbox" component={SupplierInboxStack} />
-      <Tab.Screen name="SAccount" component={SupplierAccountScreen} />
+      <Tab.Screen name="SAccount" component={SupplierAccountStack} />
     </Tab.Navigator>
   );
 }

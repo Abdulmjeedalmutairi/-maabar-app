@@ -341,9 +341,13 @@ export default function SupplierAccountScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Verification CTA */}
+        {/* Verification CTA — opens the dedicated 3-step screen */}
         {canVerify && (
-          <TouchableOpacity style={s.verifyBanner} onPress={() => setShowVerify(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.verifyBanner}
+            onPress={() => navigation.navigate('SupplierVerification')}
+            activeOpacity={0.85}
+          >
             <Text style={[s.verifyBannerTitle, isAr && s.rtl]}>{t.verifyBannerTitle}</Text>
             <Text style={[s.verifyBannerSub, isAr && s.rtl]}>{t.verifyBannerSub}</Text>
           </TouchableOpacity>
