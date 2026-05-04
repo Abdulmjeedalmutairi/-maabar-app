@@ -157,10 +157,16 @@ const CHINESE_CITIES = {
 };
 
 // ── Main screen ───────────────────────────────────────────────────────────────
-export default function LoginScreen() {
+export default function LoginScreen({ route }) {
   const lang = getLang();
   const t    = T[lang] || T.ar;
   const isAr = lang === 'ar';
+
+  // RoleScreen and other entry points may pass { initialTab: 'supplier' | 'buyer' }
+  // to land the user directly in that role's signup form (skipping the in-screen
+  // role picker step). Default behavior — no param — lands on Sign In.
+  const initialTab = route?.params?.initialTab;
+  const presetRole = (initialTab === 'supplier' || initialTab === 'buyer') ? initialTab : null;
 
   // ── Tab
   const [activeTab, setActiveTab] = useState('signin');
@@ -171,9 +177,10 @@ export default function LoginScreen() {
   const [siError,   setSiError]   = useState('');
   const [siLoading, setSiLoading] = useState(false);
 
-  // ── Sign-up state
-  const [signupStep, setSignupStep] = useState('role'); // 'role' | 'form'
-  const [signupRole, setSignupRole] = useState(null);   // 'buyer' | 'supplier'
+  // ── Sign-up state — when caller pre-selected a role, skip the picker and
+  // jump straight to the form for that role.
+  const [signupStep, setSignupStep] = useState(presetRole ? 'form' : 'role');
+  const [signupRole, setSignupRole] = useState(presetRole);
   const [form, setForm] = useState({
     email: '', password: '',
     // buyer

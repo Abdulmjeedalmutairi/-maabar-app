@@ -36,7 +36,7 @@ export default function RoleScreen({ navigation }) {
 
           <TouchableOpacity
             style={s.card}
-            onPress={() => navigation.navigate('SignupSupplier')}
+            onPress={() => navigation.navigate('Login', { initialTab: 'supplier' })}
             activeOpacity={0.75}
           >
             <Text style={s.cardTitle}>{t.supplier}</Text>

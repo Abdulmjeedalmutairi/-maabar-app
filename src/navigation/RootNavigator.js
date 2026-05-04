@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
 import { hydrateDisplayCurrencyState } from '../lib/displayCurrency';
-import { getLang } from '../lib/lang';
+import { getLang, loadLang } from '../lib/lang';
 import SplashScreen from '../screens/SplashScreen';
 import AuthStack from './AuthStack';
 import BuyerTabs from './BuyerTabs';
@@ -30,11 +30,14 @@ export default function RootNavigator() {
   const [profile, setProfile]         = useState(null);
 
   useEffect(() => {
-    // Load AsyncStorage flag and initial Supabase session in parallel
+    // Hydrate persisted language, the launched-flag, and the Supabase session
+    // in parallel during boot. loadLang() runs BEFORE any screen mounts so
+    // every screen can call getLang() and see the user's last choice.
     Promise.all([
+      loadLang(),
       SecureStore.getItemAsync(LAUNCHED_KEY),
       supabase.auth.getSession(),
-    ]).then(([launched, { data: { session: s } }]) => {
+    ]).then(([, launched, { data: { session: s } }]) => {
       setHasLaunched(!!launched);
       setSession(s);
       if (s) loadProfile(s.user.id);
@@ -76,9 +79,10 @@ export default function RootNavigator() {
   const isLoggedIn  = !!session && !!profile;
   const isSupplier  = profile?.role === 'supplier';
 
-  // On return visits without a session, drop the user at TraderHome
-  // (they've already completed Language + Role onboarding).
-  const authInitialRoute = hasLaunched ? 'TraderHome' : 'Language';
+  // Always start at the language picker for unauthenticated visitors so the
+  // user re-confirms their language each launch. Persisted lang from
+  // SecureStore (loadLang) still pre-applies to the picker's text.
+  const authInitialRoute = 'Language';
 
   // Post-approval onboarding gate — mirrors web DashboardSupplier.jsx:348
   // (showOnboardingSequence). Renders the overlay when the supplier has been

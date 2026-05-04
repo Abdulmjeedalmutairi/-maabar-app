@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import MaabarLogo from '../../components/MaabarLogo';
+
+const TERMS_URL = 'https://maabar.io/terms';
 
 const ALL_COPY = {
   ar: {
@@ -30,6 +32,9 @@ const ALL_COPY = {
     hint: 'الحقول المعلّمة بـ * مطلوبة. السجل التجاري والوثائق تُطلب في مرحلة التحقق لاحقاً.',
     confirmSent: 'تم استلام طلب المورد. أرسلنا رسالة تأكيد — بعد التفعيل سجّل دخولك لإكمال التحقق.',
     fillRequired: 'يرجى تعبئة الحقول الإجبارية.',
+    termsAgree: 'أوافق على الشروط والأحكام',
+    viewTerms: 'عرض الشروط',
+    mustAgreeTerms: 'يجب الموافقة على الشروط والأحكام قبل المتابعة.',
   },
   en: {
     title: 'Supplier Application',
@@ -51,6 +56,9 @@ const ALL_COPY = {
     hint: 'Fields marked * are required. Registration documents are requested at the verification stage later.',
     confirmSent: 'Supplier application received. We sent a confirmation email — after activation sign in to complete verification.',
     fillRequired: 'Please fill all required fields.',
+    termsAgree: 'I agree to the Terms & Conditions',
+    viewTerms: 'View Terms',
+    mustAgreeTerms: 'You must agree to the Terms & Conditions before continuing.',
   },
   zh: {
     title: '供应商申请',
@@ -72,6 +80,9 @@ const ALL_COPY = {
     hint: '带 * 的字段为必填。营业执照和相关文件将在后续认证阶段提交。',
     confirmSent: '供应商申请已收到，确认邮件已发送 — 激活后登录继续完成认证。',
     fillRequired: '请填写必填项。',
+    termsAgree: '我同意条款与条件',
+    viewTerms: '查看条款',
+    mustAgreeTerms: '继续前请先同意条款与条件。',
   },
 };
 
@@ -88,6 +99,7 @@ export default function SignupSupplierScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
 
@@ -95,6 +107,9 @@ export default function SignupSupplierScreen({ navigation }) {
     const { companyName, email, password } = form;
     if (!companyName || !email || !password) {
       setError(L.fillRequired); return;
+    }
+    if (!agreedTerms) {
+      setError(L.mustAgreeTerms); return;
     }
     setLoading(true);
     setError('');
@@ -184,10 +199,31 @@ export default function SignupSupplierScreen({ navigation }) {
             <Field label={L.speciality} value={form.speciality}
               onChangeText={v => set('speciality', v)} />
 
+            {/* T&C agreement gate */}
+            <View style={s.termsRow}>
+              <TouchableOpacity
+                style={s.termsCheckbox}
+                onPress={() => setAgreedTerms((v) => !v)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <View style={[s.checkboxBox, agreedTerms && s.checkboxBoxChecked]}>
+                  {agreedTerms && <Text style={s.checkboxCheck}>✓</Text>}
+                </View>
+                <Text style={s.termsText}>{L.termsAgree}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(TERMS_URL)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={s.termsLink}>{L.viewTerms} ↗</Text>
+              </TouchableOpacity>
+            </View>
+
             {!!error && <Text style={s.error}>{error}</Text>}
 
             <TouchableOpacity
-              style={[s.btn, loading && { opacity: 0.6 }]}
+              style={[s.btn, (loading || !agreedTerms) && { opacity: 0.6 }]}
               onPress={handleSubmit}
               disabled={loading}
               activeOpacity={0.85}
@@ -258,6 +294,28 @@ const s = StyleSheet.create({
     color: C.textPrimary, fontSize: 15,
   },
   error: { color: C.red, fontSize: 13 },
+  termsRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap', gap: 8,
+    marginTop: 4, marginBottom: 4,
+  },
+  termsCheckbox: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    flex: 1, minWidth: 0,
+  },
+  checkboxBox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: C.borderStrong,
+    backgroundColor: C.bgOverlay,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxBoxChecked: {
+    backgroundColor: C.accent, borderColor: C.accent,
+  },
+  checkboxCheck: { color: '#fff', fontSize: 14, fontWeight: '700', lineHeight: 14 },
+  termsText: { color: C.textPrimary, fontSize: 13, flexShrink: 1 },
+  termsLink: { color: C.accent, fontSize: 13, textDecorationLine: 'underline' },
   btn: {
     backgroundColor: C.accent, borderRadius: 14,
     paddingVertical: 14, alignItems: 'center',
