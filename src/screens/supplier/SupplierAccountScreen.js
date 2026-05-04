@@ -1,24 +1,62 @@
+// SupplierAccountScreen — supplier dashboard's Account tab + full settings editor.
+//
+// The dashboard view (header, verify CTA, stats, quick actions, info, sign out)
+// is unchanged. The "Edit Profile" button opens a full-screen modal with a
+// 7-card settings form mirroring web/src/pages/DashboardSupplier.jsx:4789-5106:
+//   Media         — avatar + factory images (up to 3) → product-images bucket
+//   Card 1        — company_name / business_type / speciality / year_established
+//   Card 2        — city / country / company_address / company_website
+//   Card 3        — whatsapp / wechat (supplier-private; not buyer-facing)
+//   Card 4        — languages
+//   Card 5        — min_order_value / preferred_display_currency /
+//                   customization_support / trade_link / export_markets
+//   Card 6        — company_description (textarea)
+//   Card 7        — quality certifications (multi-entry rows with file upload
+//                   to supplier-certifications public bucket)
+//
+// Verification CTA navigates to SupplierVerificationScreen (Phase 6F). The old
+// inline verification modal has been removed since SupplierVerificationScreen
+// supersedes it.
+
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, ActivityIndicator, Modal,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import { getSpecialtyLabel } from '../../lib/specialtyLabel';
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+const FACTORY_IMAGE_LIMIT = 3;
+const SPECIALTY_KEYS = [
+  'electronics', 'home_appliances', 'furniture', 'office_furniture',
+  'bedroom_furniture', 'kitchen_furniture', 'outdoor_furniture', 'home_decor',
+  'clothing', 'building', 'food', 'beauty', 'sports', 'toys', 'auto_parts',
+  'car_accessories', 'tires', 'lubricants', 'health', 'packaging', 'gifts',
+  'agriculture', 'other',
+];
+const BUSINESS_TYPE_KEYS = ['manufacturer', 'wholesaler', 'trading', 'other'];
+const CUSTOMIZATION_KEYS = ['oem', 'odm', 'obm', 'none'];
+const CURRENCY_OPTIONS = ['USD', 'SAR', 'CNY', 'EUR'];
+
+// ─── i18n ────────────────────────────────────────────────────────────────────
 const COPY = {
   ar: {
     title: 'حسابي',
     editProfile: 'تعديل الملف الشخصي',
-    editTitle: 'تعديل البيانات',
+    settingsTitle: 'إعدادات الملف',
     saveChanges: 'حفظ التغييرات',
-    companyName: 'اسم الشركة',
-    errorSave: 'حدث خطأ أثناء الحفظ',
+    saving: 'جاري الحفظ...',
     saved: 'تم حفظ التغييرات',
+    errorSave: 'حدث خطأ أثناء الحفظ',
+    close: 'إغلاق',
     companyData: 'بيانات الشركة',
     email: 'البريد الإلكتروني',
     country: 'الدولة',
@@ -43,20 +81,6 @@ const COPY = {
     signOutAction: 'خروج',
     verifyBannerTitle: 'أكمل التحقق لتفعيل حسابك',
     verifyBannerSub: 'ارفع وثائق شركتك للبدء في استقبال الطلبات',
-    verifyTitle: 'طلب التحقق',
-    close: 'إغلاق',
-    verifyNote: 'أدخل بيانات الشركة التجارية وتفاصيل الاستلام. السجل التجاري مطلوب — باقي الحقول اختيارية ولكن توفّر موثوقية أعلى.',
-    regNumber: 'رقم السجل التجاري *',
-    yearsExp: 'سنوات الخبرة',
-    payoutSection: 'بيانات الاستلام',
-    payoutName: 'اسم المستفيد',
-    bankName: 'اسم البنك',
-    swift: 'SWIFT / BIC',
-    iban: 'IBAN / رقم الحساب',
-    submitVerify: 'إرسال للمراجعة',
-    verifySuccess: 'تم إرسال طلب التحقق بنجاح. سيراجعه فريق مَعبر خلال 3-5 أيام عمل.',
-    errorReg: 'أدخل رقم السجل التجاري',
-    errorGeneric: 'حدث خطأ، حاول مرة أخرى',
     verifyLabels: {
       registered: 'مسجّل',
       verification_required: 'التحقق مطلوب',
@@ -65,15 +89,79 @@ const COPY = {
       rejected: 'مرفوض',
       inactive: 'غير نشط',
     },
+
+    // Settings cards
+    cardMedia: 'الصور',
+    cardIdentity: 'الهوية',
+    cardLocation: 'الموقع',
+    cardContact: 'التواصل',
+    cardLanguages: 'اللغات',
+    cardTrade: 'الإعدادات التجارية',
+    cardDescription: 'وصف الشركة',
+    cardCerts: 'شهادات الجودة',
+
+    companyLogo: 'لوقو / صورة الشركة',
+    factoryImagesLabel: 'صور المصنع',
+    factoryImagesHint: (n, max) => `${n}/${max} · حتى ${max} صور`,
+    addImage: '+ إضافة صورة',
+    uploadAvatarBtn: 'تغيير اللوقو',
+    avatarPlaceholder: 'أضف لوقو',
+    confirmRemoveImage: 'حذف هذه الصورة؟',
+    cancel: 'إلغاء',
+    remove: 'حذف',
+
+    companyName: 'اسم الشركة',
+    businessType: 'نوع النشاط',
+    businessTypePlaceholder: 'اختر نوع النشاط',
+    bizManufacturer: 'مصنّع',
+    bizWholesaler: 'تاجر جملة',
+    bizTrading: 'شركة تجارية',
+    bizOther: 'أخرى',
+    specialty: 'التخصص',
+    specialtyPlaceholder: 'اختر التخصص',
+    yearEstablished: 'سنة التأسيس',
+
+    companyAddress: 'عنوان الشركة',
+    companyWebsite: 'موقع الشركة',
+
+    languagesLabel: 'اللغات',
+    languagesHint: 'افصل بفاصلة (مثال: العربية، الإنجليزية، الصينية)',
+
+    minOrderValue: 'الحد الأدنى لقيمة الطلب (ريال)',
+    preferredCurrency: 'العملة المفضلة للعرض',
+    customizationLabel: 'دعم التخصيص',
+    customizationPlaceholder: 'اختر',
+    customOEM: 'OEM',
+    customODM: 'ODM',
+    customOBM: 'OBM',
+    customNone: 'غير متوفر',
+    tradeProfile: 'رابط المتجر / الملف التجاري',
+    exportMarketsLabel: 'أسواق التصدير',
+    exportMarketsHint: 'افصل بفاصلة (مثال: السعودية، الإمارات)',
+
+    descriptionLabel: 'وصف الشركة',
+    descriptionHint: 'يمكنك الكتابة بأي لغة',
+
+    addCert: '+ إضافة شهادة',
+    certName: 'اسم الشهادة (مثال: ISO 9001)',
+    uploadFile: 'رفع ملف',
+    uploadingLabel: 'جاري الرفع...',
+    uploadedLabel: 'تم الرفع',
+    replace: 'استبدال',
+    certUploadFailed: 'فشل الرفع',
+    certFileTypesHint: 'PDF أو JPG أو PNG · حد أقصى 10 ميغابايت',
+    permissionDenied: 'يرجى السماح بالوصول للصور',
+    uploadFailed: 'فشل الرفع. حاول مرة أخرى.',
   },
   en: {
     title: 'My Account',
     editProfile: 'Edit Profile',
-    editTitle: 'Edit Details',
+    settingsTitle: 'Profile Settings',
     saveChanges: 'Save Changes',
-    companyName: 'Company Name',
-    errorSave: 'Failed to save changes',
+    saving: 'Saving...',
     saved: 'Changes saved',
+    errorSave: 'Failed to save changes',
+    close: 'Close',
     companyData: 'Company Details',
     email: 'Email',
     country: 'Country',
@@ -98,20 +186,6 @@ const COPY = {
     signOutAction: 'Sign Out',
     verifyBannerTitle: 'Complete verification to activate your account',
     verifyBannerSub: 'Upload your company documents to start receiving orders',
-    verifyTitle: 'Verification Request',
-    close: 'Close',
-    verifyNote: 'Enter your business details and payout information. Company registration is required — other fields are optional but improve credibility.',
-    regNumber: 'Company Registration Number *',
-    yearsExp: 'Years of Experience',
-    payoutSection: 'Payout Details',
-    payoutName: 'Beneficiary Name',
-    bankName: 'Bank Name',
-    swift: 'SWIFT / BIC',
-    iban: 'IBAN / Account Number',
-    submitVerify: 'Submit for Review',
-    verifySuccess: 'Verification request submitted. The Maabar team will review it within 3-5 business days.',
-    errorReg: 'Enter your company registration number',
-    errorGeneric: 'Something went wrong, please try again',
     verifyLabels: {
       registered: 'Registered',
       verification_required: 'Verification Required',
@@ -120,15 +194,78 @@ const COPY = {
       rejected: 'Rejected',
       inactive: 'Inactive',
     },
+
+    cardMedia: 'Media',
+    cardIdentity: 'Identity',
+    cardLocation: 'Location',
+    cardContact: 'Contact',
+    cardLanguages: 'Languages',
+    cardTrade: 'Trade Settings',
+    cardDescription: 'Company Description',
+    cardCerts: 'Quality Certifications',
+
+    companyLogo: 'Company Logo',
+    factoryImagesLabel: 'Factory Images',
+    factoryImagesHint: (n, max) => `${n}/${max} · up to ${max} images`,
+    addImage: '+ Add image',
+    uploadAvatarBtn: 'Change logo',
+    avatarPlaceholder: 'Add logo',
+    confirmRemoveImage: 'Remove this image?',
+    cancel: 'Cancel',
+    remove: 'Remove',
+
+    companyName: 'Company Name',
+    businessType: 'Business Type',
+    businessTypePlaceholder: 'Select business type',
+    bizManufacturer: 'Manufacturer',
+    bizWholesaler: 'Wholesaler',
+    bizTrading: 'Trading Company',
+    bizOther: 'Other',
+    specialty: 'Specialty',
+    specialtyPlaceholder: 'Select specialty',
+    yearEstablished: 'Year Established',
+
+    companyAddress: 'Company Address',
+    companyWebsite: 'Company Website',
+
+    languagesLabel: 'Languages',
+    languagesHint: 'Comma-separated (e.g. Arabic, English, Chinese)',
+
+    minOrderValue: 'Minimum Order Value (SAR)',
+    preferredCurrency: 'Preferred Display Currency',
+    customizationLabel: 'Customization Support',
+    customizationPlaceholder: 'Select',
+    customOEM: 'OEM',
+    customODM: 'ODM',
+    customOBM: 'OBM',
+    customNone: 'None',
+    tradeProfile: 'Trade Profile / Storefront Link',
+    exportMarketsLabel: 'Export Markets',
+    exportMarketsHint: 'Comma-separated (e.g. Saudi Arabia, UAE)',
+
+    descriptionLabel: 'Company Description',
+    descriptionHint: 'You can write in any language',
+
+    addCert: '+ Add certification',
+    certName: 'Cert name (e.g. ISO 9001)',
+    uploadFile: 'Upload file',
+    uploadingLabel: 'Uploading...',
+    uploadedLabel: 'Uploaded',
+    replace: 'Replace',
+    certUploadFailed: 'Upload failed',
+    certFileTypesHint: 'PDF, JPG, PNG · 10 MB max',
+    permissionDenied: 'Please allow photo library access',
+    uploadFailed: 'Upload failed. Please try again.',
   },
   zh: {
     title: '我的账户',
     editProfile: '编辑资料',
-    editTitle: '编辑信息',
+    settingsTitle: '资料设置',
     saveChanges: '保存修改',
-    companyName: '公司名称',
-    errorSave: '保存失败，请重试',
+    saving: '保存中...',
     saved: '修改已保存',
+    errorSave: '保存失败，请重试',
+    close: '关闭',
     companyData: '公司信息',
     email: '电子邮件',
     country: '国家',
@@ -153,20 +290,6 @@ const COPY = {
     signOutAction: '退出',
     verifyBannerTitle: '完成认证以激活账户',
     verifyBannerSub: '上传企业文件后即可开始接收订单',
-    verifyTitle: '认证申请',
-    close: '关闭',
-    verifyNote: '请填写企业信息和收款资料。营业执照为必填项，其余字段为选填，但有助于提升可信度。',
-    regNumber: '公司注册号 *',
-    yearsExp: '从业年限',
-    payoutSection: '收款资料',
-    payoutName: '收款人姓名',
-    bankName: '银行名称',
-    swift: 'SWIFT / BIC',
-    iban: 'IBAN / 银行账号',
-    submitVerify: '提交审核',
-    verifySuccess: '认证申请已提交，Maabar 团队将在 3-5 个工作日内完成审核。',
-    errorReg: '请输入公司注册号',
-    errorGeneric: '出现错误，请重试',
     verifyLabels: {
       registered: '已注册',
       verification_required: '需要认证',
@@ -175,6 +298,68 @@ const COPY = {
       rejected: '已拒绝',
       inactive: '未激活',
     },
+
+    cardMedia: '图片',
+    cardIdentity: '基本信息',
+    cardLocation: '位置',
+    cardContact: '联系方式',
+    cardLanguages: '语言',
+    cardTrade: '贸易设置',
+    cardDescription: '公司介绍',
+    cardCerts: '质量认证',
+
+    companyLogo: '公司 Logo',
+    factoryImagesLabel: '工厂图片',
+    factoryImagesHint: (n, max) => `${n}/${max} · 最多 ${max} 张`,
+    addImage: '+ 添加图片',
+    uploadAvatarBtn: '更换 Logo',
+    avatarPlaceholder: '上传 Logo',
+    confirmRemoveImage: '删除此图片？',
+    cancel: '取消',
+    remove: '删除',
+
+    companyName: '公司名称',
+    businessType: '企业类型',
+    businessTypePlaceholder: '请选择企业类型',
+    bizManufacturer: '制造商',
+    bizWholesaler: '批发商',
+    bizTrading: '贸易公司',
+    bizOther: '其他',
+    specialty: '专业领域',
+    specialtyPlaceholder: '请选择',
+    yearEstablished: '成立年份',
+
+    companyAddress: '公司地址',
+    companyWebsite: '公司官网',
+
+    languagesLabel: '支持语言',
+    languagesHint: '用逗号分隔（例如：阿拉伯语、英语、中文）',
+
+    minOrderValue: '最低订单金额（SAR）',
+    preferredCurrency: '首选展示货币',
+    customizationLabel: '定制支持',
+    customizationPlaceholder: '请选择',
+    customOEM: 'OEM',
+    customODM: 'ODM',
+    customOBM: 'OBM',
+    customNone: '无',
+    tradeProfile: '贸易主页 / 店铺链接',
+    exportMarketsLabel: '出口市场',
+    exportMarketsHint: '用逗号分隔（例如：沙特、阿联酋）',
+
+    descriptionLabel: '公司介绍',
+    descriptionHint: '可使用任意语言填写',
+
+    addCert: '+ 添加认证',
+    certName: '认证名称（例如 ISO 9001）',
+    uploadFile: '上传文件',
+    uploadingLabel: '上传中...',
+    uploadedLabel: '已上传',
+    replace: '更换',
+    certUploadFailed: '上传失败',
+    certFileTypesHint: 'PDF / JPG / PNG · 最大 10MB',
+    permissionDenied: '请允许访问图库',
+    uploadFailed: '上传失败，请重试。',
   },
 };
 
@@ -187,6 +372,72 @@ const VERIFY_COLOR = {
   inactive: C.textDisabled,
 };
 
+const BIZ_LABEL = (lang) => ({
+  manufacturer: COPY[lang]?.bizManufacturer || COPY.en.bizManufacturer,
+  wholesaler:   COPY[lang]?.bizWholesaler   || COPY.en.bizWholesaler,
+  trading:      COPY[lang]?.bizTrading      || COPY.en.bizTrading,
+  other:        COPY[lang]?.bizOther        || COPY.en.bizOther,
+});
+
+const CUSTOM_LABEL = (lang) => ({
+  oem:  COPY[lang]?.customOEM  || 'OEM',
+  odm:  COPY[lang]?.customODM  || 'ODM',
+  obm:  COPY[lang]?.customOBM  || 'OBM',
+  none: COPY[lang]?.customNone || 'None',
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function hydrateCerts(rawCerts = []) {
+  if (!Array.isArray(rawCerts)) return [];
+  return rawCerts
+    .map((c) => {
+      const name = typeof c === 'string' ? c : (c && c.name) ? c.name : '';
+      const fileUrl = (c && typeof c === 'object' && c.file_url) ? c.file_url : null;
+      return {
+        _id: Math.random().toString(36).slice(2, 10),
+        name,
+        file_url: fileUrl,
+        uploading: false,
+        error: null,
+      };
+    })
+    .filter((c) => c.name || c.file_url);
+}
+
+function serializeArray(a) {
+  return Array.isArray(a) ? a.filter(Boolean).join(', ') : '';
+}
+function parseArray(s) {
+  return String(s || '').split(',').map((t) => t.trim()).filter(Boolean);
+}
+
+async function uploadToProductImages(uri, mimeType, userId, type, ext) {
+  const e = (ext || (mimeType?.includes('png') ? 'png' : 'jpg')).toLowerCase();
+  const path = `${userId}/${type}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${e}`;
+  const ab = await fetch(uri).then((r) => r.arrayBuffer());
+  const { error } = await supabase.storage.from('product-images').upload(path, ab, {
+    contentType: mimeType || 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+  return publicUrl;
+}
+
+async function uploadToCerts(uri, mimeType, userId, name) {
+  const ext = (name?.split('.').pop() || 'pdf').toLowerCase();
+  const path = `${userId}/cert_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const ab = await fetch(uri).then((r) => r.arrayBuffer());
+  const { error } = await supabase.storage.from('supplier-certifications').upload(path, ab, {
+    contentType: mimeType || 'application/octet-stream',
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('supplier-certifications').getPublicUrl(path);
+  return publicUrl;
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 export default function SupplierAccountScreen({ navigation }) {
   const lang = getLang();
   const t = COPY[lang] || COPY.ar;
@@ -196,15 +447,33 @@ export default function SupplierAccountScreen({ navigation }) {
   const [userEmail, setUserEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ offers: 0, products: 0, accepted: 0, totalSales: 0 });
-  const [showVerify, setShowVerify] = useState(false);
-  const [verifyForm, setVerifyForm] = useState({
-    regNumber: '', yearsExperience: '',
-    payoutName: '', bankName: '', swiftCode: '', iban: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
+
   const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState({ companyName: '', city: '', country: '', whatsapp: '', wechat: '' });
+  const [editForm, setEditForm] = useState({
+    avatar_url: '',
+    factory_images: [],
+    company_name: '',
+    business_type: '',
+    speciality: '',
+    year_established: '',
+    city: '',
+    country: '',
+    company_address: '',
+    company_website: '',
+    whatsapp: '',
+    wechat: '',
+    languages: '',
+    min_order_value: '',
+    preferred_display_currency: 'USD',
+    customization_support: '',
+    trade_link: '',
+    export_markets: '',
+    company_description: '',
+  });
+  const [editCerts, setEditCerts] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingFactory, setUploadingFactory] = useState(false);
 
   useEffect(() => { loadProfile(); }, []);
 
@@ -213,7 +482,6 @@ export default function SupplierAccountScreen({ navigation }) {
     if (!user) return;
     setUserEmail(user.email || '');
 
-    // email lives in auth.users, not profiles — use select('*') like the web app
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -222,16 +490,32 @@ export default function SupplierAccountScreen({ navigation }) {
 
     if (error) console.error('[SupplierAccount] loadProfile error:', error);
 
-    console.log('[SupplierAccount] profile:', data);
     setProfile(data);
     if (data) {
       setEditForm({
-        companyName: data.company_name || '',
+        avatar_url: data.avatar_url || '',
+        factory_images: Array.isArray(data.factory_images)
+          ? data.factory_images.filter((u) => typeof u === 'string' && /^https?:/i.test(u))
+          : [],
+        company_name: data.company_name || '',
+        business_type: data.business_type || '',
+        speciality: data.speciality || '',
+        year_established: data.year_established != null ? String(data.year_established) : '',
         city: data.city || '',
         country: data.country || '',
+        company_address: data.company_address || '',
+        company_website: data.company_website || '',
         whatsapp: data.whatsapp || '',
         wechat: data.wechat || '',
+        languages: serializeArray(data.languages),
+        min_order_value: data.min_order_value != null ? String(data.min_order_value) : '',
+        preferred_display_currency: data.preferred_display_currency || 'USD',
+        customization_support: data.customization_support || '',
+        trade_link: data.trade_link || '',
+        export_markets: serializeArray(data.export_markets),
+        company_description: data.company_description || data.bio_en || data.bio_ar || data.bio_zh || '',
       });
+      setEditCerts(hydrateCerts(data.certifications));
     }
     loadStats(user.id);
     setLoading(false);
@@ -253,47 +537,154 @@ export default function SupplierAccountScreen({ navigation }) {
     });
   }
 
-  async function saveProfile() {
+  function setF(key, val) { setEditForm((f) => ({ ...f, [key]: val })); }
+
+  // ── Avatar upload ────────────────────────────────────────────────────────
+  async function pickAndUploadAvatar() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    const asset = r.assets[0];
+    setUploadingAvatar(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const ext = (asset.fileName?.split('.').pop() || 'jpg').toLowerCase();
+      const url = await uploadToProductImages(asset.uri, asset.mimeType || 'image/jpeg', user.id, 'avatar', ext);
+      setF('avatar_url', url);
+    } catch (e) {
+      console.error('[SupplierAccount] avatar upload error:', e?.message || e);
+      Alert.alert('', t.uploadFailed);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  // ── Factory image upload (up to 3) ───────────────────────────────────────
+  async function pickAndUploadFactoryImages() {
+    const remaining = FACTORY_IMAGE_LIMIT - editForm.factory_images.length;
+    if (remaining <= 0) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.length) return;
+    setUploadingFactory(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const newUrls = [];
+      for (const asset of r.assets.slice(0, remaining)) {
+        try {
+          const ext = (asset.fileName?.split('.').pop() || 'jpg').toLowerCase();
+          const url = await uploadToProductImages(asset.uri, asset.mimeType || 'image/jpeg', user.id, 'factory', ext);
+          newUrls.push(url);
+        } catch (e) {
+          console.error('[SupplierAccount] factory upload error:', e?.message || e);
+        }
+      }
+      setEditForm((f) => ({
+        ...f,
+        factory_images: [...f.factory_images, ...newUrls].slice(0, FACTORY_IMAGE_LIMIT),
+      }));
+    } finally {
+      setUploadingFactory(false);
+    }
+  }
+
+  function removeFactoryImage(url) {
+    Alert.alert('', t.confirmRemoveImage, [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: t.remove, style: 'destructive',
+        onPress: () => setEditForm((f) => ({ ...f, factory_images: f.factory_images.filter((u) => u !== url) })),
+      },
+    ]);
+  }
+
+  // ── Cert handlers ────────────────────────────────────────────────────────
+  const updateCert = (id, patch) => setEditCerts((p) => p.map((c) => (c._id === id ? { ...c, ...patch } : c)));
+  const addCert = () => setEditCerts((p) => [
+    ...p,
+    { _id: Math.random().toString(36).slice(2, 10), name: '', file_url: null, uploading: false, error: null },
+  ]);
+  const removeCert = (id) => setEditCerts((p) => p.filter((c) => c._id !== id));
+  const removeCertFile = (id) => updateCert(id, { file_url: null });
+
+  async function uploadCertFile(id) {
+    try {
+      const r = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (r.canceled || !r.assets?.[0]) return;
+      const asset = r.assets[0];
+      updateCert(id, { uploading: true, error: null });
+      const { data: { user } } = await supabase.auth.getUser();
+      const url = await uploadToCerts(asset.uri, asset.mimeType, user.id, asset.name);
+      updateCert(id, { uploading: false, file_url: url });
+    } catch (e) {
+      console.error('[SupplierAccount] cert upload error:', e?.message || e);
+      updateCert(id, { uploading: false, error: t.certUploadFailed });
+    }
+  }
+
+  // ── Save all settings (single UPDATE) ────────────────────────────────────
+  async function saveSettings() {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('profiles').update({
-      company_name: editForm.companyName || null,
-      city: editForm.city || null,
-      country: editForm.country || null,
-      whatsapp: editForm.whatsapp || null,
-      wechat: editForm.wechat || null,
-    }).eq('id', user.id);
+    const yr = editForm.year_established ? parseInt(editForm.year_established, 10) : null;
+    const moqv = editForm.min_order_value ? parseFloat(editForm.min_order_value) : null;
+    const certsArray = editCerts
+      .map((c) => ({ name: String(c.name || '').trim(), file_url: c.file_url || null }))
+      .filter((c) => c.name || c.file_url);
+    const description = editForm.company_description.trim();
+
+    const payload = {
+      avatar_url: editForm.avatar_url || null,
+      factory_images: editForm.factory_images,
+      company_name: editForm.company_name.trim() || null,
+      business_type: editForm.business_type || null,
+      speciality: editForm.speciality || null,
+      year_established: Number.isFinite(yr) ? yr : null,
+      city: editForm.city.trim() || null,
+      country: editForm.country.trim() || null,
+      company_address: editForm.company_address.trim() || null,
+      company_website: editForm.company_website.trim() || null,
+      whatsapp: editForm.whatsapp.trim() || null,
+      wechat: editForm.wechat.trim() || null,
+      languages: parseArray(editForm.languages),
+      min_order_value: Number.isFinite(moqv) ? moqv : null,
+      preferred_display_currency: editForm.preferred_display_currency || 'USD',
+      customization_support: editForm.customization_support || null,
+      trade_link: editForm.trade_link.trim() || null,
+      export_markets: parseArray(editForm.export_markets),
+      company_description: description || null,
+      bio_en: description || null,
+      certifications: certsArray,
+    };
+
+    const { error } = await supabase.from('profiles').update(payload).eq('id', user.id);
     setSaving(false);
-    if (error) { console.error('[SupplierAccount] saveProfile error:', error); Alert.alert('', t.errorSave); return; }
+
+    if (error) {
+      console.error('[SupplierAccount] saveSettings error:', error);
+      Alert.alert('', t.errorSave);
+      return;
+    }
+
     setShowEdit(false);
     loadProfile();
     Alert.alert('✓', t.saved);
-  }
-
-  function setV(k, v) { setVerifyForm(f => ({ ...f, [k]: v })); }
-
-  async function submitVerification() {
-    if (!verifyForm.regNumber) { Alert.alert('', t.errorReg); return; }
-    setSubmitting(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('profiles').update({
-      reg_number: verifyForm.regNumber,
-      years_experience: verifyForm.yearsExperience ? parseInt(verifyForm.yearsExperience, 10) : null,
-      payout_beneficiary_name: verifyForm.payoutName || null,
-      bank_name: verifyForm.bankName || null,
-      swift_code: verifyForm.swiftCode || null,
-      payout_iban: verifyForm.iban || null,
-      status: 'verification_under_review',
-    }).eq('id', user.id);
-
-    setSubmitting(false);
-
-    if (error) { console.error('[SupplierAccount] submitVerification error:', error); Alert.alert('', t.errorGeneric); return; }
-
-    setShowVerify(false);
-    loadProfile();
-    Alert.alert('✓', t.verifySuccess);
   }
 
   function handleSignOut() {
@@ -323,9 +714,13 @@ export default function SupplierAccountScreen({ navigation }) {
         {/* Profile header */}
         <View style={s.profileHeader}>
           <View style={s.avatar}>
-            <Text style={s.avatarText}>
-              {profile?.company_name?.charAt(0)?.toUpperCase() || 'S'}
-            </Text>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={{ width: '100%', height: '100%' }} />
+            ) : (
+              <Text style={s.avatarText}>
+                {profile?.company_name?.charAt(0)?.toUpperCase() || 'S'}
+              </Text>
+            )}
           </View>
           <Text style={[s.companyName, isAr && s.rtl]} numberOfLines={1}>
             {profile?.company_name || '—'}
@@ -341,7 +736,7 @@ export default function SupplierAccountScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Verification CTA — opens the dedicated 3-step screen */}
+        {/* Verification CTA — opens the dedicated 3-step screen (Phase 6F) */}
         {canVerify && (
           <TouchableOpacity
             style={s.verifyBanner}
@@ -371,25 +766,16 @@ export default function SupplierAccountScreen({ navigation }) {
         {/* Quick Actions */}
         <Text style={[s.blockHeader, isAr && s.rtl]}>{t.quickActions}</Text>
         <View style={s.quickActions}>
-          <TouchableOpacity
-            style={[s.qaBtn, s.qaBtnPrimary]}
-            activeOpacity={0.85}
-            onPress={() => navigation?.navigate('SRequests')}
-          >
+          <TouchableOpacity style={[s.qaBtn, s.qaBtnPrimary]} activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SRequests')}>
             <Text style={[s.qaText, s.qaTextPrimary, isAr && s.rtl]}>{t.qaOpenRequests}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.qaBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation?.navigate('SProducts')}
-          >
+          <TouchableOpacity style={s.qaBtn} activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SProducts')}>
             <Text style={[s.qaText, isAr && s.rtl]}>{t.qaMyProducts}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.qaBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation?.navigate('SProducts', { openAdd: true })}
-          >
+          <TouchableOpacity style={s.qaBtn} activeOpacity={0.85}
+            onPress={() => navigation?.navigate('SProducts', { openAdd: true })}>
             <Text style={[s.qaText, isAr && s.rtl]}>{t.qaAddProduct}</Text>
           </TouchableOpacity>
         </View>
@@ -424,69 +810,238 @@ export default function SupplierAccountScreen({ navigation }) {
 
       </ScrollView>
 
-      {/* ── Edit Profile Modal ── */}
+      {/* ─────────────────  EDIT MODAL — full 7-card form  ───────────────── */}
       <Modal visible={showEdit} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEdit(false)}>
         <SafeAreaView style={s.safe}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
-              <View style={[s.modalHeader, isAr && s.rowRtl]}>
-                <TouchableOpacity onPress={() => setShowEdit(false)}>
-                  <Text style={s.modalClose}>{t.close}</Text>
-                </TouchableOpacity>
-                <Text style={[s.modalTitle, isAr && s.rtl]}>{t.editTitle}</Text>
+            <View style={[s.modalHeader, isAr && s.rowRtl]}>
+              <TouchableOpacity onPress={() => setShowEdit(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={s.modalClose}>{t.close}</Text>
+              </TouchableOpacity>
+              <Text style={[s.modalTitle, isAr && s.rtl]}>{t.settingsTitle}</Text>
+              <View style={{ width: 50 }} />
+            </View>
+
+            <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+              {/* ── MEDIA CARD ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardMedia}</Text>
+
+                {/* Avatar */}
+                <Text style={[s.cardFieldLabel, isAr && s.rtl]}>{t.companyLogo}</Text>
+                <View style={[s.avatarRow, isAr && s.rowRtl]}>
+                  <View style={s.avatarPreview}>
+                    {editForm.avatar_url ? (
+                      <Image source={{ uri: editForm.avatar_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={[s.avatarPreviewText, { fontFamily: F.en }]}>{t.avatarPlaceholder}</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={[s.smallBtn, uploadingAvatar && { opacity: 0.6 }]}
+                    onPress={pickAndUploadAvatar}
+                    disabled={uploadingAvatar}
+                    activeOpacity={0.85}
+                  >
+                    {uploadingAvatar
+                      ? <ActivityIndicator color={C.textSecondary} size="small" />
+                      : <Text style={s.smallBtnText}>{t.uploadAvatarBtn}</Text>}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ height: 18 }} />
+
+                {/* Factory images */}
+                <View style={[s.factoryHeaderRow, isAr && s.rowRtl]}>
+                  <Text style={[s.cardFieldLabel, isAr && s.rtl, { flex: 1 }]}>{t.factoryImagesLabel}</Text>
+                  <Text style={s.factoryCount}>{t.factoryImagesHint(editForm.factory_images.length, FACTORY_IMAGE_LIMIT)}</Text>
+                </View>
+                <View style={s.factoryGrid}>
+                  {editForm.factory_images.map((url) => (
+                    <TouchableOpacity
+                      key={url}
+                      style={s.factoryThumb}
+                      onLongPress={() => removeFactoryImage(url)}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} />
+                      <TouchableOpacity
+                        style={s.factoryRemove}
+                        onPress={() => removeFactoryImage(url)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={[s.factoryRemoveText, { fontFamily: F.enBold }]}>×</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                  {editForm.factory_images.length < FACTORY_IMAGE_LIMIT && (
+                    <TouchableOpacity
+                      style={[s.factoryAdd, uploadingFactory && { opacity: 0.6 }]}
+                      onPress={pickAndUploadFactoryImages}
+                      disabled={uploadingFactory}
+                      activeOpacity={0.85}
+                    >
+                      {uploadingFactory
+                        ? <ActivityIndicator color={C.textSecondary} />
+                        : <Text style={s.factoryAddText}>{t.addImage}</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <VField label={t.companyName} value={editForm.companyName} onChangeText={v => setEditForm(f => ({ ...f, companyName: v }))} isAr={isAr} />
-              <VField label={t.city} value={editForm.city} onChangeText={v => setEditForm(f => ({ ...f, city: v }))} isAr={isAr} />
-              <VField label={t.country} value={editForm.country} onChangeText={v => setEditForm(f => ({ ...f, country: v }))} isAr={isAr} />
-              <VField label={t.whatsapp} value={editForm.whatsapp} onChangeText={v => setEditForm(f => ({ ...f, whatsapp: v }))} keyboardType="phone-pad" isAr={false} />
-              <VField label={t.wechat} value={editForm.wechat} onChangeText={v => setEditForm(f => ({ ...f, wechat: v }))} isAr={false} />
+
+              {/* ── CARD 1 — IDENTITY ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardIdentity}</Text>
+                <FormField label={t.companyName} value={editForm.company_name} onChangeText={(v) => setF('company_name', v)} isAr={isAr} required />
+                <PickerField
+                  label={t.businessType} placeholder={t.businessTypePlaceholder}
+                  value={editForm.business_type} onChange={(v) => setF('business_type', v)}
+                  options={BUSINESS_TYPE_KEYS.map((k) => ({ val: k, label: BIZ_LABEL(lang)[k] }))}
+                  isAr={isAr}
+                />
+                <PickerField
+                  label={t.specialty} placeholder={t.specialtyPlaceholder}
+                  value={editForm.speciality} onChange={(v) => setF('speciality', v)}
+                  options={SPECIALTY_KEYS.map((k) => ({ val: k, label: getSpecialtyLabel(k, lang) }))}
+                  isAr={isAr}
+                />
+                <FormField
+                  label={t.yearEstablished} value={editForm.year_established}
+                  onChangeText={(v) => setF('year_established', v)}
+                  keyboardType="numeric" maxLength={4} dirOverride="ltr"
+                />
+              </View>
+
+              {/* ── CARD 2 — LOCATION ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardLocation}</Text>
+                <FormField label={t.city} value={editForm.city} onChangeText={(v) => setF('city', v)} isAr={isAr} />
+                <FormField label={t.country} value={editForm.country} onChangeText={(v) => setF('country', v)} isAr={isAr} />
+                <FormField label={t.companyAddress} value={editForm.company_address} onChangeText={(v) => setF('company_address', v)} isAr={isAr} />
+                <FormField
+                  label={t.companyWebsite} value={editForm.company_website}
+                  onChangeText={(v) => setF('company_website', v)}
+                  keyboardType="url" autoCapitalize="none" dirOverride="ltr"
+                  placeholder="https://..."
+                />
+              </View>
+
+              {/* ── CARD 3 — CONTACT ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardContact}</Text>
+                <FormField
+                  label={t.whatsapp} value={editForm.whatsapp}
+                  onChangeText={(v) => setF('whatsapp', v)}
+                  keyboardType="phone-pad" dirOverride="ltr"
+                />
+                <FormField
+                  label={t.wechat} value={editForm.wechat}
+                  onChangeText={(v) => setF('wechat', v)}
+                  dirOverride="ltr"
+                />
+              </View>
+
+              {/* ── CARD 4 — LANGUAGES ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardLanguages}</Text>
+                <FormField
+                  label={t.languagesLabel} hint={t.languagesHint}
+                  value={editForm.languages}
+                  onChangeText={(v) => setF('languages', v)}
+                  isAr={isAr}
+                />
+              </View>
+
+              {/* ── CARD 5 — TRADE ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardTrade}</Text>
+                <FormField
+                  label={t.minOrderValue} value={editForm.min_order_value}
+                  onChangeText={(v) => setF('min_order_value', v)}
+                  keyboardType="numeric" dirOverride="ltr"
+                />
+                <Text style={[s.cardFieldLabel, isAr && s.rtl]}>{t.preferredCurrency}</Text>
+                <View style={[s.pillRow, isAr && s.rowRtl]}>
+                  {CURRENCY_OPTIONS.map((code) => (
+                    <TouchableOpacity
+                      key={code}
+                      style={[s.pill, editForm.preferred_display_currency === code && s.pillActive]}
+                      onPress={() => setF('preferred_display_currency', code)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[
+                        s.pillText, editForm.preferred_display_currency === code && s.pillTextActive,
+                        { fontFamily: F.enSemi },
+                      ]}>{code}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ height: 14 }} />
+                <PickerField
+                  label={t.customizationLabel} placeholder={t.customizationPlaceholder}
+                  value={editForm.customization_support} onChange={(v) => setF('customization_support', v)}
+                  options={CUSTOMIZATION_KEYS.map((k) => ({ val: k, label: CUSTOM_LABEL(lang)[k] }))}
+                  isAr={isAr}
+                />
+                <FormField
+                  label={t.tradeProfile} value={editForm.trade_link}
+                  onChangeText={(v) => setF('trade_link', v)}
+                  keyboardType="url" autoCapitalize="none" dirOverride="ltr"
+                  placeholder="https://alibaba.com/..."
+                />
+                <FormField
+                  label={t.exportMarketsLabel} hint={t.exportMarketsHint}
+                  value={editForm.export_markets}
+                  onChangeText={(v) => setF('export_markets', v)}
+                  isAr={isAr}
+                />
+              </View>
+
+              {/* ── CARD 6 — DESCRIPTION ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardDescription}</Text>
+                <FormField
+                  label={t.descriptionLabel} hint={t.descriptionHint}
+                  value={editForm.company_description}
+                  onChangeText={(v) => setF('company_description', v)}
+                  multiline isAr={isAr}
+                />
+              </View>
+
+              {/* ── CARD 7 — CERTIFICATIONS ── */}
+              <View style={s.card}>
+                <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardCerts}</Text>
+                <View style={{ gap: 10 }}>
+                  {editCerts.map((cert) => (
+                    <CertEditRow
+                      key={cert._id}
+                      cert={cert}
+                      isAr={isAr}
+                      lang={lang}
+                      onChangeName={(v) => updateCert(cert._id, { name: v })}
+                      onUpload={() => uploadCertFile(cert._id)}
+                      onRemoveFile={() => removeCertFile(cert._id)}
+                      onRemoveRow={() => removeCert(cert._id)}
+                    />
+                  ))}
+                </View>
+                <TouchableOpacity onPress={addCert} style={s.addCertBtn} activeOpacity={0.85}>
+                  <Text style={[s.addCertText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>{t.addCert}</Text>
+                </TouchableOpacity>
+                <Text style={[s.fieldHint, isAr && s.rtl, { marginTop: 6 }]}>{t.certFileTypesHint}</Text>
+              </View>
+
+              {/* Save button */}
               <TouchableOpacity
-                style={[s.submitBtn, saving && { opacity: 0.6 }]}
-                onPress={saveProfile}
+                style={[s.saveBtn, saving && { opacity: 0.6 }]}
+                onPress={saveSettings}
                 disabled={saving}
                 activeOpacity={0.85}
               >
                 {saving
-                  ? <ActivityIndicator color={C.bgBase} />
-                  : <Text style={s.submitBtnText}>{t.saveChanges}</Text>}
-              </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* ── Verification Modal ── */}
-      <Modal visible={showVerify} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={s.safe}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
-              <View style={[s.modalHeader, isAr && s.rowRtl]}>
-                <TouchableOpacity onPress={() => setShowVerify(false)}>
-                  <Text style={s.modalClose}>{t.close}</Text>
-                </TouchableOpacity>
-                <Text style={[s.modalTitle, isAr && s.rtl]}>{t.verifyTitle}</Text>
-              </View>
-
-              <Text style={[s.verifyNote, isAr && s.rtl]}>{t.verifyNote}</Text>
-
-              <VField label={t.regNumber} value={verifyForm.regNumber} onChangeText={v => setV('regNumber', v)} isAr={isAr} />
-              <VField label={t.yearsExp} value={verifyForm.yearsExperience} onChangeText={v => setV('yearsExperience', v)} keyboardType="numeric" isAr={isAr} />
-
-              <Text style={[s.sectionDivider, isAr && s.rtl]}>{t.payoutSection}</Text>
-              <VField label={t.payoutName} value={verifyForm.payoutName} onChangeText={v => setV('payoutName', v)} isAr={isAr} />
-              <VField label={t.bankName} value={verifyForm.bankName} onChangeText={v => setV('bankName', v)} isAr={isAr} />
-              <VField label={t.swift} value={verifyForm.swiftCode} onChangeText={v => setV('swiftCode', v)} autoCapitalize="characters" isAr={false} />
-              <VField label={t.iban} value={verifyForm.iban} onChangeText={v => setV('iban', v)} autoCapitalize="characters" isAr={false} />
-
-              <TouchableOpacity
-                style={[s.submitBtn, submitting && { opacity: 0.6 }]}
-                onPress={submitVerification}
-                disabled={submitting}
-                activeOpacity={0.85}
-              >
-                {submitting
-                  ? <ActivityIndicator color={C.bgBase} />
-                  : <Text style={s.submitBtnText}>{t.submitVerify}</Text>}
+                  ? <ActivityIndicator color={C.btnPrimaryText} />
+                  : <Text style={s.saveBtnText}>{t.saveChanges}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -496,6 +1051,7 @@ export default function SupplierAccountScreen({ navigation }) {
   );
 }
 
+// ─── Sub-components ──────────────────────────────────────────────────────────
 function InfoRow({ label, value, isAr }) {
   return (
     <View style={[s.infoRow, isAr && s.infoRowRtl]}>
@@ -514,19 +1070,119 @@ function StatTile({ label, value }) {
   );
 }
 
-function VField({ label, isAr, ...props }) {
+function FormField({ label, hint, required, isAr, dirOverride, multiline, ...inputProps }) {
+  const dir = dirOverride || (isAr ? 'rtl' : 'ltr');
   return (
-    <View style={s.fieldWrap}>
-      <Text style={[s.fieldLabel, isAr && s.rtl]}>{label}</Text>
+    <View style={{ marginBottom: 14 }}>
+      <Text style={[s.cardFieldLabel, isAr && s.rtl, { fontFamily: isAr ? F.ar : F.en }]}>
+        {label}{required ? <Text style={s.required}>{' *'}</Text> : null}
+      </Text>
       <TextInput
-        style={[s.input, isAr && s.rtl]}
+        style={[
+          s.cardInput,
+          multiline && s.cardInputMulti,
+          { textAlign: dir === 'rtl' ? 'right' : 'left', writingDirection: dir, fontFamily: isAr ? F.ar : F.en },
+        ]}
         placeholderTextColor={C.textDisabled}
-        {...props}
+        multiline={multiline}
+        numberOfLines={multiline ? 5 : 1}
+        {...inputProps}
       />
+      {!!hint && (
+        <Text style={[s.fieldHint, isAr && s.rtl, { fontFamily: isAr ? F.ar : F.en }]}>{hint}</Text>
+      )}
     </View>
   );
 }
 
+function PickerField({ label, value, placeholder, options, onChange, isAr }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.val === value);
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={[s.cardFieldLabel, isAr && s.rtl, { fontFamily: isAr ? F.ar : F.en }]}>{label}</Text>
+      <TouchableOpacity
+        style={[s.cardInput, s.pickerBtn, isAr && s.rowRtl]}
+        onPress={() => setOpen((v) => !v)}
+        activeOpacity={0.85}
+      >
+        <Text
+          style={[
+            s.pickerText,
+            !selected && { color: C.textDisabled },
+            { fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' },
+          ]}
+          numberOfLines={1}
+        >
+          {selected ? selected.label : placeholder}
+        </Text>
+        <Text style={[s.pickerCaret, { fontFamily: F.en }]}>{open ? '▴' : '▾'}</Text>
+      </TouchableOpacity>
+      {open && (
+        <View style={s.pickerList}>
+          <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+            {options.map((o) => (
+              <TouchableOpacity
+                key={o.val}
+                style={[s.pickerItem, value === o.val && s.pickerItemActive]}
+                onPress={() => { onChange(o.val); setOpen(false); }}
+              >
+                <Text style={[
+                  s.pickerItemText,
+                  value === o.val && { color: C.textPrimary },
+                  { fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' },
+                ]}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function CertEditRow({ cert, isAr, lang, onChangeName, onUpload, onRemoveFile, onRemoveRow }) {
+  const t = COPY[lang] || COPY.en;
+  return (
+    <View style={[s.certRow, isAr && s.rowRtl]}>
+      <TextInput
+        style={[s.certNameInput, { fontFamily: isAr ? F.ar : F.en, textAlign: isAr ? 'right' : 'left' }]}
+        placeholder={t.certName}
+        placeholderTextColor={C.textDisabled}
+        value={cert.name}
+        onChangeText={onChangeName}
+      />
+
+      {cert.uploading ? (
+        <Text style={[s.certStatus, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadingLabel}</Text>
+      ) : cert.file_url ? (
+        <View style={[s.certPill, isAr && s.rowRtl]}>
+          <Text style={[s.certPillCheck, { fontFamily: F.enBold }]}>✓</Text>
+          <Text style={[s.certPillText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>{t.uploadedLabel}</Text>
+          <TouchableOpacity onPress={onRemoveFile} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Text style={[s.certPillRemove, { fontFamily: F.enBold }]}>×</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={onUpload} style={s.certUploadBtn} activeOpacity={0.85}>
+          <Text style={[s.certUploadText, { fontFamily: isAr ? F.ar : F.en }]}>{t.uploadFile}</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity onPress={onRemoveRow} style={s.certRowRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={[s.certRowRemoveText, { fontFamily: F.enBold }]}>×</Text>
+      </TouchableOpacity>
+
+      {!!cert.error && (
+        <Text style={[s.certError, { fontFamily: isAr ? F.ar : F.en }]}>{cert.error}</Text>
+      )}
+    </View>
+  );
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -534,11 +1190,12 @@ const s = StyleSheet.create({
   rtl: { textAlign: 'right', writingDirection: 'rtl' },
   rowRtl: { flexDirection: 'row-reverse' },
 
+  // Profile header (dashboard view)
   profileHeader: { alignItems: 'center', marginBottom: 24, paddingTop: 8 },
   avatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: C.bgRaised, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12, borderWidth: 1, borderColor: C.borderDefault,
+    marginBottom: 12, borderWidth: 1, borderColor: C.borderDefault, overflow: 'hidden',
   },
   avatarText: { color: C.textSecondary, fontSize: 28, fontFamily: F.enBold },
   companyName: { color: C.textPrimary, fontSize: 20, fontFamily: F.arSemi, marginBottom: 4 },
@@ -547,18 +1204,14 @@ const s = StyleSheet.create({
   statusText: { fontSize: 13, fontFamily: F.arSemi },
 
   editProfileBtn: {
-    marginTop: 14, borderRadius: 10,
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderWidth: 1, borderColor: C.borderStrong,
-    backgroundColor: C.bgOverlay,
+    marginTop: 14, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 7,
+    borderWidth: 1, borderColor: C.borderStrong, backgroundColor: C.bgOverlay,
   },
   editProfileText: { color: C.textPrimary, fontSize: 13, fontFamily: F.arSemi },
 
   verifyBanner: {
-    backgroundColor: C.bgRaised, borderRadius: 16,
-    padding: 18, marginBottom: 20,
-    borderWidth: 1, borderColor: C.borderDefault,
-    alignItems: 'center',
+    backgroundColor: C.bgRaised, borderRadius: 16, padding: 18, marginBottom: 20,
+    borderWidth: 1, borderColor: C.borderDefault, alignItems: 'center',
   },
   verifyBannerTitle: { color: C.textPrimary, fontSize: 15, fontFamily: F.arSemi, marginBottom: 4 },
   verifyBannerSub: { color: C.textSecondary, fontSize: 13, fontFamily: F.ar, textAlign: 'center' },
@@ -567,40 +1220,24 @@ const s = StyleSheet.create({
     color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi,
     letterSpacing: 0.5, marginBottom: 10, marginTop: 4,
   },
-  statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20,
-  },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   statTile: {
-    flexBasis: '48%', flexGrow: 1,
-    backgroundColor: C.bgRaised, borderRadius: 14,
-    paddingVertical: 16, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: C.borderDefault,
+    flexBasis: '48%', flexGrow: 1, backgroundColor: C.bgRaised, borderRadius: 14,
+    paddingVertical: 16, paddingHorizontal: 14, borderWidth: 1, borderColor: C.borderDefault,
   },
-  statValue: {
-    color: C.textPrimary, fontSize: 22, fontFamily: F.enBold,
-    lineHeight: 26, marginBottom: 4,
-  },
-  statLabel: {
-    color: C.textSecondary, fontSize: 11, fontFamily: F.ar,
-  },
-  quickActions: {
-    gap: 8, marginBottom: 20,
-  },
+  statValue: { color: C.textPrimary, fontSize: 22, fontFamily: F.enBold, lineHeight: 26, marginBottom: 4 },
+  statLabel: { color: C.textSecondary, fontSize: 11, fontFamily: F.ar },
+  quickActions: { gap: 8, marginBottom: 20 },
   qaBtn: {
-    backgroundColor: C.bgRaised, borderRadius: 14,
-    paddingVertical: 14, paddingHorizontal: 16,
-    borderWidth: 1, borderColor: C.borderDefault,
-    alignItems: 'center',
+    backgroundColor: C.bgRaised, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: C.borderDefault, alignItems: 'center',
   },
-  qaBtnPrimary: {
-    backgroundColor: C.btnPrimary, borderColor: C.btnPrimary,
-  },
+  qaBtnPrimary: { backgroundColor: C.btnPrimary, borderColor: C.btnPrimary },
   qaText: { color: C.textPrimary, fontSize: 14, fontFamily: F.arSemi },
   qaTextPrimary: { color: C.btnPrimaryText },
 
   section: {
-    backgroundColor: C.bgRaised, borderRadius: 16,
-    borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised, borderRadius: 16, borderWidth: 1, borderColor: C.borderDefault,
     marginBottom: 16, overflow: 'hidden',
   },
   sectionTitle: {
@@ -608,7 +1245,6 @@ const s = StyleSheet.create({
     padding: 14, paddingBottom: 8, letterSpacing: 0.5,
     borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
-
   infoRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 14,
@@ -619,40 +1255,164 @@ const s = StyleSheet.create({
   infoValue: { color: C.textPrimary, fontSize: 14, fontFamily: F.en, maxWidth: '60%' },
 
   signOutBtn: {
-    backgroundColor: C.redSoft, borderRadius: 16,
-    paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1, borderColor: C.red + '40', marginTop: 8,
+    backgroundColor: C.redSoft, borderRadius: 16, paddingVertical: 15,
+    alignItems: 'center', borderWidth: 1, borderColor: C.red + '40', marginTop: 8,
   },
   signOutText: { color: C.red, fontFamily: F.arSemi, fontSize: 16 },
 
-  modalScroll: { padding: 20, paddingBottom: 60 },
+  // Modal frame
+  modalScroll: { padding: 20, paddingBottom: 80 },
   modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+    backgroundColor: C.bgBase,
   },
-  modalTitle: { color: C.textPrimary, fontSize: 18, fontFamily: F.arSemi },
+  modalTitle: { color: C.textPrimary, fontSize: 17, fontFamily: F.arSemi },
   modalClose: { color: C.textSecondary, fontSize: 15, fontFamily: F.ar },
-  verifyNote: {
-    color: C.textSecondary, fontSize: 13, fontFamily: F.ar,
-    lineHeight: 20, marginBottom: 20,
-    backgroundColor: C.bgRaised, padding: 14, borderRadius: 12,
-    borderWidth: 1, borderColor: C.borderSubtle,
+
+  // Card
+  card: {
+    backgroundColor: C.bgRaised, borderRadius: 16,
+    padding: 18, marginBottom: 14,
+    borderWidth: 1, borderColor: C.borderDefault,
   },
-  sectionDivider: {
-    color: C.textTertiary, fontSize: 12, fontFamily: F.arSemi,
-    marginVertical: 12,
+  cardTitle: {
+    color: C.textTertiary, fontSize: 11, fontFamily: F.arSemi,
+    letterSpacing: 1, marginBottom: 16, textTransform: 'uppercase',
   },
-  fieldWrap: { marginBottom: 16 },
-  fieldLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 6 },
-  input: {
-    backgroundColor: C.bgRaised, borderRadius: 12,
+  cardFieldLabel: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 6 },
+  required: { color: C.red, fontSize: 12 },
+  cardInput: {
+    backgroundColor: C.bgBase, borderRadius: 10,
     borderWidth: 1, borderColor: C.borderMuted,
-    paddingHorizontal: 16, paddingVertical: 12,
-    color: C.textPrimary, fontSize: 15, fontFamily: F.ar,
+    paddingHorizontal: 14, paddingVertical: 11,
+    color: C.textPrimary, fontSize: 14,
   },
-  submitBtn: {
+  cardInputMulti: { minHeight: 110, textAlignVertical: 'top' },
+  fieldHint: { color: C.textDisabled, fontSize: 11, marginTop: 4 },
+
+  // Avatar (in card)
+  avatarRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+  },
+  avatarPreview: {
+    width: 64, height: 64, borderRadius: 12,
+    backgroundColor: C.bgBase,
+    borderWidth: 1, borderColor: C.borderMuted,
+    overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarPreviewText: { color: C.textDisabled, fontSize: 11 },
+  smallBtn: {
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 10, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgBase,
+  },
+  smallBtnText: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar },
+
+  // Factory images
+  factoryHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  factoryCount: { color: C.textDisabled, fontSize: 11, fontFamily: F.en },
+  factoryGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+  },
+  factoryThumb: {
+    width: '31%', aspectRatio: 1,
+    backgroundColor: C.bgBase, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderMuted,
+    overflow: 'hidden', position: 'relative',
+  },
+  factoryRemove: {
+    position: 'absolute', top: 4, right: 4,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  factoryRemoveText: { color: '#fff', fontSize: 14, lineHeight: 14 },
+  factoryAdd: {
+    width: '31%', aspectRatio: 1, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderMuted, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  factoryAddText: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar },
+
+  // Picker
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pickerText: { color: C.textPrimary, fontSize: 14, flex: 1 },
+  pickerCaret: { color: C.textSecondary, fontSize: 12, marginInlineStart: 10 },
+  pickerList: {
+    backgroundColor: C.bgBase, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderMuted,
+    marginTop: 6, overflow: 'hidden',
+  },
+  pickerItem: {
+    paddingHorizontal: 14, paddingVertical: 11,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  pickerItemActive: { backgroundColor: C.bgHover },
+  pickerItemText: { color: C.textSecondary, fontSize: 13 },
+
+  // Pill row (currency)
+  pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 4 },
+  pill: {
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 999, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgBase, minWidth: 60, alignItems: 'center',
+  },
+  pillActive: { backgroundColor: C.btnPrimary, borderColor: C.btnPrimary },
+  pillText: { color: C.textSecondary, fontSize: 13, letterSpacing: 0.4 },
+  pillTextActive: { color: C.btnPrimaryText },
+
+  // Cert row
+  certRow: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+    backgroundColor: C.bgBase, borderRadius: 10,
+    borderWidth: 1, borderColor: C.borderSubtle,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  certNameInput: {
+    flex: 1, minWidth: 130,
+    color: C.textPrimary, fontSize: 14,
+    paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  certStatus: { color: C.textSecondary, fontSize: 11, paddingHorizontal: 8 },
+  certUploadBtn: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgRaised,
+  },
+  certUploadText: { color: C.textSecondary, fontSize: 12 },
+  certPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 999, backgroundColor: C.greenSoft,
+    borderWidth: 1, borderColor: 'rgba(0,100,0,0.22)',
+  },
+  certPillCheck: { color: C.green, fontSize: 11 },
+  certPillText: { color: C.green, fontSize: 11 },
+  certPillRemove: { color: C.green, fontSize: 14, lineHeight: 14 },
+  certRowRemove: { paddingHorizontal: 4 },
+  certRowRemoveText: { color: C.textDisabled, fontSize: 18, lineHeight: 18 },
+  certError: { flexBasis: '100%', color: C.red, fontSize: 11, marginTop: 4 },
+
+  addCertBtn: {
+    alignSelf: 'flex-start', marginTop: 12,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: C.borderSubtle, borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+  },
+  addCertText: { color: C.textSecondary, fontSize: 12 },
+
+  // Save button
+  saveBtn: {
     backgroundColor: C.btnPrimary, borderRadius: 14,
-    paddingVertical: 14, alignItems: 'center', marginTop: 8,
+    paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
+    marginTop: 12, marginBottom: 20,
   },
-  submitBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi, fontSize: 16 },
+  saveBtnText: { color: C.btnPrimaryText, fontFamily: F.arSemi, fontSize: 16 },
 });
