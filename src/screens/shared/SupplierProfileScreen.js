@@ -533,11 +533,13 @@ export default function SupplierProfileScreen({ route, navigation }) {
             {supplier.country ? ` · ${supplier.country}` : ''}
           </Text>
 
-          {/* Maabar ID — clean muted text under city/country (was a pill) */}
+          {/* Maabar ID — sage-green pill badge under city/country */}
           {!!maabarId && isVerified && (
-            <Text style={s.maabarIdText}>
-              Maabar ID · {maabarId}
-            </Text>
+            <View style={s.maabarIdBadge}>
+              <Text style={s.maabarIdBadgeText}>
+                Maabar ID · {maabarId}
+              </Text>
+            </View>
           )}
 
           {/* Product count + samples badge + min order */}
@@ -899,8 +901,20 @@ const s = StyleSheet.create({
   heroMeta:  { fontSize: 14, color: C.textSecondary, marginTop: 4 },
   stars:     { color: '#e8a020' },
 
-  // Maabar ID — clean muted text below city/country, replaces earlier pill.
-  maabarIdText: { fontSize: 12, color: '#6B6459', fontFamily: F.en, marginTop: 6 },
+  // Maabar ID — sage-green pill badge below city/country. Single Text so
+  // the entire string ("Maabar ID · MS-XXXXXX") renders at one font size.
+  maabarIdBadge: {
+    alignSelf: 'center',
+    backgroundColor: '#E8F5E9',
+    borderColor: '#A5D6A7',
+    borderWidth: 1, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 4,
+    marginTop: 6,
+  },
+  maabarIdBadgeText: {
+    fontSize: 13, color: '#2E7D32',
+    fontFamily: F.num, // Inter_500Medium — weight 500
+  },
 
   heroStat:      { fontSize: 12, color: C.textSecondary },
   grayBadge:     { backgroundColor: C.bgHover, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },

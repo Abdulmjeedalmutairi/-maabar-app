@@ -308,9 +308,11 @@ export default function SupplierHomeScreen({ navigation }) {
                   )}
 
                   {!!profile?.maabar_supplier_id && (
-                    <Text style={[s.maabarIdText, isAr && s.rtl]}>
-                      Maabar ID · {profile.maabar_supplier_id}
-                    </Text>
+                    <View style={[s.maabarIdBadge, { alignSelf: sideAlign }]}>
+                      <Text style={s.maabarIdBadgeText}>
+                        Maabar ID · {profile.maabar_supplier_id}
+                      </Text>
+                    </View>
                   )}
 
                   <View style={[s.identityStats, isAr && s.rowRtl]}>
@@ -565,10 +567,19 @@ const s = StyleSheet.create({
     fontSize: 12, color: C.textSecondary, fontFamily: F.ar,
     marginBottom: 4,
   },
-  // Maabar ID — clean muted text below city/country, replaces earlier pill.
-  maabarIdText: {
-    fontSize: 12, color: '#6B6459', fontFamily: F.en,
+  // Maabar ID — sage-green pill badge (full string in one Text so font
+  // size stays uniform across the "Maabar ID" prefix and the MS-XXXXXX
+  // code; splitting into two Texts caused subtle baseline drift).
+  maabarIdBadge: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#A5D6A7',
+    borderWidth: 1, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 4,
     marginTop: 4, marginBottom: 12,
+  },
+  maabarIdBadgeText: {
+    fontSize: 13, color: '#2E7D32',
+    fontFamily: F.num, // Inter_500Medium — weight 500
   },
   identityStats: {
     flexDirection: 'row',
