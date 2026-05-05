@@ -120,7 +120,7 @@ export default function SupplierHomeScreen({ navigation }) {
     // 4 stats — exact web queries
     const [profileRes, productsRes, offersRes, messagesRes, acceptedRes] = await Promise.all([
       supabase.from('profiles')
-        .select('company_name, status, maabar_supplier_id, country, city, avatar_url, factory_images, speciality, year_established, rating')
+        .select('company_name, status, maabar_supplier_id, country, city, avatar_url, cover_photo_url, factory_images, speciality, year_established, rating')
         .eq('id', user.id).single(),
       supabase.from('products')
         .select('id', { count: 'exact', head: true })
@@ -244,16 +244,12 @@ export default function SupplierHomeScreen({ navigation }) {
           {/* Supplier identity card — cover photo + avatar + identity + 3 stats */}
           {(() => {
             const company = (profile?.company_name || '').trim();
-            const initials = company
-              .split(/\s+/)
-              .map((w) => (w[0] || '').toUpperCase())
-              .filter(Boolean)
-              .slice(0, 2)
-              .join('') || '·';
             const firstLetter = company[0]?.toUpperCase() || '·';
-            const cover = Array.isArray(profile?.factory_images) && profile.factory_images[0]
-              ? profile.factory_images[0]
-              : null;
+            // Cover photo is now driven exclusively by profiles.cover_photo_url
+            // (added in migration 20260506000001). No factory-images fallback
+            // and no initials overlay — when unset we just show plain cream
+            // so the supplier has full control over what appears here.
+            const cover = profile?.cover_photo_url || null;
             const cityCountry = [profile?.city, profile?.country].filter(Boolean).join(' · ');
             const specialty = profile?.speciality && profile.speciality !== 'other'
               ? getSpecialtyLabel(profile.speciality, lang)
@@ -261,13 +257,11 @@ export default function SupplierHomeScreen({ navigation }) {
             const sideAlign = isAr ? 'flex-end' : 'flex-start';
             return (
               <View style={s.identityCard}>
-                {/* Cover photo */}
+                {/* Cover photo — image when set, else plain cream fill */}
                 <View style={s.coverPhoto}>
                   {cover ? (
                     <Image source={{ uri: cover }} style={s.coverImage} resizeMode="cover" />
-                  ) : (
-                    <Text style={s.coverInitials}>{initials}</Text>
-                  )}
+                  ) : null}
                 </View>
 
                 {/* Body */}
@@ -537,10 +531,6 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   coverImage: { width: '100%', height: '100%' },
-  coverInitials: {
-    fontSize: 48, color: C.textDisabled,
-    fontFamily: F.enLight, letterSpacing: 4,
-  },
   identityBody: { paddingHorizontal: 18, paddingBottom: 16 },
   avatar: {
     width: 64, height: 64, borderRadius: 32,

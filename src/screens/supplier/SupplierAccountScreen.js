@@ -105,6 +105,10 @@ const COPY = {
     cardDescription: 'وصف الشركة',
     cardCerts: 'شهادات الجودة',
 
+    coverPhotoLabel: 'صورة الغلاف',
+    coverPickBtn: '+ رفع صورة الغلاف',
+    coverChangeBtn: 'تغيير الغلاف',
+    coverRemoveBtn: 'إزالة',
     companyLogo: 'لوقو / صورة الشركة',
     factoryImagesLabel: 'صور المصنع',
     factoryImagesHint: (n, max) => `${n}/${max} · حتى ${max} صور`,
@@ -215,6 +219,10 @@ const COPY = {
     cardDescription: 'Company Description',
     cardCerts: 'Quality Certifications',
 
+    coverPhotoLabel: 'Cover Photo',
+    coverPickBtn: '+ Upload cover',
+    coverChangeBtn: 'Change cover',
+    coverRemoveBtn: 'Remove',
     companyLogo: 'Company Logo',
     factoryImagesLabel: 'Factory Images',
     factoryImagesHint: (n, max) => `${n}/${max} · up to ${max} images`,
@@ -325,6 +333,10 @@ const COPY = {
     cardDescription: '公司介绍',
     cardCerts: '质量认证',
 
+    coverPhotoLabel: '封面图片',
+    coverPickBtn: '+ 上传封面',
+    coverChangeBtn: '更换封面',
+    coverRemoveBtn: '移除',
     companyLogo: '公司 Logo',
     factoryImagesLabel: '工厂图片',
     factoryImagesHint: (n, max) => `${n}/${max} · 最多 ${max} 张`,
@@ -491,6 +503,7 @@ export default function SupplierAccountScreen({ navigation }) {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     avatar_url: '',
+    cover_photo_url: '',
     factory_images: [],
     company_video_url: '',
     company_name: '',
@@ -514,6 +527,7 @@ export default function SupplierAccountScreen({ navigation }) {
   const [editCerts, setEditCerts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover]   = useState(false);
   const [uploadingFactory, setUploadingFactory] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
 
@@ -536,6 +550,7 @@ export default function SupplierAccountScreen({ navigation }) {
     if (data) {
       setEditForm({
         avatar_url: data.avatar_url || '',
+        cover_photo_url: data.cover_photo_url || '',
         factory_images: Array.isArray(data.factory_images)
           ? data.factory_images.filter((u) => typeof u === 'string' && /^https?:/i.test(u))
           : [],
@@ -607,6 +622,36 @@ export default function SupplierAccountScreen({ navigation }) {
       setUploadingAvatar(false);
     }
   }
+
+  // ── Cover photo upload (single, optional) ────────────────────────────────
+  // Wide aspect (3:1) so the picker matches the rendering ratio on the
+  // identity card (full-width banner). Uploads to product-images with a
+  // 'cover_' filename prefix. Stored on profiles.cover_photo_url.
+  async function pickAndUploadCover() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') { Alert.alert('', t.permissionDenied); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [3, 1],
+      quality: 0.85,
+    });
+    if (r.canceled || !r.assets?.[0]) return;
+    setUploadingCover(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const a = r.assets[0];
+      const ext = (a.fileName?.split('.').pop() || 'jpg').toLowerCase();
+      const url = await uploadToProductImages(a.uri, a.mimeType || 'image/jpeg', user.id, 'cover', ext);
+      setF('cover_photo_url', url);
+    } catch (e) {
+      console.error('[SupplierAccount] cover upload error:', e?.message || e);
+      Alert.alert('', t.uploadFailed);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+  function clearCoverPhoto() { setF('cover_photo_url', ''); }
 
   // ── Factory image upload (up to 3) ───────────────────────────────────────
   async function pickAndUploadFactoryImages() {
@@ -727,6 +772,7 @@ export default function SupplierAccountScreen({ navigation }) {
 
     const payload = {
       avatar_url: editForm.avatar_url || null,
+      cover_photo_url: editForm.cover_photo_url || null,
       factory_images: editForm.factory_images,
       company_video_url: editForm.company_video_url || null,
       company_name: editForm.company_name.trim() || null,
@@ -904,6 +950,48 @@ export default function SupplierAccountScreen({ navigation }) {
               {/* ── MEDIA CARD ── */}
               <View style={s.card}>
                 <Text style={[s.cardTitle, isAr && s.rtl]}>{t.cardMedia}</Text>
+
+                {/* Cover photo (optional, sits above avatar in the card) */}
+                <Text style={[s.cardFieldLabel, isAr && s.rtl]}>{t.coverPhotoLabel}</Text>
+                {editForm.cover_photo_url ? (
+                  <View style={s.coverPreviewWrap}>
+                    <Image
+                      source={{ uri: editForm.cover_photo_url }}
+                      style={s.coverPreview}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      style={s.coverRemoveBtn}
+                      onPress={clearCoverPhoto}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[s.coverRemoveText, { fontFamily: F.enBold }]}>×</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.smallBtn, s.coverChangeBtn, uploadingCover && { opacity: 0.6 }]}
+                      onPress={pickAndUploadCover}
+                      disabled={uploadingCover}
+                      activeOpacity={0.85}
+                    >
+                      {uploadingCover
+                        ? <ActivityIndicator color={C.textSecondary} size="small" />
+                        : <Text style={s.smallBtnText}>{t.coverChangeBtn}</Text>}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[s.coverEmpty, uploadingCover && { opacity: 0.6 }]}
+                    onPress={pickAndUploadCover}
+                    disabled={uploadingCover}
+                    activeOpacity={0.85}
+                  >
+                    {uploadingCover
+                      ? <ActivityIndicator color={C.textSecondary} />
+                      : <Text style={s.coverEmptyText}>{t.coverPickBtn}</Text>}
+                  </TouchableOpacity>
+                )}
+
+                <View style={{ height: 18 }} />
 
                 {/* Avatar */}
                 <Text style={[s.cardFieldLabel, isAr && s.rtl]}>{t.companyLogo}</Text>
@@ -1471,6 +1559,34 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   factoryCount: { color: C.textDisabled, fontSize: 11, fontFamily: F.en },
+  // Cover photo (settings editor) — wide preview + change/remove controls.
+  coverPreviewWrap: {
+    width: '100%', height: 100,
+    borderRadius: 8, overflow: 'hidden',
+    backgroundColor: C.bgBase,
+    borderWidth: 1, borderColor: C.borderMuted,
+    position: 'relative',
+  },
+  coverPreview: { width: '100%', height: '100%' },
+  coverRemoveBtn: {
+    position: 'absolute', top: 6, right: 6,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  coverRemoveText: { color: '#fff', fontSize: 16, lineHeight: 16 },
+  coverChangeBtn: {
+    position: 'absolute', bottom: 6, right: 6,
+  },
+  coverEmpty: {
+    width: '100%', height: 100,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: C.borderMuted, borderStyle: 'dashed',
+    backgroundColor: C.bgBase,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  coverEmptyText: { color: C.textSecondary, fontSize: 13, fontFamily: F.ar },
+
   factoryGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8,
   },
