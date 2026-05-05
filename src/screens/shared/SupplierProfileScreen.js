@@ -56,6 +56,8 @@ const T = {
   minOrder:       { ar: 'الحد الأدنى',                              en: 'Min order',                                           zh: '最低订单'                       },
   sar:            { ar: 'ريال',                                      en: 'SAR',                                                 zh: 'SAR'                          },
   factoryImages:  { ar: 'صور المصنع',                               en: 'Factory Images',                                      zh: '工厂图片'                       },
+  companyVideo:   { ar: 'فيديو الشركة',                              en: 'Company Video',                                       zh: '公司视频'                       },
+  playVideo:      { ar: '▶ تشغيل الفيديو',                           en: '▶ Play Video',                                        zh: '▶ 播放视频'                     },
   protection:     { ar: 'للحماية الكاملة — أتمّ صفقتك عبر معبر',  en: 'For full protection — complete your deal on Maabar',  zh: '获得完整保障 — 通过Maabar完成交易' },
   maabarReview:   { ar: 'مراجعة مَعبر',                            en: 'Maabar Review',                                       zh: 'Maabar 审核'                   },
   reviewedText:   { ar: 'تمت مراجعة هذا المورد وإتاحته للمشترين على المنصة.', en: 'This supplier has been reviewed by Maabar and is visible to buyers.', zh: '该供应商已通过 Maabar 审核并对买家开放。' },
@@ -215,7 +217,7 @@ function ProductRow({ product, lang, navigation, supplierId }) {
         {product.sample_available && (
           <TouchableOpacity
             style={s.detailsBtn}
-            onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
+            onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
           >
             <Text style={[s.detailsBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('sample', lang)}</Text>
           </TouchableOpacity>
@@ -305,13 +307,34 @@ export default function SupplierProfileScreen({ route, navigation }) {
     let cancelled = false;
 
     async function load() {
-      // 1 — Supplier (same view as Suppliers list screen)
-      const { data: sup, error: supErr } = await supabase
-        .from('supplier_public_profiles')
-        .select('*')
-        .eq('id', supplierId)
-        .single();
+      // 1 — Supplier (same view as Suppliers list screen).
+      // The view does NOT expose company_video_url (added to profiles
+      // after the view was created — see migration
+      // 202604011430_profile_visibility_partition.sql). Fetch the field
+      // directly from profiles in parallel; the verified-supplier branch
+      // of the SELECT RLS policy added in 20260501000001 permits this for
+      // any authenticated user. Errors are swallowed so a missing column
+      // (no migration yet) doesn't break profile loading.
+      const [supRes, vidRes] = await Promise.all([
+        supabase
+          .from('supplier_public_profiles')
+          .select('*')
+          .eq('id', supplierId)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('company_video_url')
+          .eq('id', supplierId)
+          .maybeSingle(),
+      ]);
+      const sup    = supRes.data;
+      const supErr = supRes.error;
       console.log('[SupplierProfile] supplier_public_profiles →', sup?.company_name ?? null, '| error:', supErr?.message ?? null);
+      if (sup && vidRes && !vidRes.error && vidRes.data) {
+        sup.company_video_url = vidRes.data.company_video_url || null;
+      } else if (vidRes?.error) {
+        console.log('[SupplierProfile] company_video_url fetch error (non-fatal):', vidRes.error.message);
+      }
 
       if (!sup || cancelled) {
         if (!cancelled) { setLoading(false); }
@@ -537,6 +560,25 @@ export default function SupplierProfileScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* ── COMPANY VIDEO ──
+            Opens the supplier's profile video in the device's default
+            video/browser handler. We don't embed an in-app player to keep
+            this screen lightweight; tapping defers to the OS. */}
+        {!!supplier.company_video_url && (
+          <View style={s.section}>
+            <SectionLabel text={t('companyVideo', lang)} isAr={isAr} />
+            <TouchableOpacity
+              style={s.contactBtn}
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(supplier.company_video_url)}
+            >
+              <Text style={[s.contactBtnText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
+                {t('playVideo', lang)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── PROTECTION BANNER ── */}
         <View style={s.protectionBanner}>
           <Text style={[s.protectionText, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>
@@ -660,7 +702,7 @@ export default function SupplierProfileScreen({ route, navigation }) {
           <TouchableOpacity
             style={s.ctaBtn}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
+            onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
           >
             <Text style={[s.ctaBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
               {t('directContact', lang)}
@@ -669,7 +711,7 @@ export default function SupplierProfileScreen({ route, navigation }) {
           {samplesCount > 0 && (
             <TouchableOpacity
               style={s.outlineBtn}
-              onPress={() => navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
+              onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
             >
               <Text style={[s.outlineBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('requestSample', lang)}</Text>
             </TouchableOpacity>
@@ -845,7 +887,10 @@ const s = StyleSheet.create({
   },
   verifiedText: { fontSize: 11, fontWeight: '700', color: C.green },
 
-  specialtyLine: { fontSize: 13, color: C.textSecondary, marginTop: 2, marginBottom: 2, letterSpacing: 0.2 },
+  // letterSpacing intentionally omitted — this label often renders Arabic
+  // ('أثاث منزلي', 'مواد بناء', …) and any positive letter-spacing breaks
+  // Arabic ligature shaping. Same applies to every other style below.
+  specialtyLine: { fontSize: 13, color: C.textSecondary, marginTop: 2, marginBottom: 2 },
 
   heroMeta:  { fontSize: 14, color: C.textSecondary, marginTop: 4 },
   stars:     { color: '#e8a020' },
@@ -856,10 +901,10 @@ const s = StyleSheet.create({
     borderRadius: 99, borderWidth: 1, borderColor: C.borderSubtle,
     backgroundColor: C.bgSubtle,
   },
-  maabarIdLabel: { fontSize: 11, color: C.textDisabled, letterSpacing: 0.4 },
-  maabarIdValue: { fontSize: 11, fontWeight: '600', color: C.textPrimary, letterSpacing: 0.4 },
+  maabarIdLabel: { fontSize: 11, color: C.textDisabled },
+  maabarIdValue: { fontSize: 11, fontWeight: '600', color: C.textPrimary },
 
-  heroStat:      { fontSize: 12, color: C.textSecondary, letterSpacing: 0.5 },
+  heroStat:      { fontSize: 12, color: C.textSecondary },
   grayBadge:     { backgroundColor: C.bgHover, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   grayBadgeText: { fontSize: 11, color: C.textSecondary },
 
@@ -869,7 +914,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
   sectionLabel: {
-    fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
+    fontSize: 10, textTransform: 'uppercase',
     color: C.textDisabled, marginBottom: 12,
   },
 
@@ -896,7 +941,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.borderSubtle,
   },
   infoCardLabel: {
-    fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
+    fontSize: 10, textTransform: 'uppercase',
     color: C.textDisabled, marginBottom: 6,
   },
   infoCardValue: { fontSize: 13, lineHeight: 22, color: C.textPrimary },
@@ -910,7 +955,7 @@ const s = StyleSheet.create({
   statCell:  { width: '49.5%', backgroundColor: C.bgSubtle, padding: 12 },
   statLabel: {
     fontSize: 10, color: C.textDisabled,
-    marginBottom: 4, letterSpacing: 1, textTransform: 'uppercase',
+    marginBottom: 4, textTransform: 'uppercase',
   },
   statValue: { fontSize: 14, fontWeight: '500', color: C.textPrimary },
 
@@ -933,7 +978,7 @@ const s = StyleSheet.create({
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
   certName: { fontSize: 13, color: C.textPrimary, lineHeight: 18 },
-  certLink: { fontSize: 11, color: C.green, letterSpacing: 0.2 },
+  certLink: { fontSize: 11, color: C.green },
 
   // Action buttons
   ctaBtn: {
@@ -966,7 +1011,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 2,
     borderWidth: 1, borderColor: 'rgba(0,100,0,0.12)',
   },
-  sampleBadgeText: { fontSize: 9, color: C.green, letterSpacing: 0.5 },
+  sampleBadgeText: { fontSize: 9, color: C.green },
   productPrice:    { fontSize: 14, fontWeight: '600', color: C.textPrimary, marginTop: 4 },
   productMeta:     { fontSize: 11, color: C.textSecondary, marginTop: 2 },
   detailsBtn:      {
@@ -1021,7 +1066,7 @@ const s = StyleSheet.create({
   reviewBuyer:   { fontSize: 13, color: C.textPrimary },
   reviewStars:   { color: '#e8a020', fontSize: 13 },
   reviewComment: { fontSize: 13, color: C.textSecondary, lineHeight: 20 },
-  reviewSub:     { fontSize: 10, color: C.textDisabled, letterSpacing: 0.5 },
+  reviewSub:     { fontSize: 10, color: C.textDisabled },
 
   // Similar suppliers
   similarCard: {
