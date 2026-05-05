@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Image, Linking,
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { Video } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
@@ -97,6 +98,22 @@ const T = {
   similarLabel:   { ar: 'موردون مشابهون',                           en: 'Similar Suppliers',                                   zh: '类似供应商'                     },
   qualityCerts:   { ar: 'شهادات الجودة',                            en: 'Quality Certifications',                              zh: '质量认证'                       },
   viewCert:       { ar: 'عرض الشهادة ←',                           en: 'View Certificate →',                                  zh: '查看证书 →'                     },
+  // Identity card
+  estPrefix:      { ar: 'تأسست',                                     en: 'Est.',                                                zh: '成立于'                          },
+  spProducts:     { ar: 'المنتجات',                                  en: 'Products',                                            zh: '产品'                           },
+  spOffers:       { ar: 'العروض',                                    en: 'Offers',                                              zh: '报价'                           },
+  spRating:       { ar: 'التقييم',                                   en: 'Rating',                                              zh: '评分'                           },
+  // About / Trade Info
+  aboutLabel:     { ar: 'نبذة',                                      en: 'About',                                               zh: '公司介绍'                        },
+  tradeInfo:      { ar: 'معلومات تجارية',                            en: 'Trade Info',                                          zh: '贸易信息'                        },
+  numEmployees:   { ar: 'عدد الموظفين',                              en: 'Employees',                                           zh: '员工人数'                        },
+  incoterms:      { ar: 'شروط الشحن',                                en: 'Incoterms',                                           zh: '贸易术语'                        },
+  leadTime:       { ar: 'مدة التصنيع',                               en: 'Lead Time',                                           zh: '生产交期'                        },
+  portOfLoading:  { ar: 'ميناء الشحن',                               en: 'Port of Loading',                                     zh: '装运港'                         },
+  // Certifications card
+  certIssuer:     { ar: 'الجهة المانحة',                             en: 'Issuing body',                                        zh: '颁发机构'                        },
+  certValidUntil: { ar: 'صالحة حتى',                                 en: 'Valid until',                                         zh: '有效期至'                        },
+  closeBtn:       { ar: 'إغلاق',                                      en: 'Close',                                               zh: '关闭'                           },
 };
 
 function t(key, lang) {
@@ -128,6 +145,29 @@ function renderStars(rating) {
   return out;
 }
 
+// Substring-match the cert name against the known type vocabulary so we can
+// render a small type chip alongside the name. Falls back to `null` when no
+// known type appears in the name (form just shows the bare cert name).
+const KNOWN_CERT_TYPES = ['SASO', 'ROHS', 'HALAL', 'FCC', 'FDA', 'ISO', 'CE'];
+function detectCertType(name) {
+  const upper = String(name || '').toUpperCase();
+  for (const t of KNOWN_CERT_TYPES) {
+    // word-boundary-ish check so 'CE' doesn't match 'CERTIFICATION'
+    const re = new RegExp(`(^|[^A-Z0-9])${t}([^A-Z0-9]|$)`);
+    if (re.test(upper)) {
+      // Pretty-print RoHS (the only known type with mixed case).
+      return t === 'ROHS' ? 'RoHS' : t;
+    }
+  }
+  return null;
+}
+
+// Decide whether a file URL points at an image we can render directly with
+// <Image>. PDFs and unknown types route through the WebView modal instead.
+function isImageUrl(url) {
+  return /\.(jpg|jpeg|png|gif|webp)(\?|$|#)/i.test(String(url || ''));
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionLabel({ text, isAr }) {
@@ -149,6 +189,18 @@ function InfoCard({ label, value, isAr, lang, translatable }) {
       ) : (
         <Text style={valueStyle}>{value}</Text>
       )}
+    </View>
+  );
+}
+
+// Compact label-on-left / value-on-right row — used inside About and Trade
+// Info sections so a buyer scanning the profile gets a clean key:value
+// readout instead of stacked cards. Auto-flips for RTL.
+function DetailRow({ label, value, isAr }) {
+  return (
+    <View style={[s.detailRow, isAr && { flexDirection: 'row-reverse' }]}>
+      <Text style={[s.detailLabel, isAr && s.rtl]}>{label}</Text>
+      <Text style={[s.detailValue, isAr && s.rtl]}>{value}</Text>
     </View>
   );
 }
@@ -297,12 +349,13 @@ export default function SupplierProfileScreen({ route, navigation }) {
   const [products,         setProducts]         = useState([]);
   const [reviews,          setReviews]          = useState([]);
   const [similarSuppliers, setSimilarSuppliers] = useState([]);
+  const [offersCount,      setOffersCount]      = useState(0);
   const [loading,          setLoading]          = useState(true);
 
-  // Price calculator
-  const [calcProductId, setCalcProductId] = useState(null);
-  const [calcQty,       setCalcQty]       = useState('');
-  const [calcResult,    setCalcResult]    = useState(null);
+  // Cert viewer modal — holds the cert object currently being viewed
+  // (null = closed). Image certs render with <Image>, everything else
+  // goes through Google Docs Viewer in a WebView.
+  const [viewingCert, setViewingCert] = useState(null);
 
   useEffect(() => {
     if (!supplierId) return;
@@ -310,14 +363,14 @@ export default function SupplierProfileScreen({ route, navigation }) {
 
     async function load() {
       // 1 — Supplier (same view as Suppliers list screen).
-      // The view does NOT expose company_video_url (added to profiles
-      // after the view was created — see migration
-      // 202604011430_profile_visibility_partition.sql). Fetch the field
+      // The view does NOT expose company_video_url, cover_photo_url,
+      // certifications, or num_employees (some predate the view, others
+      // were added later via migrations 20260506000001 etc). Fetch them
       // directly from profiles in parallel; the verified-supplier branch
-      // of the SELECT RLS policy added in 20260501000001 permits this for
-      // any authenticated user. Errors are swallowed so a missing column
-      // (no migration yet) doesn't break profile loading.
-      const [supRes, vidRes] = await Promise.all([
+      // of the SELECT RLS policy added in 20260501000001 permits this
+      // for any authenticated user. Errors are swallowed so missing
+      // columns (un-applied migrations) don't break profile loading.
+      const [supRes, extraRes, offersRes] = await Promise.all([
         supabase
           .from('supplier_public_profiles')
           .select('*')
@@ -325,17 +378,27 @@ export default function SupplierProfileScreen({ route, navigation }) {
           .single(),
         supabase
           .from('profiles')
-          .select('company_video_url')
+          .select('company_video_url, cover_photo_url, certifications, num_employees')
           .eq('id', supplierId)
           .maybeSingle(),
+        supabase
+          .from('offers')
+          .select('id', { count: 'exact', head: true })
+          .eq('supplier_id', supplierId),
       ]);
       const sup    = supRes.data;
       const supErr = supRes.error;
       console.log('[SupplierProfile] supplier_public_profiles →', sup?.company_name ?? null, '| error:', supErr?.message ?? null);
-      if (sup && vidRes && !vidRes.error && vidRes.data) {
-        sup.company_video_url = vidRes.data.company_video_url || null;
-      } else if (vidRes?.error) {
-        console.log('[SupplierProfile] company_video_url fetch error (non-fatal):', vidRes.error.message);
+      if (sup && extraRes && !extraRes.error && extraRes.data) {
+        sup.company_video_url = extraRes.data.company_video_url || null;
+        sup.cover_photo_url   = extraRes.data.cover_photo_url   || null;
+        sup.certifications    = extraRes.data.certifications    || sup.certifications || null;
+        sup.num_employees     = extraRes.data.num_employees     ?? null;
+      } else if (extraRes?.error) {
+        console.log('[SupplierProfile] supplemental fetch error (non-fatal):', extraRes.error.message);
+      }
+      if (!offersRes.error && !cancelled) {
+        setOffersCount(offersRes.count || 0);
       }
 
       if (!sup || cancelled) {
@@ -376,19 +439,6 @@ export default function SupplierProfileScreen({ route, navigation }) {
     load();
     return () => { cancelled = true; };
   }, [supplierId]);
-
-  function calcPrice() {
-    const product = products.find(p => p.id === calcProductId);
-    if (!product || !calcQty) return;
-    const qty = parseFloat(calcQty);
-    setCalcResult({
-      unitPrice:  product.price_from,
-      total:      qty * product.price_from,
-      currency:   product.currency || 'USD',
-      meetsmoq:   qty >= parseFloat(product.moq || 1),
-      moq:        product.moq,
-    });
-  }
 
   // Auth-gated chat opener. Guests are bounced to Login (the only route
   // shared between AuthStack and the buyer tree); authenticated buyers
@@ -449,40 +499,58 @@ export default function SupplierProfileScreen({ route, navigation }) {
 
   const supplierLanguages = Array.isArray(supplier.languages)      ? supplier.languages      : [];
   const exportMarkets     = Array.isArray(supplier.export_markets) ? supplier.export_markets : [];
-
-  const businessCards = [
-    supplier.business_type          && { label: t('businessType',  lang), value: BIZ_TYPE_LABELS[supplier.business_type]?.[lang] || supplier.business_type },
-    supplier.year_established       && { label: t('yearEst',       lang), value: supplier.year_established },
-    supplier.customization_support  && { label: t('customization', lang), value: CUSTOM_LABELS[supplier.customization_support]?.[lang] || supplier.customization_support },
-    supplier.company_address        && { label: t('address',       lang), value: supplier.company_address, translatable: true },
-    supplierLanguages.length > 0    && { label: t('languages',     lang), value: supplierLanguages.join(' · ') },
-    exportMarkets.length > 0        && { label: t('exportMarkets', lang), value: exportMarkets.join(' · ') },
-  ].filter(Boolean);
-
-  // Phase port — specialty moved to hero (under company name); remove from stats grid.
-  const stats = [
-    supplier.export_years     && { label: t('exportYears', lang), val: supplier.export_years },
-    supplier.city             && { label: t('city',        lang), val: supplier.city },
-    supplier.country          && { label: t('country',     lang), val: supplier.country },
-    supplier.deals_completed  && { label: t('deals',       lang), val: supplier.deals_completed },
-    supplier.completion_rate  && { label: t('completion',  lang), val: `${supplier.completion_rate}%` },
-    supplier.created_at       && { label: t('memberSince', lang), val: new Date(supplier.created_at).getFullYear() },
-  ].filter(Boolean);
+  const supplierIncoterms = Array.isArray(supplier.incoterms)      ? supplier.incoterms      : [];
 
   // Localized specialty label for hero (skips empty + 'other').
   const specialtyLabel = supplier.speciality && supplier.speciality !== 'other'
     ? getSpecialtyLabel(supplier.speciality, lang)
     : '';
+  const businessTypeLabel = supplier.business_type
+    ? (BIZ_TYPE_LABELS[supplier.business_type]?.[lang] || supplier.business_type)
+    : '';
+  const customizationLabel = supplier.customization_support
+    ? (CUSTOM_LABELS[supplier.customization_support]?.[lang] || supplier.customization_support)
+    : '';
 
-  // Normalize certifications for the buyer-facing block. Tolerates legacy
-  // shapes: ["ISO 9001"] (bare string) and [{ name }] (no file_url).
+  // Identity-card derived values (mirrors SupplierHomeScreen).
+  const company = (supplier.company_name || '').trim();
+  const firstLetter = company[0]?.toUpperCase() || '·';
+  const cover = supplier.cover_photo_url || null;
+  const cityCountry = [supplier.city, supplier.country].filter(Boolean).join(' · ');
+  const sideAlign = isAr ? 'flex-end' : 'flex-start';
+
+  // Lead-time as a single human string when both bounds are present on the
+  // supplier row. (Currently these fields live at the product level; the
+  // guards below mean nothing renders if the supplier doesn't have them.)
+  let leadTimeText = '';
+  const lmin = supplier.lead_time_min_days;
+  const lmax = supplier.lead_time_max_days;
+  if (Number.isFinite(lmin) && Number.isFinite(lmax)) leadTimeText = `${lmin}–${lmax}`;
+  else if (Number.isFinite(lmin)) leadTimeText = String(lmin);
+  else if (Number.isFinite(lmax)) leadTimeText = String(lmax);
+
+  // Normalize certifications for the buyer-facing cards. Tolerates legacy
+  // shapes: ["ISO 9001"] (bare string), { name } (no file_url), and the
+  // current shape { name, issuer, valid_until, file_url }.
   const certifications = (Array.isArray(supplier.certifications) ? supplier.certifications : [])
     .map((c) => {
-      if (typeof c === 'string') return { name: c, file_url: null };
-      if (c && typeof c === 'object') return { name: c.name || '', file_url: c.file_url || null };
+      if (typeof c === 'string') return { name: c, issuer: '', valid_until: '', file_url: null };
+      if (c && typeof c === 'object') return {
+        name: c.name || '',
+        issuer: c.issuer || '',
+        valid_until: c.valid_until || '',
+        file_url: c.file_url || null,
+      };
       return null;
     })
     .filter((c) => c && (c.name || c.file_url));
+
+  // Anything to render in About / Trade Info? Used to hide empty sections.
+  const hasAbout = !!bio || !!businessTypeLabel || !!supplier.year_established
+    || supplier.num_employees != null || supplierLanguages.length > 0;
+  const hasTradeInfo = !!supplier.min_order_value || !!customizationLabel
+    || exportMarkets.length > 0 || supplierIncoterms.length > 0
+    || !!leadTimeText || !!supplier.port_of_loading;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -496,63 +564,88 @@ export default function SupplierProfileScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
-        {/* ── HERO ── */}
-        <View style={s.hero}>
-          <View style={s.avatar}>
-            {supplier.avatar_url
-              ? <Image source={{ uri: supplier.avatar_url }} style={s.avatarImg} />
-              : <Text style={s.avatarInitial}>{(supplier.company_name || '?')[0].toUpperCase()}</Text>
-            }
+        {/* ── HERO IDENTITY CARD ── */}
+        {/* Cover photo + overlapping avatar + identity info + 3-stat row.
+            Mirrors SupplierHomeScreen so suppliers see the same card layout
+            on their dashboard that buyers see on their profile. */}
+        <View style={s.identityCard}>
+          {/* Cover photo — image when set, else plain cream fill */}
+          <View style={s.coverPhoto}>
+            {cover ? (
+              <Image source={{ uri: cover }} style={s.coverImage} resizeMode="cover" />
+            ) : null}
           </View>
 
-          {/* Name + verified */}
-          <View style={{ flexDirection: rowDir, alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 6 }}>
-            <Text style={[s.companyName, { fontFamily: isAr ? F.arBold : F.enBold }]}>
-              {supplier.company_name}
+          {/* Body */}
+          <View style={s.identityBody}>
+            {/* Avatar — overlaps cover bottom by half its height */}
+            <View style={[s.idAvatar, { alignSelf: sideAlign }]}>
+              {supplier.avatar_url ? (
+                <Image
+                  source={{ uri: supplier.avatar_url }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={s.idAvatarLetter}>{firstLetter}</Text>
+              )}
+            </View>
+
+            {/* Company name */}
+            <Text style={[s.identityName, isAr && s.rtl]} numberOfLines={2}>
+              {company || '—'}
             </Text>
+
+            {/* ✓ Verified pill */}
             {isVerified && (
-              <View style={s.verifiedBadge}>
-                <Text style={[s.verifiedText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
-                  ✓ {t('verified', lang)}
+              <View style={[s.idVerifiedPill, { alignSelf: sideAlign }]}>
+                <Text style={s.idVerifiedPillText}>✓ {t('verified', lang)}</Text>
+              </View>
+            )}
+
+            {/* Specialty */}
+            {!!specialtyLabel && (
+              <Text style={[s.identityRow, isAr && s.rtl]}>{specialtyLabel}</Text>
+            )}
+
+            {/* Est. year */}
+            {!!supplier.year_established && (
+              <Text style={[s.identityRow, isAr && s.rtl]}>
+                {t('estPrefix', lang)} {supplier.year_established}
+              </Text>
+            )}
+
+            {/* City · Country */}
+            {!!cityCountry && (
+              <Text style={[s.identityRow, isAr && s.rtl]}>{cityCountry}</Text>
+            )}
+
+            {/* Maabar ID badge */}
+            {!!maabarId && isVerified && (
+              <View style={[s.maabarIdBadge, { alignSelf: sideAlign }]}>
+                <Text style={s.maabarIdBadgeText}>
+                  Maabar ID · {maabarId}
                 </Text>
               </View>
             )}
-          </View>
 
-          {/* Specialty (under company name, above city/country) — translated label */}
-          {!!specialtyLabel && (
-            <Text style={[s.specialtyLine, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
-              {specialtyLabel}
-            </Text>
-          )}
-
-          {/* Stars + city + country */}
-          <Text style={s.heroMeta}>
-            <Text style={s.stars}>{renderStars(Math.round(supplier.rating || 0))}</Text>
-            {supplier.city    ? ` · ${supplier.city}`    : ''}
-            {supplier.country ? ` · ${supplier.country}` : ''}
-          </Text>
-
-          {/* Maabar ID — sage-green pill badge under city/country */}
-          {!!maabarId && isVerified && (
-            <View style={s.maabarIdBadge}>
-              <Text style={s.maabarIdBadgeText}>
-                Maabar ID · {maabarId}
-              </Text>
-            </View>
-          )}
-
-          {/* Product count + samples badge + min order */}
-          <View style={{ flexDirection: rowDir, gap: 12, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Text style={s.heroStat}>{products.length} {t('products', lang)}</Text>
-            {samplesCount > 0 && (
-              <View style={s.grayBadge}>
-                <Text style={[s.grayBadgeText, { fontFamily: isAr ? F.ar : F.en }]}>{t('samplesAvail', lang)}</Text>
+            {/* Stats row — Products / Offers / Rating */}
+            <View style={[s.identityStats, isAr && { flexDirection: 'row-reverse' }]}>
+              <View style={s.identityStat}>
+                <Text style={s.identityStatValue}>{products.length}</Text>
+                <Text style={s.identityStatLabel}>{t('spProducts', lang)}</Text>
               </View>
-            )}
-            {!!supplier.min_order_value && (
-              <Text style={s.heroStat}>{t('minOrder', lang)}: {supplier.min_order_value} {t('sar', lang)}</Text>
-            )}
+              <View style={s.identityStat}>
+                <Text style={s.identityStatValue}>{offersCount}</Text>
+                <Text style={s.identityStatLabel}>{t('spOffers', lang)}</Text>
+              </View>
+              <View style={s.identityStat}>
+                <Text style={s.identityStatValue}>
+                  {supplier.rating ? String(supplier.rating) : '—'}
+                </Text>
+                <Text style={s.identityStatLabel}>{t('spRating', lang)}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -587,148 +680,138 @@ export default function SupplierProfileScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* ── PROTECTION BANNER ── */}
-        <View style={s.protectionBanner}>
-          <Text style={[s.protectionText, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>
-            {t('protection', lang)}
-          </Text>
-        </View>
-
-        {/* ── TRUST INFO CARDS (Maabar review + working model) ──
-            Trust-signals card removed: it duplicated info already visible
-            elsewhere on the profile (factory images, contact links). */}
-        <View style={s.section}>
-          <InfoCard
-            label={t('maabarReview', lang)}
-            value={isVerified ? t('reviewedText', lang) : t('pendingText', lang)}
-            isAr={isAr}
-          />
-          <InfoCard label={t('workingModel', lang)} value={t('workingText', lang)} isAr={isAr} />
-        </View>
-
-        {/* ── CONTACT LINKS ──
-            WeChat & WhatsApp removed: all trader-supplier communication must
-            flow through Maabar's internal chat (matches web Phase 6A policy). */}
-        {(supplier.company_website || supplier.trade_link) && (
+        {/* ── ABOUT ──
+            Combines the company description (AI-translatable bio) with
+            structured rows for business type / year / employees / languages.
+            Section is hidden entirely if nothing to show. */}
+        {hasAbout && (
           <View style={s.section}>
-            <View style={{ gap: 8 }}>
-              {!!supplier.company_website && (
-                <TouchableOpacity
-                  style={s.contactBtn}
-                  onPress={() => Linking.openURL(supplier.company_website)}
-                >
-                  <Text style={[s.contactBtnText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
-                    {t('visitWebsite', lang)} ↗
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {!!supplier.trade_link && (
-                <TouchableOpacity
-                  style={s.contactBtn}
-                  onPress={() => Linking.openURL(supplier.trade_link)}
-                >
-                  <Text style={[s.contactBtnText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
-                    {t('viewTrade', lang)} ↗
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <SectionLabel text={t('aboutLabel', lang)} isAr={isAr} />
+            {!!bio && (
+              <View style={{ marginBottom: 12 }}>
+                <TranslatedText
+                  text={bio}
+                  lang={lang}
+                  textStyle={[s.bio, { textAlign, fontFamily: isAr ? F.ar : F.en }]}
+                />
+              </View>
+            )}
+            {!!businessTypeLabel && (
+              <DetailRow label={t('businessType', lang)} value={businessTypeLabel} isAr={isAr} />
+            )}
+            {!!supplier.year_established && (
+              <DetailRow label={t('yearEst', lang)} value={String(supplier.year_established)} isAr={isAr} />
+            )}
+            {supplier.num_employees != null && supplier.num_employees !== '' && (
+              <DetailRow label={t('numEmployees', lang)} value={String(supplier.num_employees)} isAr={isAr} />
+            )}
+            {supplierLanguages.length > 0 && (
+              <DetailRow label={t('languages', lang)} value={supplierLanguages.join(' · ')} isAr={isAr} />
+            )}
           </View>
         )}
 
-        {/* ── COMPANY DESCRIPTION (with AI translation) ── */}
-        {!!bio && (
+        {/* ── TRADE INFO ──
+            min_order_value / customization / export markets / incoterms /
+            lead time / port. Incoterms / lead-time / port currently live
+            at the product level so they'll usually be empty here; included
+            with guards so the section gracefully expands if those fields
+            ever migrate to the supplier row. */}
+        {hasTradeInfo && (
           <View style={s.section}>
-            <TranslatedText
-              text={bio}
-              lang={lang}
-              textStyle={[s.bio, { textAlign, fontFamily: isAr ? F.ar : F.en }]}
-            />
+            <SectionLabel text={t('tradeInfo', lang)} isAr={isAr} />
+            {!!supplier.min_order_value && (
+              <DetailRow
+                label={t('minOrder', lang)}
+                value={`${supplier.min_order_value} ${t('sar', lang)}`}
+                isAr={isAr}
+              />
+            )}
+            {!!customizationLabel && (
+              <DetailRow label={t('customization', lang)} value={customizationLabel} isAr={isAr} />
+            )}
+            {exportMarkets.length > 0 && (
+              <DetailRow label={t('exportMarkets', lang)} value={exportMarkets.join(' · ')} isAr={isAr} />
+            )}
+            {supplierIncoterms.length > 0 && (
+              <DetailRow label={t('incoterms', lang)} value={supplierIncoterms.join(' · ')} isAr={isAr} />
+            )}
+            {!!leadTimeText && (
+              <DetailRow label={t('leadTime', lang)} value={leadTimeText} isAr={isAr} />
+            )}
+            {!!supplier.port_of_loading && (
+              <DetailRow label={t('portOfLoading', lang)} value={supplier.port_of_loading} isAr={isAr} />
+            )}
           </View>
         )}
 
-        {/* ── QUALITY CERTIFICATIONS ── */}
+        {/* ── QUALITY CERTIFICATIONS ──
+            Each cert renders as a self-contained card. Image file_urls show
+            an inline thumb that opens a fullscreen Image modal; PDF / unknown
+            file_urls show a "View Certificate" button that opens a Modal
+            with a WebView (no Linking.openURL — keeps users in-app). */}
         {certifications.length > 0 && (
           <View style={s.section}>
             <SectionLabel text={t('qualityCerts', lang)} isAr={isAr} />
             <View style={{ gap: 10 }}>
-              {certifications.map((cert, i) => (
-                <View
-                  key={`${cert.name}-${i}`}
-                  style={[s.certRow, { flexDirection: rowDir }]}
-                >
-                  <Text style={[s.certName, { textAlign, fontFamily: isAr ? F.arSemi : F.enSemi, flex: 1 }]} numberOfLines={2}>
-                    {cert.name}
-                  </Text>
-                  {!!cert.file_url && (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(cert.file_url)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <Text style={[s.certLink, { fontFamily: isAr ? F.ar : F.en }]}>
-                        {t('viewCert', lang)}
+              {certifications.map((cert, i) => {
+                const certType = detectCertType(cert.name);
+                const showImage = cert.file_url && isImageUrl(cert.file_url);
+                return (
+                  <View key={`${cert.name}-${i}`} style={s.certCard}>
+                    <View style={[{ flexDirection: rowDir, alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }]}>
+                      <Text
+                        style={[s.certCardName, { textAlign, fontFamily: isAr ? F.arSemi : F.enSemi, flex: 1, minWidth: 100 }]}
+                        numberOfLines={2}
+                      >
+                        {cert.name}
                       </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
+                      {!!certType && (
+                        <View style={s.certTypeBadge}>
+                          <Text style={s.certTypeBadgeText}>{certType}</Text>
+                        </View>
+                      )}
+                    </View>
+                    {!!cert.issuer && (
+                      <Text style={[s.certCardMeta, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>
+                        {t('certIssuer', lang)} · {cert.issuer}
+                      </Text>
+                    )}
+                    {!!cert.valid_until && (
+                      <Text style={[s.certCardMeta, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>
+                        {t('certValidUntil', lang)} · {cert.valid_until}
+                      </Text>
+                    )}
+                    {showImage && (
+                      <TouchableOpacity
+                        onPress={() => setViewingCert(cert)}
+                        activeOpacity={0.85}
+                        style={s.certImageWrap}
+                      >
+                        <Image
+                          source={{ uri: cert.file_url }}
+                          style={s.certImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    )}
+                    {!showImage && !!cert.file_url && (
+                      <TouchableOpacity
+                        style={s.certViewBtn}
+                        onPress={() => setViewingCert(cert)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.certViewBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+                          {t('viewCert', lang)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
-
-        {/* ── BUSINESS DETAIL CARDS ── */}
-        {businessCards.length > 0 && (
-          <View style={s.section}>
-            {businessCards.map(card => (
-              <InfoCard
-                key={card.label}
-                label={card.label}
-                value={card.value}
-                isAr={isAr}
-                lang={lang}
-                translatable={card.translatable}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* ── STATS GRID ── */}
-        {stats.length > 0 && (
-          <View style={s.section}>
-            <View style={s.statsGrid}>
-              {stats.map(st => (
-                <View key={st.label} style={s.statCell}>
-                  <Text style={[s.statLabel, { textAlign }]}>{st.label}</Text>
-                  <Text style={[s.statValue, { textAlign }]}>{st.val}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── ACTION BUTTONS ── */}
-        <View style={[s.section, { flexDirection: rowDir, gap: 10, flexWrap: 'wrap' }]}>
-          <TouchableOpacity
-            style={s.ctaBtn}
-            activeOpacity={0.85}
-            onPress={openChat}
-          >
-            <Text style={[s.ctaBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
-              {t('directContact', lang)}
-            </Text>
-          </TouchableOpacity>
-          {samplesCount > 0 && (
-            <TouchableOpacity style={s.outlineBtn} onPress={openChat}>
-              <Text style={[s.outlineBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('requestSample', lang)}</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={s.outlineBtn}
-            onPress={() => navigation.navigate('Requests')}
-          >
-            <Text style={[s.outlineBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('postRequest', lang)}</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* ── PRODUCTS LIST ── */}
         <View style={s.section}>
@@ -742,88 +825,8 @@ export default function SupplierProfileScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* ── PRICE CALCULATOR ── */}
-        {products.length > 0 && (
-          <View style={s.section}>
-            <SectionLabel text={t('calcTitle', lang)} isAr={isAr} />
-            <View style={s.calcCard}>
-
-              {/* Product selector pills */}
-              <Text style={[s.calcSubLabel, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>
-                {t('selectProduct', lang)}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8, paddingBottom: 14, flexDirection: isAr ? 'row-reverse' : 'row' }}
-              >
-                {products.map(p => {
-                  const pName = isAr
-                    ? (p.name_ar || p.name_en)
-                    : lang === 'zh'
-                      ? (p.name_zh || p.name_en)
-                      : (p.name_en || p.name_ar);
-                  const selected = calcProductId === p.id;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[s.calcPill, selected && s.calcPillActive]}
-                      onPress={() => { setCalcProductId(p.id); setCalcResult(null); }}
-                    >
-                      <Text
-                        style={[s.calcPillText, selected && s.calcPillTextActive, { fontFamily: isAr ? F.ar : F.en }]}
-                        numberOfLines={1}
-                      >
-                        {pName}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Qty input + calculate button */}
-              <View style={{ flexDirection: rowDir, gap: 10, alignItems: 'center' }}>
-                <TextInput
-                  style={[s.calcQtyInput, { textAlign, fontFamily: isAr ? F.ar : F.en }]}
-                  value={calcQty}
-                  onChangeText={v => { setCalcQty(v); setCalcResult(null); }}
-                  placeholder={t('qty', lang)}
-                  placeholderTextColor={C.textDisabled}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                />
-                <TouchableOpacity style={s.calcBtn} onPress={calcPrice}>
-                  <Text style={[s.calcBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
-                    {t('calculate', lang)}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Result */}
-              {calcResult && (
-                <View style={s.calcResult}>
-                  <View style={{ flexDirection: rowDir, justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={s.calcResultLabel}>{t('unitPrice', lang)}</Text>
-                    <Text style={s.calcResultVal}>{calcResult.unitPrice} {calcResult.currency}</Text>
-                  </View>
-                  <View style={{ flexDirection: rowDir, justifyContent: 'space-between' }}>
-                    <Text style={[s.calcResultLabel, { fontSize: 14, color: C.textPrimary }]}>{t('total', lang)}</Text>
-                    <Text style={[s.calcResultVal, { fontSize: 20, fontWeight: '300' }]}>
-                      {calcResult.total.toLocaleString()} {calcResult.currency}
-                    </Text>
-                  </View>
-                  {!calcResult.meetsmoq && (
-                    <View style={s.moqWarning}>
-                      <Text style={[s.moqWarningText, { fontFamily: isAr ? F.ar : F.en }]}>
-                        {t('minOrderUnits', lang)}: {calcResult.moq} {t('units', lang)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
-        )}
+        {/* Price calculator removed — out of scope for the redesigned
+            buyer-facing profile. Kept openChat as the main CTA below. */}
 
         {/* ── REVIEWS ── */}
         {reviews.length > 0 && (
@@ -851,8 +854,86 @@ export default function SupplierProfileScreen({ route, navigation }) {
           </View>
         )}
 
-        <View style={{ height: 60 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* ── STICKY BOTTOM ACTION BAR ──
+          Lives outside the ScrollView so the CTAs stay reachable while the
+          buyer scrolls the profile. Two buttons per spec: chat + post
+          request. Auth gate is inside openChat. */}
+      <View style={[s.bottomBar, isAr && { flexDirection: 'row-reverse' }]}>
+        <TouchableOpacity
+          style={s.ctaBtn}
+          activeOpacity={0.85}
+          onPress={openChat}
+        >
+          <Text style={[s.ctaBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+            {t('directContact', lang)}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.outlineBtn}
+          onPress={() => navigation.navigate('Requests')}
+          activeOpacity={0.85}
+        >
+          <Text style={[s.outlineBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+            {t('postRequest', lang)}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── CERT VIEWER MODAL ──
+          Image certs render directly with <Image>; everything else (PDF +
+          unknown) goes through Google Docs Viewer in a WebView so the file
+          renders inside the app — no external browser. */}
+      <Modal
+        visible={!!viewingCert}
+        animationType="slide"
+        onRequestClose={() => setViewingCert(null)}
+      >
+        <SafeAreaView style={s.certModalSafe}>
+          <View style={s.certModalHeader}>
+            <TouchableOpacity
+              onPress={() => setViewingCert(null)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={[s.certModalClose, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+                {t('closeBtn', lang)}
+              </Text>
+            </TouchableOpacity>
+            <Text
+              style={[s.certModalTitle, { fontFamily: isAr ? F.arSemi : F.enSemi }]}
+              numberOfLines={1}
+            >
+              {viewingCert?.name || ''}
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+          {viewingCert && (
+            isImageUrl(viewingCert.file_url) ? (
+              <Image
+                source={{ uri: viewingCert.file_url }}
+                style={{ flex: 1, width: '100%', backgroundColor: '#000' }}
+                resizeMode="contain"
+              />
+            ) : (
+              <WebView
+                source={{
+                  uri: 'https://docs.google.com/gview?embedded=true&url=' +
+                       encodeURIComponent(viewingCert.file_url || ''),
+                }}
+                style={{ flex: 1 }}
+                startInLoadingState
+                renderLoading={() => (
+                  <View style={s.certModalLoading}>
+                    <ActivityIndicator color={C.textSecondary} size="large" />
+                  </View>
+                )}
+              />
+            )
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -863,6 +944,7 @@ const s = StyleSheet.create({
   center:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
   notFound: { color: C.textSecondary, fontSize: 16 },
   content:  { paddingBottom: 20 },
+  rtl:      { textAlign: 'right', writingDirection: 'rtl' },
 
   // Top bar
   topBar: {
@@ -1102,4 +1184,121 @@ const s = StyleSheet.create({
   similarName:          { fontSize: 13, color: C.textPrimary, marginBottom: 4, lineHeight: 18 },
   similarStars:         { fontSize: 12, color: '#e8a020', marginBottom: 4 },
   similarCity:          { fontSize: 11, color: C.textSecondary, marginBottom: 6 },
+
+  // ── Identity card (cover photo + overlapping avatar + 3-stat row) ──
+  // Mirrors SupplierHomeScreen so suppliers and buyers see the same visual.
+  identityCard: {
+    backgroundColor: '#FAF5E4',
+    borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.10)',
+    margin: 16, marginTop: 16, marginBottom: 12,
+    overflow: 'hidden',
+  },
+  coverPhoto: {
+    width: '100%', height: 160,
+    backgroundColor: '#FAF8F5',
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  coverImage: { width: '100%', height: '100%' },
+  identityBody: { paddingHorizontal: 18, paddingBottom: 16 },
+  idAvatar: {
+    width: 64, height: 64, borderRadius: 32,
+    borderWidth: 3, borderColor: '#FFFFFF',
+    backgroundColor: C.bgRaised,
+    marginTop: -32, marginBottom: 12,
+    overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  idAvatarLetter: { fontSize: 22, color: C.textPrimary, fontFamily: F.enBold },
+  identityName: {
+    fontSize: 20, fontFamily: F.arSemi, color: C.textPrimary,
+    marginBottom: 8,
+  },
+  idVerifiedPill: {
+    backgroundColor: 'rgba(80,180,120,0.10)',
+    borderColor: 'rgba(80,180,120,0.22)',
+    borderWidth: 1, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 3,
+    marginBottom: 8,
+  },
+  idVerifiedPillText: { fontSize: 11, color: '#5a9a72', fontFamily: F.arSemi },
+  identityRow: {
+    fontSize: 12, color: C.textSecondary, fontFamily: F.ar,
+    marginBottom: 4,
+  },
+  identityStats: {
+    flexDirection: 'row',
+    paddingTop: 12, marginTop: 8,
+    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  identityStat: { flex: 1, alignItems: 'center' },
+  identityStatValue: {
+    fontSize: 18, fontFamily: F.enBold, color: C.textPrimary, lineHeight: 22,
+  },
+  identityStatLabel: {
+    fontSize: 10, color: C.textDisabled, fontFamily: F.ar, marginTop: 2,
+  },
+
+  // ── DetailRow (key:value pairs inside About / Trade Info sections) ──
+  detailRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 8, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  detailLabel: { fontSize: 12, color: C.textTertiary, fontFamily: F.ar, flexShrink: 0 },
+  detailValue: { fontSize: 13, color: C.textPrimary, fontFamily: F.ar, flex: 1, textAlign: 'right' },
+
+  // ── Certifications cards ──
+  certCard: {
+    backgroundColor: C.bgRaised, borderRadius: 12,
+    padding: 14, borderWidth: 1, borderColor: C.borderSubtle,
+  },
+  certCardName: { fontSize: 14, color: C.textPrimary, lineHeight: 20 },
+  certCardMeta: { fontSize: 11, color: C.textSecondary, marginTop: 4 },
+  certTypeBadge: {
+    backgroundColor: 'rgba(80,180,120,0.10)',
+    borderColor: 'rgba(80,180,120,0.22)',
+    borderWidth: 1, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  certTypeBadgeText: { fontSize: 10, color: '#5a9a72', fontFamily: F.numSemi, letterSpacing: 0.3 },
+  certImageWrap: {
+    marginTop: 10, width: '100%', height: 160,
+    borderRadius: 8, overflow: 'hidden',
+    backgroundColor: C.bgBase,
+    borderWidth: 1, borderColor: C.borderSubtle,
+  },
+  certImage: { width: '100%', height: '100%' },
+  certViewBtn: {
+    marginTop: 10, alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, borderWidth: 1, borderColor: C.borderDefault,
+    backgroundColor: C.bgBase,
+  },
+  certViewBtnText: { fontSize: 12, color: C.textPrimary, fontFamily: F.ar },
+
+  // ── Cert viewer modal ──
+  certModalSafe: { flex: 1, backgroundColor: '#000' },
+  certModalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: C.bgRaised,
+    borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
+  },
+  certModalClose: { color: C.textSecondary, fontSize: 14 },
+  certModalTitle: { color: C.textPrimary, fontSize: 14, flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  certModalLoading: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#000',
+  },
+
+  // ── Sticky bottom action bar ──
+  bottomBar: {
+    flexDirection: 'row', gap: 10,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16,
+    backgroundColor: C.bgRaised,
+    borderTopWidth: 1, borderTopColor: C.borderSubtle,
+  },
 });
