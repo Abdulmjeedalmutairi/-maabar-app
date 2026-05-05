@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, Image, Linking,
 } from 'react-native';
+import { Video } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { C } from '../../lib/colors';
@@ -35,16 +36,7 @@ function getSupplierMaabarId(profile = {}) {
   const raw = typeof profile === 'string' ? profile : profile?.maabar_supplier_id;
   return String(raw || '').trim().toUpperCase();
 }
-function buildSupplierTrustSignals(profile = {}) {
-  const signals = [];
-  if (_normalizeStatus(profile?.status) === 'verified') signals.push('maabar_reviewed');
-  const tradeLinks = [profile?.trade_link, ...(Array.isArray(profile?.trade_links) ? profile.trade_links : [])].filter(Boolean);
-  if (tradeLinks.length > 0) signals.push('trade_profile_available');
-  if (profile?.wechat) signals.push('wechat_available');
-  if (profile?.whatsapp) signals.push('whatsapp_available');
-  if (Array.isArray(profile?.factory_images) && profile.factory_images.length > 0) signals.push('factory_media_available');
-  return signals;
-}
+// trust-signal helper removed — section dropped from the profile UI.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const T = {
@@ -62,7 +54,6 @@ const T = {
   maabarReview:   { ar: 'مراجعة مَعبر',                            en: 'Maabar Review',                                       zh: 'Maabar 审核'                   },
   reviewedText:   { ar: 'تمت مراجعة هذا المورد وإتاحته للمشترين على المنصة.', en: 'This supplier has been reviewed by Maabar and is visible to buyers.', zh: '该供应商已通过 Maabar 审核并对买家开放。' },
   pendingText:    { ar: 'الملف ما زال قيد المراجعة.',              en: 'This supplier profile is still under review.',        zh: '该供应商资料仍在审核中。'           },
-  trustSignals:   { ar: 'دلائل الثقة',                              en: 'Trust Signals',                                       zh: '信任信号'                       },
   workingModel:   { ar: 'طريقة العمل',                              en: 'Working Model',                                       zh: '合作方式'                       },
   workingText:    { ar: 'التفاوض والاتفاق يتمان عبر معبر، مع حماية أوضح للدفعات والتوثيق.', en: 'Use Maabar for communication, quoting, and transaction flow to keep payment and records protected.', zh: '建议通过 Maabar 完成沟通、报价与交易，以获得更清晰的付款与记录保障。' },
   visitWebsite:   { ar: 'زيارة موقع الشركة',                       en: 'Visit company website',                               zh: '访问公司官网'                    },
@@ -105,10 +96,6 @@ const T = {
   comm:           { ar: 'التواصل',                                   en: 'Comm',                                                zh: '沟通'                          },
   similarLabel:   { ar: 'موردون مشابهون',                           en: 'Similar Suppliers',                                   zh: '类似供应商'                     },
   maabarIdLabel:  { ar: 'معرّف مورد مَعبر',                        en: 'Maabar Supplier ID',                                  zh: 'Maabar 供应商编号'               },
-  tradeAvail:     { ar: 'رابط الشركة متوفر',                        en: 'trade profile available',                             zh: '已提供店铺/官网链接'              },
-  noTradeAvail:   { ar: 'لا يوجد رابط شركة',                        en: 'no public trade profile',                             zh: '暂未展示店铺链接'                 },
-  wechatAvail:    { ar: 'WeChat متاح',                              en: 'WeChat available',                                    zh: '支持 WeChat 沟通'               },
-  factoryAvail:   { ar: 'صور منشأة متاحة',                         en: 'factory photos available',                            zh: '提供工厂图片'                    },
   qualityCerts:   { ar: 'شهادات الجودة',                            en: 'Quality Certifications',                              zh: '质量认证'                       },
   viewCert:       { ar: 'عرض الشهادة ←',                           en: 'View Certificate →',                                  zh: '查看证书 →'                     },
 };
@@ -430,7 +417,6 @@ export default function SupplierProfileScreen({ route, navigation }) {
   }
 
   // ── Derived values ──
-  const trustSignals  = buildSupplierTrustSignals(supplier);
   const isVerified    = isSupplierPubliclyVisible(supplier.status);
   const maabarId      = getSupplierMaabarId(supplier);
   const samplesCount  = products.filter(p => p.sample_available).length;
@@ -479,12 +465,6 @@ export default function SupplierProfileScreen({ route, navigation }) {
       return null;
     })
     .filter((c) => c && (c.name || c.file_url));
-
-  const trustText = [
-    trustSignals.includes('trade_profile_available') ? t('tradeAvail', lang) : t('noTradeAvail', lang),
-    trustSignals.includes('wechat_available')   ? t('wechatAvail',  lang) : null,
-    trustSignals.includes('factory_media_available') ? t('factoryAvail', lang) : null,
-  ].filter(Boolean).join(' · ');
 
   return (
     <SafeAreaView style={s.safe}>
@@ -572,21 +552,19 @@ export default function SupplierProfileScreen({ route, navigation }) {
         )}
 
         {/* ── COMPANY VIDEO ──
-            Opens the supplier's profile video in the device's default
-            video/browser handler. We don't embed an in-app player to keep
-            this screen lightweight; tapping defers to the OS. */}
+            Inline player via expo-av. useNativeControls renders the
+            platform-native play / pause / scrub bar, so we don't need a
+            custom transport. resizeMode="contain" preserves the source
+            aspect ratio inside our 16:9 container. */}
         {!!supplier.company_video_url && (
           <View style={s.section}>
             <SectionLabel text={t('companyVideo', lang)} isAr={isAr} />
-            <TouchableOpacity
-              style={s.contactBtn}
-              activeOpacity={0.85}
-              onPress={() => Linking.openURL(supplier.company_video_url)}
-            >
-              <Text style={[s.contactBtnText, { fontFamily: isAr ? F.ar : F.en, textAlign }]}>
-                {t('playVideo', lang)}
-              </Text>
-            </TouchableOpacity>
+            <Video
+              style={s.videoPlayer}
+              source={{ uri: supplier.company_video_url }}
+              resizeMode="contain"
+              useNativeControls
+            />
           </View>
         )}
 
@@ -597,14 +575,15 @@ export default function SupplierProfileScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {/* ── TRUST INFO CARDS (3 cards like the web) ── */}
+        {/* ── TRUST INFO CARDS (Maabar review + working model) ──
+            Trust-signals card removed: it duplicated info already visible
+            elsewhere on the profile (factory images, contact links). */}
         <View style={s.section}>
           <InfoCard
             label={t('maabarReview', lang)}
             value={isVerified ? t('reviewedText', lang) : t('pendingText', lang)}
             isAr={isAr}
           />
-          <InfoCard label={t('trustSignals', lang)} value={trustText} isAr={isAr} />
           <InfoCard label={t('workingModel', lang)} value={t('workingText', lang)} isAr={isAr} />
         </View>
 
@@ -931,6 +910,12 @@ const s = StyleSheet.create({
     width: 120, height: 80, borderRadius: 8,
     overflow: 'hidden', borderWidth: 1, borderColor: C.borderSubtle,
     flexShrink: 0,
+  },
+
+  // Inline video player
+  videoPlayer: {
+    width: '100%', aspectRatio: 16 / 9,
+    backgroundColor: '#000', borderRadius: 12,
   },
 
   // Protection banner
