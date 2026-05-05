@@ -148,7 +148,7 @@ function InfoCard({ label, value, isAr, lang, translatable }) {
   );
 }
 
-function ProductRow({ product, lang, navigation, supplierId }) {
+function ProductRow({ product, lang, navigation, supplierId, onChat }) {
   const isAr = lang === 'ar';
   const rowDir = isAr ? 'row-reverse' : 'row';
   const img  = getPrimaryProductImage(product);
@@ -215,10 +215,7 @@ function ProductRow({ product, lang, navigation, supplierId }) {
           <Text style={[s.detailsBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('details', lang)}</Text>
         </TouchableOpacity>
         {product.sample_available && (
-          <TouchableOpacity
-            style={s.detailsBtn}
-            onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
-          >
+          <TouchableOpacity style={s.detailsBtn} onPress={onChat}>
             <Text style={[s.detailsBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('sample', lang)}</Text>
           </TouchableOpacity>
         )}
@@ -386,6 +383,20 @@ export default function SupplierProfileScreen({ route, navigation }) {
       meetsmoq:   qty >= parseFloat(product.moq || 1),
       moq:        product.moq,
     });
+  }
+
+  // Auth-gated chat opener. Guests are bounced to Login (the only route
+  // shared between AuthStack and the buyer tree); authenticated buyers
+  // hit the canonical nested-navigator path. No getParent() — React
+  // Navigation v6 bubbles the unresolved 'Inbox' name to the parent
+  // Tab.Navigator on its own.
+  async function openChat() {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      navigation.navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } });
+    } else {
+      navigation.navigate('Login');
+    }
   }
 
   // ── Loading ──
@@ -702,17 +713,14 @@ export default function SupplierProfileScreen({ route, navigation }) {
           <TouchableOpacity
             style={s.ctaBtn}
             activeOpacity={0.85}
-            onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
+            onPress={openChat}
           >
             <Text style={[s.ctaBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
               {t('directContact', lang)}
             </Text>
           </TouchableOpacity>
           {samplesCount > 0 && (
-            <TouchableOpacity
-              style={s.outlineBtn}
-              onPress={() => (navigation.getParent() || navigation).navigate('Inbox', { screen: 'Chat', params: { partnerId: supplierId } })}
-            >
+            <TouchableOpacity style={s.outlineBtn} onPress={openChat}>
               <Text style={[s.outlineBtnText, { fontFamily: isAr ? F.ar : F.en }]}>{t('requestSample', lang)}</Text>
             </TouchableOpacity>
           )}
@@ -731,7 +739,7 @@ export default function SupplierProfileScreen({ route, navigation }) {
             <Text style={[s.emptyText, { textAlign, fontFamily: isAr ? F.ar : F.en }]}>{t('noProducts', lang)}</Text>
           ) : (
             products.map(p => (
-              <ProductRow key={p.id} product={p} lang={lang} navigation={navigation} supplierId={supplierId} />
+              <ProductRow key={p.id} product={p} lang={lang} navigation={navigation} supplierId={supplierId} onChat={openChat} />
             ))
           )}
         </View>
