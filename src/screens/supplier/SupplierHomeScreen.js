@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Modal,
+  View, Text, ScrollView, TouchableOpacity, Modal, Image,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { getLang } from '../../lib/lang';
 import { C } from '../../lib/colors';
 import { F } from '../../lib/fonts';
+import { getSpecialtyLabel } from '../../lib/specialtyLabel';
 
 function parseDesc(raw, lang) {
   if (!raw) return '';
@@ -40,6 +41,9 @@ const COPY = {
     product: 'المنتج', date: 'التاريخ',
     dismiss: 'إخفاء', confirmDismiss: 'إخفاء هذا العرض المرفوض؟',
     cancelBtn: 'إلغاء', confirm: 'تأكيد',
+    estPrefix: 'تأسست',
+    spProducts: 'المنتجات', spOffers: 'العروض', spRating: 'التقييم',
+    verifiedPill: '✓ مورد موثّق',
   },
   en: {
     welcome: 'Welcome,', desc: 'Manage your offers, products and messages',
@@ -60,6 +64,9 @@ const COPY = {
     product: 'Product', date: 'Date',
     dismiss: 'Dismiss', confirmDismiss: 'Dismiss this rejected offer?',
     cancelBtn: 'Cancel', confirm: 'Confirm',
+    estPrefix: 'Est.',
+    spProducts: 'Products', spOffers: 'Offers', spRating: 'Rating',
+    verifiedPill: '✓ Verified',
   },
   zh: {
     welcome: '欢迎，', desc: '管理您的报价、产品和消息',
@@ -80,6 +87,9 @@ const COPY = {
     product: '产品', date: '日期',
     dismiss: '忽略', confirmDismiss: '忽略此被拒绝的报价？',
     cancelBtn: '取消', confirm: '确认',
+    estPrefix: '成立于',
+    spProducts: '产品', spOffers: '报价', spRating: '评分',
+    verifiedPill: '✓ 认证供应商',
   },
 };
 
@@ -110,7 +120,7 @@ export default function SupplierHomeScreen({ navigation }) {
     // 4 stats — exact web queries
     const [profileRes, productsRes, offersRes, messagesRes, acceptedRes] = await Promise.all([
       supabase.from('profiles')
-        .select('company_name, status, maabar_supplier_id, country, city')
+        .select('company_name, status, maabar_supplier_id, country, city, avatar_url, factory_images, speciality, year_established, rating')
         .eq('id', user.id).single(),
       supabase.from('products')
         .select('id', { count: 'exact', head: true })
@@ -227,17 +237,98 @@ export default function SupplierHomeScreen({ navigation }) {
       >
         <View style={s.content}>
 
-          {/* Welcome banner — neutral dark, no green/purple */}
-          <View style={s.banner}>
-            <Text style={[s.bannerWelcome, isAr && s.rtl]}>{t.welcome}</Text>
-            <Text style={[s.bannerCompany, isAr && s.rtl]} numberOfLines={1}>
-              {profile?.company_name || '—'}
-            </Text>
-            <Text style={[s.bannerDesc, isAr && s.rtl]}>{t.desc}</Text>
-            {profile?.maabar_supplier_id ? (
-              <Text style={s.supplierId}>{profile.maabar_supplier_id}</Text>
-            ) : null}
-          </View>
+          {/* Supplier identity card — cover photo + avatar + identity + 3 stats */}
+          {(() => {
+            const company = (profile?.company_name || '').trim();
+            const initials = company
+              .split(/\s+/)
+              .map((w) => (w[0] || '').toUpperCase())
+              .filter(Boolean)
+              .slice(0, 2)
+              .join('') || '·';
+            const firstLetter = company[0]?.toUpperCase() || '·';
+            const cover = Array.isArray(profile?.factory_images) && profile.factory_images[0]
+              ? profile.factory_images[0]
+              : null;
+            const cityCountry = [profile?.city, profile?.country].filter(Boolean).join(' · ');
+            const specialty = profile?.speciality && profile.speciality !== 'other'
+              ? getSpecialtyLabel(profile.speciality, lang)
+              : '';
+            const sideAlign = isAr ? 'flex-end' : 'flex-start';
+            return (
+              <View style={s.identityCard}>
+                {/* Cover photo */}
+                <View style={s.coverPhoto}>
+                  {cover ? (
+                    <Image source={{ uri: cover }} style={s.coverImage} resizeMode="cover" />
+                  ) : (
+                    <Text style={s.coverInitials}>{initials}</Text>
+                  )}
+                </View>
+
+                {/* Body */}
+                <View style={s.identityBody}>
+                  {/* Avatar — overlaps cover bottom by half its height */}
+                  <View style={[s.avatar, { alignSelf: sideAlign }]}>
+                    {profile?.avatar_url ? (
+                      <Image
+                        source={{ uri: profile.avatar_url }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={s.avatarLetter}>{firstLetter}</Text>
+                    )}
+                  </View>
+
+                  <Text style={[s.identityName, isAr && s.rtl]} numberOfLines={2}>
+                    {company || '—'}
+                  </Text>
+
+                  {isVerified && (
+                    <View style={[s.verifiedPill, { alignSelf: sideAlign }]}>
+                      <Text style={s.verifiedPillText}>{t.verifiedPill}</Text>
+                    </View>
+                  )}
+
+                  {!!specialty && (
+                    <Text style={[s.identityRow, isAr && s.rtl]}>{specialty}</Text>
+                  )}
+                  {!!profile?.year_established && (
+                    <Text style={[s.identityRow, isAr && s.rtl]}>
+                      {t.estPrefix} {profile.year_established}
+                    </Text>
+                  )}
+                  {!!cityCountry && (
+                    <Text style={[s.identityRow, isAr && s.rtl]}>{cityCountry}</Text>
+                  )}
+
+                  {!!profile?.maabar_supplier_id && (
+                    <View style={[s.msIdPill, { alignSelf: sideAlign }]}>
+                      <Text style={s.msIdPillText}>{profile.maabar_supplier_id}</Text>
+                    </View>
+                  )}
+
+                  <View style={[s.identityStats, isAr && s.rowRtl]}>
+                    <View style={s.identityStat}>
+                      <Text style={s.identityStatValue}>{stats.products}</Text>
+                      <Text style={s.identityStatLabel}>{t.spProducts}</Text>
+                    </View>
+                    <View style={s.identityStat}>
+                      <Text style={s.identityStatValue}>{stats.offers}</Text>
+                      <Text style={s.identityStatLabel}>{t.spOffers}</Text>
+                    </View>
+                    <View style={s.identityStat}>
+                      <Text style={s.identityStatValue}>
+                        {profile?.rating ? String(profile.rating) : '—'}
+                      </Text>
+                      <Text style={s.identityStatLabel}>{t.spRating}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })()}
 
           {/* Verification banner */}
           {!isVerified && (
@@ -422,19 +513,74 @@ const s = StyleSheet.create({
   rtl: { textAlign: 'right', writingDirection: 'rtl' },
   rowRtl: { flexDirection: 'row-reverse' },
 
-  // Banner — neutral dark, no green/purple
-  banner: {
-    backgroundColor: C.bgRaised,
+  // Supplier identity card — cream wrapper, flush cover photo, overlapping avatar.
+  identityCard: {
+    backgroundColor: '#FAF5E4',
     borderRadius: 16,
-    padding: 18,
     borderWidth: 1,
-    borderColor: C.borderDefault,
+    borderColor: 'rgba(0,0,0,0.10)',
     marginBottom: 16,
+    overflow: 'hidden',
   },
-  bannerWelcome: { color: C.textSecondary, fontSize: 12, fontFamily: F.ar, marginBottom: 2 },
-  bannerCompany: { color: C.textPrimary, fontSize: 20, fontFamily: F.arSemi, marginBottom: 4 },
-  bannerDesc: { color: C.textTertiary, fontSize: 12, fontFamily: F.ar },
-  supplierId: { color: C.textDisabled, fontSize: 10, fontFamily: F.en, marginTop: 6 },
+  coverPhoto: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#FAF8F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  coverImage: { width: '100%', height: '100%' },
+  coverInitials: {
+    fontSize: 48, color: C.textDisabled,
+    fontFamily: F.enLight, letterSpacing: 4,
+  },
+  identityBody: { paddingHorizontal: 18, paddingBottom: 16 },
+  avatar: {
+    width: 64, height: 64, borderRadius: 32,
+    borderWidth: 3, borderColor: '#FFFFFF',
+    backgroundColor: C.bgRaised,
+    marginTop: -32, marginBottom: 12,
+    overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarLetter: { fontSize: 22, color: C.textPrimary, fontFamily: F.enBold },
+  identityName: {
+    fontSize: 18, fontFamily: F.arSemi, color: C.textPrimary,
+    marginBottom: 8,
+  },
+  verifiedPill: {
+    backgroundColor: 'rgba(80,180,120,0.10)',
+    borderColor: 'rgba(80,180,120,0.22)',
+    borderWidth: 1, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 3,
+    marginBottom: 8,
+  },
+  verifiedPillText: { fontSize: 11, color: '#5a9a72', fontFamily: F.arSemi },
+  identityRow: {
+    fontSize: 12, color: C.textSecondary, fontFamily: F.ar,
+    marginBottom: 4,
+  },
+  msIdPill: {
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 3,
+    marginTop: 4, marginBottom: 12,
+  },
+  msIdPillText: { fontSize: 11, color: C.textSecondary, fontFamily: F.en },
+  identityStats: {
+    flexDirection: 'row',
+    paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  identityStat: { flex: 1, alignItems: 'center' },
+  identityStatValue: {
+    fontSize: 18, fontFamily: F.enBold, color: C.textPrimary, lineHeight: 22,
+  },
+  identityStatLabel: {
+    fontSize: 10, color: C.textDisabled, fontFamily: F.ar, marginTop: 2,
+  },
 
   verifyBanner: {
     flexDirection: 'row', alignItems: 'center',
