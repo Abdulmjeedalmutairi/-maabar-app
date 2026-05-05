@@ -227,7 +227,11 @@ export default function SupplierHomeScreen({ navigation }) {
   const status = profile?.status || 'registered';
   const statusColor = VERIFY_COLOR[status] || C.textDisabled;
   const statusLabel = (t.verifyLabels || {})[status] || status;
-  const isVerified = status === 'verified';
+  // Treat 'active' and 'approved' as verified-equivalent — both normalize
+  // to 'verified' via the SupplierProfileScreen status map. Without this,
+  // status='active' rows fall through to the verify banner and show the
+  // raw enum string ("active") in place of a localized label.
+  const isVerified = ['verified', 'approved', 'active'].includes(status);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -304,9 +308,9 @@ export default function SupplierHomeScreen({ navigation }) {
                   )}
 
                   {!!profile?.maabar_supplier_id && (
-                    <View style={[s.msIdPill, { alignSelf: sideAlign }]}>
-                      <Text style={s.msIdPillText}>{profile.maabar_supplier_id}</Text>
-                    </View>
+                    <Text style={[s.maabarIdText, isAr && s.rtl]}>
+                      Maabar ID · {profile.maabar_supplier_id}
+                    </Text>
                   )}
 
                   <View style={[s.identityStats, isAr && s.rowRtl]}>
@@ -561,14 +565,11 @@ const s = StyleSheet.create({
     fontSize: 12, color: C.textSecondary, fontFamily: F.ar,
     marginBottom: 4,
   },
-  msIdPill: {
-    backgroundColor: 'rgba(0,0,0,0.04)',
-    borderColor: 'rgba(0,0,0,0.08)',
-    borderWidth: 1, borderRadius: 999,
-    paddingHorizontal: 10, paddingVertical: 3,
+  // Maabar ID — clean muted text below city/country, replaces earlier pill.
+  maabarIdText: {
+    fontSize: 12, color: '#6B6459', fontFamily: F.en,
     marginTop: 4, marginBottom: 12,
   },
-  msIdPillText: { fontSize: 11, color: C.textSecondary, fontFamily: F.en },
   identityStats: {
     flexDirection: 'row',
     paddingTop: 12,

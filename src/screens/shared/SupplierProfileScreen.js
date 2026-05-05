@@ -95,7 +95,6 @@ const T = {
   shipping:       { ar: 'الشحن',                                     en: 'Shipping',                                            zh: '物流'                          },
   comm:           { ar: 'التواصل',                                   en: 'Comm',                                                zh: '沟通'                          },
   similarLabel:   { ar: 'موردون مشابهون',                           en: 'Similar Suppliers',                                   zh: '类似供应商'                     },
-  maabarIdLabel:  { ar: 'معرّف مورد مَعبر',                        en: 'Maabar Supplier ID',                                  zh: 'Maabar 供应商编号'               },
   qualityCerts:   { ar: 'شهادات الجودة',                            en: 'Quality Certifications',                              zh: '质量认证'                       },
   viewCert:       { ar: 'عرض الشهادة ←',                           en: 'View Certificate →',                                  zh: '查看证书 →'                     },
 };
@@ -534,12 +533,11 @@ export default function SupplierProfileScreen({ route, navigation }) {
             {supplier.country ? ` · ${supplier.country}` : ''}
           </Text>
 
-          {/* Maabar ID pill */}
+          {/* Maabar ID — clean muted text under city/country (was a pill) */}
           {!!maabarId && isVerified && (
-            <View style={[s.maabarIdPill, { flexDirection: rowDir }]}>
-              <Text style={s.maabarIdLabel}>{t('maabarIdLabel', lang)}</Text>
-              <Text style={s.maabarIdValue}>{maabarId}</Text>
-            </View>
+            <Text style={s.maabarIdText}>
+              Maabar ID · {maabarId}
+            </Text>
           )}
 
           {/* Product count + samples badge + min order */}
@@ -901,14 +899,8 @@ const s = StyleSheet.create({
   heroMeta:  { fontSize: 14, color: C.textSecondary, marginTop: 4 },
   stars:     { color: '#e8a020' },
 
-  maabarIdPill: {
-    alignItems: 'center', gap: 8, marginTop: 10,
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 99, borderWidth: 1, borderColor: C.borderSubtle,
-    backgroundColor: C.bgSubtle,
-  },
-  maabarIdLabel: { fontSize: 11, color: C.textDisabled },
-  maabarIdValue: { fontSize: 11, fontWeight: '600', color: C.textPrimary },
+  // Maabar ID — clean muted text below city/country, replaces earlier pill.
+  maabarIdText: { fontSize: 12, color: '#6B6459', fontFamily: F.en, marginTop: 6 },
 
   heroStat:      { fontSize: 12, color: C.textSecondary },
   grayBadge:     { backgroundColor: C.bgHover, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
