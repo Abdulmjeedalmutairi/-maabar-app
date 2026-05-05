@@ -43,6 +43,7 @@ const COPY = {
     cancelBtn: 'إلغاء', confirm: 'تأكيد',
     estPrefix: 'تأسست',
     spProducts: 'المنتجات', spOffers: 'العروض', spRating: 'التقييم',
+    yrsSuffix: 'سنة', yrsLabel: 'الخبرة', responsiveLbl: 'متجاوب',
     verifiedPill: '✓ مورد موثّق',
   },
   en: {
@@ -66,6 +67,7 @@ const COPY = {
     cancelBtn: 'Cancel', confirm: 'Confirm',
     estPrefix: 'Est.',
     spProducts: 'Products', spOffers: 'Offers', spRating: 'Rating',
+    yrsSuffix: 'yrs', yrsLabel: 'Experience', responsiveLbl: 'Responsive',
     verifiedPill: '✓ Verified',
   },
   zh: {
@@ -89,6 +91,7 @@ const COPY = {
     cancelBtn: '取消', confirm: '确认',
     estPrefix: '成立于',
     spProducts: '产品', spOffers: '报价', spRating: '评分',
+    yrsSuffix: '年', yrsLabel: '经验', responsiveLbl: '响应及时',
     verifiedPill: '✓ 认证供应商',
   },
 };
@@ -120,7 +123,7 @@ export default function SupplierHomeScreen({ navigation }) {
     // 4 stats — exact web queries
     const [profileRes, productsRes, offersRes, messagesRes, acceptedRes] = await Promise.all([
       supabase.from('profiles')
-        .select('company_name, status, maabar_supplier_id, country, city, avatar_url, cover_photo_url, factory_images, speciality, year_established, rating')
+        .select('company_name, status, maabar_supplier_id, country, city, avatar_url, cover_photo_url, factory_images, speciality, year_established, rating, years_experience')
         .eq('id', user.id).single(),
       supabase.from('products')
         .select('id', { count: 'exact', head: true })
@@ -309,22 +312,42 @@ export default function SupplierHomeScreen({ navigation }) {
                     </View>
                   )}
 
-                  <View style={[s.identityStats, isAr && s.rowRtl]}>
-                    <View style={s.identityStat}>
-                      <Text style={s.identityStatValue}>{stats.products}</Text>
-                      <Text style={s.identityStatLabel}>{t.spProducts}</Text>
-                    </View>
-                    <View style={s.identityStat}>
-                      <Text style={s.identityStatValue}>{stats.offers}</Text>
-                      <Text style={s.identityStatLabel}>{t.spOffers}</Text>
-                    </View>
-                    <View style={s.identityStat}>
-                      <Text style={s.identityStatValue}>
-                        {profile?.rating ? String(profile.rating) : '—'}
-                      </Text>
-                      <Text style={s.identityStatLabel}>{t.spRating}</Text>
-                    </View>
-                  </View>
+                  {/* Stats — Products + Years (if set) + Responsive (verified).
+                      Offers tile dropped: zero counts on a fresh dashboard
+                      look like negative signal in the same card buyers see.
+                      Rating tile only renders when > 0. */}
+                  {(() => {
+                    const yrs = Number(profile?.years_experience);
+                    const yrsText = Number.isFinite(yrs) && yrs > 0
+                      ? `${yrs} ${t.yrsSuffix}`
+                      : '';
+                    return (
+                      <View style={[s.identityStats, isAr && s.rowRtl]}>
+                        <View style={s.identityStat}>
+                          <Text style={s.identityStatValue}>{stats.products}</Text>
+                          <Text style={s.identityStatLabel}>{t.spProducts}</Text>
+                        </View>
+                        {!!yrsText && (
+                          <View style={s.identityStat}>
+                            <Text style={s.identityStatValue}>{yrsText}</Text>
+                            <Text style={s.identityStatLabel}>{t.yrsLabel}</Text>
+                          </View>
+                        )}
+                        {profile?.rating > 0 && (
+                          <View style={s.identityStat}>
+                            <Text style={s.identityStatValue}>{String(profile.rating)}</Text>
+                            <Text style={s.identityStatLabel}>{t.spRating}</Text>
+                          </View>
+                        )}
+                        {isVerified && (
+                          <View style={s.identityStat}>
+                            <Text style={s.identityStatValue}>✓</Text>
+                            <Text style={s.identityStatLabel}>{t.responsiveLbl}</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })()}
                 </View>
               </View>
             );

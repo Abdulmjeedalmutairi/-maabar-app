@@ -103,6 +103,11 @@ const T = {
   spProducts:     { ar: 'المنتجات',                                  en: 'Products',                                            zh: '产品'                           },
   spOffers:       { ar: 'العروض',                                    en: 'Offers',                                              zh: '报价'                           },
   spRating:       { ar: 'التقييم',                                   en: 'Rating',                                              zh: '评分'                           },
+  yrsSuffix:      { ar: 'سنة',                                        en: 'yrs',                                                 zh: '年'                             },
+  yrsLabel:       { ar: 'الخبرة',                                     en: 'Experience',                                          zh: '经验'                           },
+  responsiveLbl:  { ar: 'متجاوب',                                     en: 'Responsive',                                          zh: '响应及时'                        },
+  samplesLabel:   { ar: 'العينات',                                    en: 'Samples',                                             zh: '样品'                           },
+  sampleYes:      { ar: 'متاح ✓',                                     en: 'Available ✓',                                         zh: '可提供 ✓'                       },
   // About / Trade Info
   aboutLabel:     { ar: 'نبذة',                                      en: 'About',                                               zh: '公司介绍'                        },
   tradeInfo:      { ar: 'معلومات تجارية',                            en: 'Trade Info',                                          zh: '贸易信息'                        },
@@ -166,6 +171,23 @@ function detectCertType(name) {
 // <Image>. PDFs and unknown types route through the WebView modal instead.
 function isImageUrl(url) {
   return /\.(jpg|jpeg|png|gif|webp)(\?|$|#)/i.test(String(url || ''));
+}
+
+// Some legacy supplier rows have profiles.certifications stored as a JSON
+// string instead of a jsonb array (double-encoded by an earlier upload
+// path). Normalize both shapes so the buyer-facing card never sees a raw
+// string. Returns [] for anything we can't make sense of.
+function parseCerts(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -349,7 +371,6 @@ export default function SupplierProfileScreen({ route, navigation }) {
   const [products,         setProducts]         = useState([]);
   const [reviews,          setReviews]          = useState([]);
   const [similarSuppliers, setSimilarSuppliers] = useState([]);
-  const [offersCount,      setOffersCount]      = useState(0);
   const [loading,          setLoading]          = useState(true);
 
   // Cert viewer modal — holds the cert object currently being viewed
@@ -370,7 +391,7 @@ export default function SupplierProfileScreen({ route, navigation }) {
       // of the SELECT RLS policy added in 20260501000001 permits this
       // for any authenticated user. Errors are swallowed so missing
       // columns (un-applied migrations) don't break profile loading.
-      const [supRes, extraRes, offersRes] = await Promise.all([
+      const [supRes, extraRes] = await Promise.all([
         supabase
           .from('supplier_public_profiles')
           .select('*')
@@ -378,27 +399,25 @@ export default function SupplierProfileScreen({ route, navigation }) {
           .single(),
         supabase
           .from('profiles')
-          .select('company_video_url, cover_photo_url, certifications, num_employees')
+          .select('company_video_url, cover_photo_url, certifications, num_employees, port_of_loading, lead_time_min_days, lead_time_max_days, sample_available')
           .eq('id', supplierId)
           .maybeSingle(),
-        supabase
-          .from('offers')
-          .select('id', { count: 'exact', head: true })
-          .eq('supplier_id', supplierId),
       ]);
       const sup    = supRes.data;
       const supErr = supRes.error;
       console.log('[SupplierProfile] supplier_public_profiles →', sup?.company_name ?? null, '| error:', supErr?.message ?? null);
       if (sup && extraRes && !extraRes.error && extraRes.data) {
-        sup.company_video_url = extraRes.data.company_video_url || null;
-        sup.cover_photo_url   = extraRes.data.cover_photo_url   || null;
-        sup.certifications    = extraRes.data.certifications    || sup.certifications || null;
-        sup.num_employees     = extraRes.data.num_employees     ?? null;
+        const ex = extraRes.data;
+        sup.company_video_url    = ex.company_video_url    || null;
+        sup.cover_photo_url      = ex.cover_photo_url      || null;
+        sup.certifications       = ex.certifications       || sup.certifications || null;
+        sup.num_employees        = ex.num_employees        ?? null;
+        sup.port_of_loading      = ex.port_of_loading      || null;
+        sup.lead_time_min_days   = ex.lead_time_min_days   ?? null;
+        sup.lead_time_max_days   = ex.lead_time_max_days   ?? null;
+        sup.sample_available     = ex.sample_available     ?? null;
       } else if (extraRes?.error) {
         console.log('[SupplierProfile] supplemental fetch error (non-fatal):', extraRes.error.message);
-      }
-      if (!offersRes.error && !cancelled) {
-        setOffersCount(offersRes.count || 0);
       }
 
       if (!sup || cancelled) {
@@ -519,20 +538,31 @@ export default function SupplierProfileScreen({ route, navigation }) {
   const cityCountry = [supplier.city, supplier.country].filter(Boolean).join(' · ');
   const sideAlign = isAr ? 'flex-end' : 'flex-start';
 
-  // Lead-time as a single human string when both bounds are present on the
-  // supplier row. (Currently these fields live at the product level; the
-  // guards below mean nothing renders if the supplier doesn't have them.)
+  // Lead-time as a single human string. Format per spec: "X-Y days" when
+  // both bounds present, otherwise the single bound. Falls through to ''
+  // when neither is set so the row doesn't render.
   let leadTimeText = '';
   const lmin = supplier.lead_time_min_days;
   const lmax = supplier.lead_time_max_days;
-  if (Number.isFinite(lmin) && Number.isFinite(lmax)) leadTimeText = `${lmin}–${lmax}`;
+  const yrSuffix = ` ${t('yrsSuffix', lang)}`; // "X yrs" / "X سنة" / "X 年"
+  if (Number.isFinite(lmin) && Number.isFinite(lmax)) leadTimeText = `${lmin}-${lmax}`;
   else if (Number.isFinite(lmin)) leadTimeText = String(lmin);
   else if (Number.isFinite(lmax)) leadTimeText = String(lmax);
+  if (leadTimeText) {
+    // Append day suffix in the active language.
+    const dayLabel = lang === 'ar' ? 'يوم' : lang === 'zh' ? '天' : 'days';
+    leadTimeText = `${leadTimeText} ${dayLabel}`;
+  }
+  // Years experience for the hero stats tile.
+  const yearsExp = Number(supplier.years_experience);
+  const yearsExpText = Number.isFinite(yearsExp) && yearsExp > 0 ? `${yearsExp}${yrSuffix}` : '';
 
   // Normalize certifications for the buyer-facing cards. Tolerates legacy
-  // shapes: ["ISO 9001"] (bare string), { name } (no file_url), and the
-  // current shape { name, issuer, valid_until, file_url }.
-  const certifications = (Array.isArray(supplier.certifications) ? supplier.certifications : [])
+  // shapes: ["ISO 9001"] (bare string), { name } (no file_url), the
+  // current shape { name, issuer, valid_until, file_url }, AND the
+  // double-encoded JSON-string shape some older rows carry (handled by
+  // parseCerts before we map).
+  const certifications = parseCerts(supplier.certifications)
     .map((c) => {
       if (typeof c === 'string') return { name: c, issuer: '', valid_until: '', file_url: null };
       if (c && typeof c === 'object') return {
@@ -550,7 +580,8 @@ export default function SupplierProfileScreen({ route, navigation }) {
     || supplier.num_employees != null || supplierLanguages.length > 0;
   const hasTradeInfo = !!supplier.min_order_value || !!customizationLabel
     || exportMarkets.length > 0 || supplierIncoterms.length > 0
-    || !!leadTimeText || !!supplier.port_of_loading;
+    || !!leadTimeText || !!supplier.port_of_loading
+    || supplier.sample_available === true;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -629,22 +660,33 @@ export default function SupplierProfileScreen({ route, navigation }) {
               </View>
             )}
 
-            {/* Stats row — Products / Offers / Rating */}
+            {/* Stats row — Products + Years (if set) + Responsive (verified)
+                Offers tile removed: zero counts on a fresh profile read as
+                negative signal. Rating tile removed when 0/null (it's
+                redundant with the verified pill above for new suppliers). */}
             <View style={[s.identityStats, isAr && { flexDirection: 'row-reverse' }]}>
               <View style={s.identityStat}>
                 <Text style={s.identityStatValue}>{products.length}</Text>
                 <Text style={s.identityStatLabel}>{t('spProducts', lang)}</Text>
               </View>
-              <View style={s.identityStat}>
-                <Text style={s.identityStatValue}>{offersCount}</Text>
-                <Text style={s.identityStatLabel}>{t('spOffers', lang)}</Text>
-              </View>
-              <View style={s.identityStat}>
-                <Text style={s.identityStatValue}>
-                  {supplier.rating ? String(supplier.rating) : '—'}
-                </Text>
-                <Text style={s.identityStatLabel}>{t('spRating', lang)}</Text>
-              </View>
+              {!!yearsExpText && (
+                <View style={s.identityStat}>
+                  <Text style={s.identityStatValue}>{yearsExpText}</Text>
+                  <Text style={s.identityStatLabel}>{t('yrsLabel', lang)}</Text>
+                </View>
+              )}
+              {supplier.rating > 0 && (
+                <View style={s.identityStat}>
+                  <Text style={s.identityStatValue}>{String(supplier.rating)}</Text>
+                  <Text style={s.identityStatLabel}>{t('spRating', lang)}</Text>
+                </View>
+              )}
+              {isVerified && (
+                <View style={s.identityStat}>
+                  <Text style={s.identityStatValue}>✓</Text>
+                  <Text style={s.identityStatLabel}>{t('responsiveLbl', lang)}</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -741,6 +783,9 @@ export default function SupplierProfileScreen({ route, navigation }) {
             )}
             {!!supplier.port_of_loading && (
               <DetailRow label={t('portOfLoading', lang)} value={supplier.port_of_loading} isAr={isAr} />
+            )}
+            {supplier.sample_available === true && (
+              <DetailRow label={t('samplesLabel', lang)} value={t('sampleYes', lang)} isAr={isAr} />
             )}
           </View>
         )}
