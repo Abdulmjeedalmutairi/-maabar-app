@@ -104,6 +104,25 @@ function t(key, lang) {
   return T[key]?.[lang] ?? T[key]?.en ?? key;
 }
 
+// Static enum-label tables for the two profile fields whose DB values are
+// machine codes ('manufacturer', 'oem', …) rather than free text. The
+// businessCards renderer below maps via these so buyers see localized
+// labels instead of raw enum keys. Falls back to the raw value when an
+// unknown key sneaks in (e.g. legacy rows after a vocabulary change).
+const BIZ_TYPE_LABELS = {
+  manufacturer:    { ar: 'مصنّع',         en: 'Manufacturer',     zh: '制造商' },
+  trading_company: { ar: 'شركة تجارية',  en: 'Trading Company',  zh: '贸易公司' },
+  agent:           { ar: 'وكيل',          en: 'Agent',            zh: '代理商' },
+  distributor:     { ar: 'موزع',          en: 'Distributor',      zh: '经销商' },
+};
+
+const CUSTOM_LABELS = {
+  yes: { ar: 'نعم',       en: 'Yes',             zh: '是'         },
+  oem: { ar: 'OEM متاح',  en: 'OEM Available',   zh: 'OEM可提供'  },
+  odm: { ar: 'ODM متاح',  en: 'ODM Available',   zh: 'ODM可提供'  },
+  no:  { ar: 'لا',        en: 'No',              zh: '否'         },
+};
+
 function renderStars(rating) {
   let out = '';
   for (let i = 1; i <= 5; i++) out += i <= Math.round(rating || 0) ? '★' : '☆';
@@ -433,9 +452,9 @@ export default function SupplierProfileScreen({ route, navigation }) {
   const exportMarkets     = Array.isArray(supplier.export_markets) ? supplier.export_markets : [];
 
   const businessCards = [
-    supplier.business_type          && { label: t('businessType',  lang), value: supplier.business_type },
+    supplier.business_type          && { label: t('businessType',  lang), value: BIZ_TYPE_LABELS[supplier.business_type]?.[lang] || supplier.business_type },
     supplier.year_established       && { label: t('yearEst',       lang), value: supplier.year_established },
-    supplier.customization_support  && { label: t('customization', lang), value: supplier.customization_support, translatable: true },
+    supplier.customization_support  && { label: t('customization', lang), value: CUSTOM_LABELS[supplier.customization_support]?.[lang] || supplier.customization_support },
     supplier.company_address        && { label: t('address',       lang), value: supplier.company_address, translatable: true },
     supplierLanguages.length > 0    && { label: t('languages',     lang), value: supplierLanguages.join(' · ') },
     exportMarkets.length > 0        && { label: t('exportMarkets', lang), value: exportMarkets.join(' · ') },
