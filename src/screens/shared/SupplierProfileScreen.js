@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Image, Modal,
+  View, Text, ScrollView, TouchableOpacity, Pressable,
+  StyleSheet, ActivityIndicator, Image, Modal, Dimensions,
 } from 'react-native';
 import { Video } from 'expo-av';
 import { WebView } from 'react-native-webview';
@@ -153,6 +153,13 @@ function renderStars(rating) {
 // Substring-match the cert name against the known type vocabulary so we can
 // render a small type chip alongside the name. Falls back to `null` when no
 // known type appears in the name (form just shows the bare cert name).
+// Bottom-sheet modal sizing — capped fractions of the device's window
+// height so the sheet never covers the whole screen and the backdrop
+// stays tappable for dismissal.
+const SCREEN_H = Dimensions.get('window').height;
+const PDF_MAX_HEIGHT   = Math.round(SCREEN_H * 0.70);
+const IMAGE_MAX_HEIGHT = Math.round(SCREEN_H * 0.80);
+
 const KNOWN_CERT_TYPES = ['SASO', 'ROHS', 'HALAL', 'FCC', 'FDA', 'ISO', 'CE'];
 function detectCertType(name) {
   const upper = String(name || '').toUpperCase();
@@ -927,57 +934,79 @@ export default function SupplierProfileScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* ── CERT VIEWER MODAL ──
-          Image certs render directly with <Image>; everything else (PDF +
-          unknown) goes through Google Docs Viewer in a WebView so the file
-          renders inside the app — no external browser. */}
+      {/* ── CERT VIEWER MODAL — bottom sheet ──
+          transparent + slide gives a sheet that rises from the bottom
+          over a dim backdrop. Tapping the backdrop closes; the inner
+          sheet Pressable swallows touches so taps within don't bubble.
+          Image renders directly; PDF/unknown routes through Google Docs
+          Viewer in a WebView so it renders inside the app — no external
+          browser. Heights are capped (70% / 80% of screen) so part of
+          the backdrop is always visible for dismissal. */}
       <Modal
         visible={!!viewingCert}
         animationType="slide"
+        transparent
         onRequestClose={() => setViewingCert(null)}
       >
-        <SafeAreaView style={s.certModalSafe}>
-          <View style={s.certModalHeader}>
+        <Pressable style={s.certModalBackdrop} onPress={() => setViewingCert(null)}>
+          <Pressable style={s.certModalSheet} onPress={() => { /* swallow */ }}>
+            {/* Header — title (left) + visible × close (right), flips for RTL */}
+            <View style={[s.certModalHeader, isAr && { flexDirection: 'row-reverse' }]}>
+              <Text
+                style={[s.certModalTitle, { fontFamily: isAr ? F.arSemi : F.enSemi, textAlign: isAr ? 'right' : 'left' }]}
+                numberOfLines={1}
+              >
+                {viewingCert?.name || ''}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setViewingCert(null)}
+                style={s.certModalCloseBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel={t('closeBtn', lang)}
+              >
+                <Text style={s.certModalCloseBtnText}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Body — bounded image or WebView */}
+            {viewingCert && (
+              isImageUrl(viewingCert.file_url) ? (
+                <Image
+                  source={{ uri: viewingCert.file_url }}
+                  style={[s.certModalImage, { height: IMAGE_MAX_HEIGHT }]}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={[s.certModalWebWrap, { height: PDF_MAX_HEIGHT }]}>
+                  <WebView
+                    source={{
+                      uri: 'https://docs.google.com/gview?embedded=true&url=' +
+                           encodeURIComponent(viewingCert.file_url || ''),
+                    }}
+                    style={{ flex: 1, backgroundColor: '#FAF8F5' }}
+                    startInLoadingState
+                    renderLoading={() => (
+                      <View style={s.certModalLoading}>
+                        <ActivityIndicator color={C.textSecondary} size="large" />
+                      </View>
+                    )}
+                  />
+                </View>
+              )
+            )}
+
+            {/* Footer — full-width Close button for easy dismissal */}
             <TouchableOpacity
+              style={s.certModalFooterBtn}
               onPress={() => setViewingCert(null)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.85}
             >
-              <Text style={[s.certModalClose, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
+              <Text style={[s.certModalFooterBtnText, { fontFamily: isAr ? F.arSemi : F.enSemi }]}>
                 {t('closeBtn', lang)}
               </Text>
             </TouchableOpacity>
-            <Text
-              style={[s.certModalTitle, { fontFamily: isAr ? F.arSemi : F.enSemi }]}
-              numberOfLines={1}
-            >
-              {viewingCert?.name || ''}
-            </Text>
-            <View style={{ width: 50 }} />
-          </View>
-          {viewingCert && (
-            isImageUrl(viewingCert.file_url) ? (
-              <Image
-                source={{ uri: viewingCert.file_url }}
-                style={{ flex: 1, width: '100%', backgroundColor: '#000' }}
-                resizeMode="contain"
-              />
-            ) : (
-              <WebView
-                source={{
-                  uri: 'https://docs.google.com/gview?embedded=true&url=' +
-                       encodeURIComponent(viewingCert.file_url || ''),
-                }}
-                style={{ flex: 1 }}
-                startInLoadingState
-                renderLoading={() => (
-                  <View style={s.certModalLoading}>
-                    <ActivityIndicator color={C.textSecondary} size="large" />
-                  </View>
-                )}
-              />
-            )
-          )}
-        </SafeAreaView>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -1323,20 +1352,60 @@ const s = StyleSheet.create({
   },
   certViewBtnText: { fontSize: 12, color: C.textPrimary, fontFamily: F.ar },
 
-  // ── Cert viewer modal ──
-  certModalSafe: { flex: 1, backgroundColor: '#000' },
+  // ── Cert viewer modal — bottom sheet ──
+  // Backdrop fills the screen, dimmed; sheet sits at the bottom with
+  // rounded top corners and a cream surface so it reads as part of the
+  // app rather than a system viewer.
+  certModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  certModalSheet: {
+    backgroundColor: '#FAF8F5',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+    paddingBottom: 12,
+  },
   certModalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: C.bgRaised,
     borderBottomWidth: 1, borderBottomColor: C.borderSubtle,
   },
-  certModalClose: { color: C.textSecondary, fontSize: 14 },
-  certModalTitle: { color: C.textPrimary, fontSize: 14, flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  certModalTitle: {
+    flex: 1, color: C.textPrimary, fontSize: 14, lineHeight: 20,
+  },
+  certModalCloseBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: C.bgHover,
+    borderWidth: 1, borderColor: C.borderDefault,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  certModalCloseBtnText: {
+    fontSize: 20, lineHeight: 22, color: C.textPrimary,
+    fontFamily: F.enBold,
+  },
+  certModalImage: {
+    width: '100%', backgroundColor: '#000',
+  },
+  certModalWebWrap: {
+    width: '100%', backgroundColor: '#FAF8F5',
+  },
   certModalLoading: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#000',
+    backgroundColor: '#FAF8F5',
+  },
+  certModalFooterBtn: {
+    margin: 16, marginBottom: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: C.btnPrimary,
+    alignItems: 'center',
+  },
+  certModalFooterBtnText: {
+    color: C.btnPrimaryText, fontSize: 14, letterSpacing: 0.2,
   },
 
   // ── Sticky bottom action bar ──
